@@ -6,39 +6,39 @@
 
 @theme {
   /* Background surfaces */
-  --color-surface: #0d0e16;
-  --color-elevated: #13141f;
-  --color-field: #1a1c2a;
-  --color-hover: #232538;
+  --color-surface: #f8f9fb;
+  --color-elevated: #ffffff;
+  --color-field: #f1f5f9;
+  --color-hover: #e2e8f0;
 
   /* Border colors */
-  --color-subtle: rgb(255 255 255 / 0.07);
-  --color-medium: rgb(255 255 255 / 0.13);
-  --color-strong: rgb(255 255 255 / 0.22);
+  --color-subtle: rgb(0 0 0 / 0.07);
+  --color-medium: rgb(0 0 0 / 0.13);
+  --color-strong: rgb(0 0 0 / 0.22);
 
   /* Text colors */
-  --color-primary: #e4e6f2;
-  --color-secondary: #8288a6;
-  --color-tertiary: #4d5270;
+  --color-primary: #1a1a2e;
+  --color-secondary: #64748b;
+  --color-tertiary: #94a3b8;
 
   /* Accent colors */
-  --color-green: #5ce0a0;
-  --color-blue: #6db3f2;
-  --color-amber: #f0a050;
-  --color-red: #f06070;
-  --color-purple: #a78bfa;
+  --color-green: #059669;
+  --color-blue: #2563eb;
+  --color-amber: #d97706;
+  --color-red: #dc2626;
+  --color-purple: #7c3aed;
   --color-gold: #c9a84c;
-  --color-pink: #e879f9;
+  --color-pink: #db2777;
 
   /* Currency colors */
-  --color-chase-ur: #6fcf97;
-  --color-amex-mr: #a78bfa;
+  --color-chase-ur: #059669;
+  --color-amex-mr: #7c3aed;
   --color-cap1: #c9a84c;
-  --color-citi-typ: #6db3f2;
-  --color-bilt: #e879f9;
-  --color-cash: #94a3b8;
-  --color-discover: #f0a050;
-  --color-wf: #f06070;
+  --color-citi-typ: #2563eb;
+  --color-bilt: #db2777;
+  --color-cash: #64748b;
+  --color-discover: #d97706;
+  --color-wf: #dc2626;
 }
 
 
