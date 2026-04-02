@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import type { HouseholdMember, WalletCard, CardConfig } from "@/types";
+import type { Card, HouseholdMember, WalletCard, CardConfig } from "@/types";
 import type { ValuationTier } from "./engine";
 import { CARDS } from "./cards";
 import { CATEGORIES } from "./categories";
@@ -48,6 +48,9 @@ export interface AppState {
   // We keep a separate map so configs survive card removal/re-add.
   cardConfigs: Record<string, CardConfig>; // walletCard.id → CardConfig
 
+  // User-created custom cards (local + synced to custom_cards table)
+  customCards: Card[];
+
   // Supabase IDs needed for upsert operations
   syncMeta: SyncMeta;
 
@@ -66,6 +69,8 @@ export interface AppActions {
 
   // Cards
   toggleCard: (cardId: string) => void;
+  addCustomCard: (card: Omit<Card, "id" | "status">) => void;
+  removeCustomCard: (cardId: string) => void;
 
   // Spend
   setSpend: (categoryId: string, amount: number) => void;
@@ -114,6 +119,7 @@ const initialState: AppState = {
   overrides: {},
   subEarned: [],
   cardConfigs: {},
+  customCards: [],
   syncMeta: { householdId: null, spendProfileId: null },
   viewQuarter: 1,
   valuationTier: "composite",
@@ -165,7 +171,10 @@ export const useStore = create<Store>()(
       // ── Cards ────────────────────────────────────────────────────────────────
 
       toggleCard(cardId) {
-        const card = CARDS.find((c) => c.id === cardId);
+        const s0 = get();
+        const card =
+          CARDS.find((c) => c.id === cardId) ??
+          s0.customCards.find((c) => c.id === cardId);
         if (!card) return;
 
         set((s) => {
@@ -198,6 +207,23 @@ export const useStore = create<Store>()(
             cardConfigs: updatedConfigs,
           };
         });
+      },
+
+      addCustomCard(partial) {
+        const id = uuid();
+        const card: Card = { ...partial, id, status: "active" };
+        set((s) => ({ customCards: [...s.customCards, card] }));
+      },
+
+      removeCustomCard(cardId) {
+        set((s) => ({
+          customCards: s.customCards.filter((c) => c.id !== cardId),
+          // Also remove from any wallet
+          people: s.people.map((p) => ({
+            ...p,
+            cards: p.cards.filter((wc) => wc.card.id !== cardId),
+          })),
+        }));
       },
 
       // ── Spend ────────────────────────────────────────────────────────────────
@@ -331,6 +357,7 @@ export const useStore = create<Store>()(
         overrides: s.overrides,
         subEarned: s.subEarned,
         cardConfigs: s.cardConfigs,
+        customCards: s.customCards,
         syncMeta: s.syncMeta,
         viewQuarter: s.viewQuarter,
         valuationTier: s.valuationTier,
