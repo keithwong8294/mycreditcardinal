@@ -1,5 +1,4 @@
-import PersonChipBar from "@/components/PersonChipBar";
-import TabBar from "@/components/TabBar";
+import Sidebar from "@/components/Sidebar";
 
 export default function MainLayout({
   children,
@@ -7,18 +6,12 @@ export default function MainLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col min-h-screen">
-      <header className="border-b border-subtle px-4 py-3 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <span className="text-[20px] font-semibold text-white">
-            My<span>Credit</span>
-            <span className="text-green">Cardinal</span>
-          </span>
-          <PersonChipBar />
-        </div>
-      </header>
-      <TabBar />
-      <main className="flex-1">{children}</main>
+    <div className="min-h-screen">
+      <Sidebar />
+      {/* Offset for fixed sidebar on desktop, fixed mobile header */}
+      <main className="md:ml-[220px] min-h-screen bg-surface pt-14 md:pt-0">
+        {children}
+      </main>
     </div>
   );
 }

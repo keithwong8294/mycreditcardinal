@@ -2,7 +2,7 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center">
       <div className="bg-surface border border-subtle rounded-lg p-8 w-full max-w-sm">
-        <h1 className="text-[20px] font-semibold text-white mb-1">
+        <h1 className="text-[20px] font-semibold text-primary mb-1">
           My<span>Credit</span>
           <span className="text-green">Cardinal</span>
         </h1>
