@@ -3,6 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuth } from "./AuthProvider";
+import { signOut } from "@/lib/supabase/actions";
+import { useStore } from "@/lib/store";
 
 const SIDEBAR_BG = "#0f1219";
 
@@ -16,22 +19,27 @@ const navItems = [
 export default function Sidebar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [people, setPeople] = useState(["You"]);
-  const [activePerson, setActivePerson] = useState("You");
+  const { user } = useAuth();
+
+  const people = useStore((s) => s.people);
+  const activePersonId = useStore((s) => s.activePersonId);
+  const setActivePerson = useStore((s) => s.setActivePerson);
+  const addPerson = useStore((s) => s.addPerson);
 
   function handleAddPerson() {
     const name = prompt("Enter a name:");
     if (!name?.trim()) return;
-    const trimmed = name.trim();
-    setPeople((prev) => [...prev, trimmed]);
-    setActivePerson(trimmed);
+    addPerson(name.trim());
   }
 
+  const displayName =
+    user?.user_metadata?.full_name ??
+    user?.user_metadata?.name ??
+    user?.email?.split("@")[0] ??
+    "Account";
+
   const sidebarContent = (
-    <div
-      className="flex flex-col h-full"
-      style={{ background: SIDEBAR_BG }}
-    >
+    <div className="flex flex-col h-full" style={{ background: SIDEBAR_BG }}>
       {/* Logo */}
       <div className="px-4 py-5 border-b border-white/5">
         <div className="text-white font-semibold text-[17px] leading-tight">
@@ -64,7 +72,7 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Person section */}
+      {/* People section */}
       <div className="px-3 py-4 border-t border-white/5">
         <div className="text-white/30 text-[10px] uppercase tracking-wider mb-2 px-1">
           People
@@ -72,15 +80,15 @@ export default function Sidebar() {
         <div className="space-y-0.5">
           {people.map((person) => (
             <button
-              key={person}
-              onClick={() => setActivePerson(person)}
+              key={person.id}
+              onClick={() => setActivePerson(person.id)}
               className={`w-full text-left px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors duration-150 ${
-                activePerson === person
+                activePersonId === person.id
                   ? "bg-[#059669]/15 text-[#34d399]"
                   : "text-white/45 hover:text-white hover:bg-white/5"
               }`}
             >
-              {person}
+              {person.name}
             </button>
           ))}
           <button
@@ -91,6 +99,23 @@ export default function Sidebar() {
           </button>
         </div>
       </div>
+
+      {/* User / sign out */}
+      {user && (
+        <div className="px-3 py-3 border-t border-white/5">
+          <div className="px-3 py-1.5 text-[12px] text-white/40 truncate mb-1">
+            {displayName}
+          </div>
+          <form action={signOut}>
+            <button
+              type="submit"
+              className="w-full text-left px-3 py-1.5 rounded-lg text-[12px] text-white/30 hover:text-white/60 transition-colors duration-150"
+            >
+              Sign out
+            </button>
+          </form>
+        </div>
+      )}
     </div>
   );
 

@@ -34,7 +34,8 @@ export async function proxy(request: NextRequest) {
   // Redirect unauthenticated users to /login (except the login page itself
   // and static/api routes).
   const { pathname } = request.nextUrl;
-  const isAuthRoute = pathname.startsWith("/login");
+  const isAuthRoute =
+    pathname.startsWith("/login") || pathname.startsWith("/auth");
   const isStatic =
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api") ||
