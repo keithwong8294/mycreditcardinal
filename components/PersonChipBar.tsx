@@ -22,7 +22,7 @@ export default function PersonChipBar() {
           onClick={() => setActive(person)}
           className={`rounded-full px-3 py-1 text-[12px] border transition-colors duration-150 ${
             active === person
-              ? "bg-input text-primary border-green"
+              ? "bg-field text-primary border-green"
               : "text-secondary border-medium hover:text-primary"
           }`}
         >
