@@ -8,7 +8,7 @@
   /* Background surfaces */
   --color-surface: #0d0e16;
   --color-elevated: #13141f;
-  --color-input: #1a1c2a;
+  --color-field: #1a1c2a;
   --color-hover: #232538;
 
   /* Border colors */
@@ -41,10 +41,6 @@
   --color-wf: #f06070;
 }
 
-body {
-  background: #08080e;
-  color: #e4e6f2;
-}
 
 @theme inline {
   --font-heading: var(--font-sans);
