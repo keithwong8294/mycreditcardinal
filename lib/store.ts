@@ -23,6 +23,13 @@ function defaultSpend(): Record<string, number> {
 
 // ─── State shape ──────────────────────────────────────────────────────────────
 
+export interface SyncMeta {
+  /** DB id of this user's household (needed to upsert members) */
+  householdId: string | null;
+  /** DB id of the default spend_profile row (needed to upsert spend) */
+  spendProfileId: string | null;
+}
+
 export interface AppState {
   // People / household
   people: HouseholdMember[];
@@ -40,6 +47,9 @@ export interface AppState {
   // WalletCard.config is derived when building walletCards from people.
   // We keep a separate map so configs survive card removal/re-add.
   cardConfigs: Record<string, CardConfig>; // walletCard.id → CardConfig
+
+  // Supabase IDs needed for upsert operations
+  syncMeta: SyncMeta;
 
   // View state
   viewQuarter: 1 | 2 | 3 | 4;
@@ -71,6 +81,9 @@ export interface AppActions {
   setRotation: (walletCardId: string, quarter: 1 | 2 | 3 | 4, categoryId: string | null) => void;
   setCustomCategory: (walletCardId: string, categoryId: string, selected: boolean) => void;
 
+  // Sync metadata (set by sync module after hydration)
+  setSyncMeta: (meta: Partial<SyncMeta>) => void;
+
   // View state
   setViewQuarter: (q: 1 | 2 | 3 | 4) => void;
   setValuation: (tier: ValuationTier) => void;
@@ -101,6 +114,7 @@ const initialState: AppState = {
   overrides: {},
   subEarned: [],
   cardConfigs: {},
+  syncMeta: { householdId: null, spendProfileId: null },
   viewQuarter: 1,
   valuationTier: "composite",
   activeTab: "browse",
@@ -275,6 +289,12 @@ export const useStore = create<Store>()(
         });
       },
 
+      // ── Sync metadata ────────────────────────────────────────────────────────
+
+      setSyncMeta(meta) {
+        set((s) => ({ syncMeta: { ...s.syncMeta, ...meta } }));
+      },
+
       // ── View state ───────────────────────────────────────────────────────────
 
       setViewQuarter(q) {
@@ -311,6 +331,7 @@ export const useStore = create<Store>()(
         overrides: s.overrides,
         subEarned: s.subEarned,
         cardConfigs: s.cardConfigs,
+        syncMeta: s.syncMeta,
         viewQuarter: s.viewQuarter,
         valuationTier: s.valuationTier,
         activeTab: s.activeTab,
