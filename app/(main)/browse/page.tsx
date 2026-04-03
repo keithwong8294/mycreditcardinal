@@ -6,6 +6,7 @@ import { CARDS } from "@/lib/cards";
 import { CATEGORIES } from "@/lib/categories";
 import { CURRENCIES } from "@/lib/currencies";
 import type { Card } from "@/types";
+import { CardDetailModal } from "@/components/CardDetailModal";
 import {
   Dialog,
   DialogContent,
@@ -80,25 +81,27 @@ function CardTile({
   card,
   inWallet,
   onToggle,
+  onDetails,
 }: {
   card: Card;
   inWallet: boolean;
   onToggle: () => void;
+  onDetails: () => void;
 }) {
   const pills = getEarnPills(card);
 
   return (
-    <button
-      onClick={onToggle}
-      className={`w-full text-left bg-white rounded-lg overflow-hidden border transition-all duration-150 ${
+    <div
+      className={`bg-white rounded-lg overflow-hidden border transition-all duration-150 ${
         inWallet
           ? "ring-1 ring-green border-green"
           : "border-subtle hover:border-medium"
       }`}
     >
-      {/* Card face */}
-      <div
-        className="relative h-20 flex flex-col justify-end p-2"
+      {/* Card face — click toggles wallet */}
+      <button
+        onClick={onToggle}
+        className="w-full text-left relative h-20 flex flex-col justify-end p-2"
         style={{ background: cardGradient(card.color_json) }}
       >
         {inWallet && (
@@ -112,16 +115,26 @@ function CardTile({
         <div className="text-[13px] text-white/95 font-medium leading-tight truncate">
           {card.name}
         </div>
-      </div>
+      </button>
 
       {/* Body */}
       <div className="p-2.5">
-        <div className="text-[11px] text-secondary mb-1.5">
-          {card.fee === 0 ? (
-            <span className="text-green font-medium">No annual fee</span>
-          ) : (
-            <span>${card.fee}/yr</span>
-          )}
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-[11px] text-secondary">
+            {card.fee === 0 ? (
+              <span className="text-green font-medium">No annual fee</span>
+            ) : (
+              `$${card.fee}/yr`
+            )}
+          </span>
+          {/* Details button */}
+          <button
+            onClick={onDetails}
+            className="text-[11px] text-tertiary hover:text-secondary transition-colors px-1"
+            aria-label="Card details"
+          >
+            Details
+          </button>
         </div>
         <div className="flex flex-wrap gap-1">
           {pills.map((pill, i) => (
@@ -138,7 +151,7 @@ function CardTile({
           ))}
         </div>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -309,6 +322,7 @@ export default function BrowsePage() {
   const [issuerFilter, setIssuerFilter] = useState("all");
   const [feeFilter, setFeeFilter] = useState("any");
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
+  const [detailCard, setDetailCard] = useState<Card | null>(null);
 
   // Debounce search 200ms
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -437,10 +451,18 @@ export default function BrowsePage() {
               card={card}
               inWallet={walletCardIds.has(card.id)}
               onToggle={() => toggleCard(card.id)}
+              onDetails={() => setDetailCard(card)}
             />
           ))}
         </div>
       )}
+
+      {/* Card detail modal */}
+      <CardDetailModal
+        card={detailCard}
+        open={detailCard !== null}
+        onOpenChange={(open) => { if (!open) setDetailCard(null); }}
+      />
     </div>
   );
 }
