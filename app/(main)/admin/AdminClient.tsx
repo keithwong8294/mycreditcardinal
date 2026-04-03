@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { CARDS } from "@/lib/cards";
 import { CATEGORIES } from "@/lib/categories";
 import { CURRENCIES } from "@/lib/currencies";
-import { cardGradient } from "@/lib/utils";
+import { cardGradient, isLightBackground } from "@/lib/utils";
 import type { Card } from "@/types";
 import type { Perk } from "@/types/card";
 import {
@@ -109,10 +109,9 @@ function CardForm({
   const [errors, setErrors] = useState<string[]>([]);
 
   // Preview gradient from colorJson
-  const previewGradient = useMemo(() => {
-    const parsed = tryParseJson<string[]>(colorJson, []);
-    return cardGradient(parsed);
-  }, [colorJson]);
+  const previewColors = useMemo(() => tryParseJson<string[]>(colorJson, []), [colorJson]);
+  const previewGradient = useMemo(() => cardGradient(previewColors), [previewColors]);
+  const previewLight = useMemo(() => isLightBackground(previewColors), [previewColors]);
 
   function validate(): string[] {
     const errs: string[] = [];
@@ -174,8 +173,24 @@ function CardForm({
         className="h-16 rounded-lg flex flex-col justify-end p-3"
         style={{ background: previewGradient }}
       >
-        <div className="text-[9px] uppercase tracking-widest text-white/60">{issuer || "Issuer"}</div>
-        <div className="text-[15px] font-semibold text-white leading-tight">{name || "Card name"}</div>
+        <div
+          className="text-[9px] uppercase tracking-widest"
+          style={{
+            color: previewLight ? "#1a1a2eaa" : "rgba(255,255,255,0.6)",
+            textShadow: "0 1px 2px rgba(0,0,0,0.3)",
+          }}
+        >
+          {issuer || "Issuer"}
+        </div>
+        <div
+          className="text-[15px] font-semibold leading-tight"
+          style={{
+            color: previewLight ? "#1a1a2e" : "white",
+            textShadow: "0 1px 2px rgba(0,0,0,0.3)",
+          }}
+        >
+          {name || "Card name"}
+        </div>
       </div>
 
       {/* Basic fields */}
