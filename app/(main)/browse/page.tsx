@@ -6,6 +6,7 @@ import { CARDS } from "@/lib/cards";
 import { CATEGORIES } from "@/lib/categories";
 import { CURRENCIES } from "@/lib/currencies";
 import type { Card } from "@/types";
+import { cardGradient, isLightBackground } from "@/lib/utils";
 import { CardDetailModal } from "@/components/CardDetailModal";
 import {
   Dialog,
@@ -24,14 +25,6 @@ import {
 } from "@/components/ui/select";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function cardGradient(colorJson: string[]): string {
-  if (colorJson.length >= 3)
-    return `linear-gradient(135deg, ${colorJson[0]}, ${colorJson[1]}, ${colorJson[2]})`;
-  if (colorJson.length === 2)
-    return `linear-gradient(135deg, ${colorJson[0]}, ${colorJson[1]})`;
-  return "linear-gradient(135deg, #1a1a2e, #2d2d5e)";
-}
 
 interface EarnPill {
   label: string;
@@ -109,12 +102,26 @@ function CardTile({
             ✓
           </span>
         )}
-        <div className="text-[9px] uppercase tracking-wide text-white/60 font-medium">
-          {card.issuer}
-        </div>
-        <div className="text-[13px] text-white/95 font-medium leading-tight truncate">
-          {card.name}
-        </div>
+        {(() => {
+          const light = isLightBackground(card.color_json);
+          const shadow = "0 1px 2px rgba(0,0,0,0.3)";
+          return (
+            <>
+              <div
+                className="text-[9px] uppercase tracking-wide font-medium"
+                style={{ color: light ? "#1a1a2eaa" : "rgba(255,255,255,0.6)", textShadow: shadow }}
+              >
+                {card.issuer}
+              </div>
+              <div
+                className="text-[13px] font-medium leading-tight truncate"
+                style={{ color: light ? "#1a1a2e" : "rgba(255,255,255,0.95)", textShadow: shadow }}
+              >
+                {card.name}
+              </div>
+            </>
+          );
+        })()}
       </button>
 
       {/* Body */}
@@ -143,7 +150,7 @@ function CardTile({
               className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium border ${
                 pill.highlight
                   ? "bg-green/10 text-green border-transparent"
-                  : "bg-surface text-secondary border-subtle"
+                  : "bg-[#f1f5f9] text-[#475569] border-[rgba(0,0,0,0.08)]"
               }`}
             >
               {pill.label}

@@ -4,6 +4,7 @@ import { useStore } from "@/lib/store";
 import { CATEGORIES } from "@/lib/categories";
 import { CURRENCY_MAP } from "@/lib/currencies";
 import type { Card } from "@/types";
+import { cardGradient, isLightBackground } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -12,14 +13,6 @@ import {
 } from "@/components/ui/dialog";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function cardGradient(colorJson: string[]): string {
-  if (colorJson.length >= 3)
-    return `linear-gradient(135deg, ${colorJson[0]}, ${colorJson[1]}, ${colorJson[2]})`;
-  if (colorJson.length === 2)
-    return `linear-gradient(135deg, ${colorJson[0]}, ${colorJson[1]})`;
-  return "linear-gradient(135deg, #1a1a2e, #2d2d5e)";
-}
 
 function fmt(n: number): string {
   return n.toLocaleString();
@@ -76,12 +69,26 @@ export function CardDetailModal({
           className="h-28 flex flex-col justify-end p-4 relative"
           style={{ background: cardGradient(card.color_json) }}
         >
-          <div className="text-[10px] uppercase tracking-widest text-white/60 font-medium">
-            {card.issuer}
-          </div>
-          <div className="text-[20px] font-semibold text-white leading-tight">
-            {card.name}
-          </div>
+          {(() => {
+            const light = isLightBackground(card.color_json);
+            const shadow = "0 1px 2px rgba(0,0,0,0.3)";
+            return (
+              <>
+                <div
+                  className="text-[10px] uppercase tracking-widest font-medium"
+                  style={{ color: light ? "#1a1a2eaa" : "rgba(255,255,255,0.6)", textShadow: shadow }}
+                >
+                  {card.issuer}
+                </div>
+                <div
+                  className="text-[20px] font-semibold leading-tight"
+                  style={{ color: light ? "#1a1a2e" : "white", textShadow: shadow }}
+                >
+                  {card.name}
+                </div>
+              </>
+            );
+          })()}
         </div>
 
         <div className="p-4 space-y-5">

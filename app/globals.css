@@ -165,3 +165,16 @@
     @apply font-sans;
   }
 }
+
+/* Re-assert custom app tokens after @theme inline to prevent shadcn overrides */
+@theme {
+  --color-primary: #1a1a2e;
+  --color-secondary: #64748b;
+  --color-tertiary: #94a3b8;
+  --color-surface: #f8f9fb;
+  --color-green: #059669;
+  --color-blue: #2563eb;
+  --color-amber: #d97706;
+  --color-red: #dc2626;
+  --color-purple: #7c3aed;
+}
