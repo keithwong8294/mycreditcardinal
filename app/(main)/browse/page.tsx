@@ -8,8 +8,6 @@ import { CURRENCIES } from "@/lib/currencies";
 import type { Card } from "@/types";
 import { cardGradient, isLightBackground } from "@/lib/utils";
 import { CardDetailModal } from "@/components/CardDetailModal";
-import { UpgradeModal } from "@/components/UpgradeModal";
-import { useProCheck } from "@/lib/useProCheck";
 import {
   Dialog,
   DialogContent,
@@ -75,28 +73,26 @@ const FEE_OPTIONS = [
 function CardTile({
   card,
   inWallet,
-  onToggle,
-  onDetails,
+  onClick,
 }: {
   card: Card;
   inWallet: boolean;
-  onToggle: () => void;
-  onDetails: () => void;
+  onClick: () => void;
 }) {
   const pills = getEarnPills(card);
 
   return (
-    <div
-      className={`bg-white rounded-lg overflow-hidden border transition-all duration-150 ${
+    <button
+      onClick={onClick}
+      className={`w-full text-left bg-white rounded-lg overflow-hidden border transition-all duration-150 ${
         inWallet
           ? "ring-1 ring-green border-green"
           : "border-subtle hover:border-medium"
       }`}
     >
-      {/* Card face — click toggles wallet */}
-      <button
-        onClick={onToggle}
-        className="w-full text-left relative h-20 flex flex-col justify-end p-2"
+      {/* Card face */}
+      <div
+        className="relative h-20 flex flex-col justify-end p-2"
         style={{ background: cardGradient(card.color_json) }}
       >
         {inWallet && (
@@ -124,11 +120,11 @@ function CardTile({
             </>
           );
         })()}
-      </button>
+      </div>
 
       {/* Body */}
       <div className="p-2.5">
-        <div className="flex items-center justify-between mb-1.5">
+        <div className="mb-1.5">
           <span className="text-[11px] text-secondary">
             {card.fee === 0 ? (
               <span className="text-green font-medium">No annual fee</span>
@@ -136,14 +132,6 @@ function CardTile({
               `$${card.fee}/yr`
             )}
           </span>
-          {/* Details button */}
-          <button
-            onClick={onDetails}
-            className="text-[11px] text-tertiary hover:text-secondary transition-colors px-1"
-            aria-label="Card details"
-          >
-            Details
-          </button>
         </div>
         <div className="flex flex-wrap gap-1">
           {pills.map((pill, i) => (
@@ -160,7 +148,7 @@ function CardTile({
           ))}
         </div>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -315,12 +303,10 @@ function CustomCardForm({
 // ─── Browse page ──────────────────────────────────────────────────────────────
 
 export default function BrowsePage() {
-  const toggleCard = useStore((s) => s.toggleCard);
   const customCards = useStore((s) => s.customCards);
   const addCustomCard = useStore((s) => s.addCustomCard);
   const people = useStore((s) => s.people);
   const activePersonId = useStore((s) => s.activePersonId);
-  const { isPro } = useProCheck();
 
   const activePerson = useMemo(
     () => people.find((p) => p.id === activePersonId),
@@ -337,7 +323,6 @@ export default function BrowsePage() {
   const [feeFilter, setFeeFilter] = useState("any");
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
   const [detailCard, setDetailCard] = useState<Card | null>(null);
-  const [upgradeOpen, setUpgradeOpen] = useState(false);
 
   // Debounce search 200ms
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -465,15 +450,7 @@ export default function BrowsePage() {
               key={card.id}
               card={card}
               inWallet={walletCardIds.has(card.id)}
-              onToggle={() => {
-                const alreadyIn = walletCardIds.has(card.id);
-                if (!alreadyIn && !isPro && (activePerson?.cards.length ?? 0) >= 5) {
-                  setUpgradeOpen(true);
-                  return;
-                }
-                toggleCard(card.id);
-              }}
-              onDetails={() => setDetailCard(card)}
+              onClick={() => setDetailCard(card)}
             />
           ))}
         </div>
@@ -486,12 +463,6 @@ export default function BrowsePage() {
         onOpenChange={(open) => { if (!open) setDetailCard(null); }}
       />
 
-      {/* Upgrade modal */}
-      <UpgradeModal
-        open={upgradeOpen}
-        onClose={() => setUpgradeOpen(false)}
-        reason="card_limit"
-      />
     </div>
   );
 }
