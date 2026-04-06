@@ -17,6 +17,10 @@ import {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// Stable empty spend record — used as fallback so selectors don't create a new
+// object reference on every render (which would trigger infinite re-renders).
+const EMPTY_SPEND: Record<string, number> = {};
+
 function fmt(n: number): string {
   return n.toLocaleString();
 }
@@ -212,7 +216,7 @@ function PersonTable({
 }) {
   const people = useStore((s) => s.people);
   const overrides = useStore((s) => s.overrides);
-  const personSpend = useStore((s) => s.spend[personId] ?? {});
+  const personSpend = useStore((s) => s.spend[personId]) ?? EMPTY_SPEND;
   const setSpend = useStore((s) => s.setSpend);
   const setOverride = useStore((s) => s.setOverride);
 
@@ -341,7 +345,7 @@ export default function SimulatePage() {
 
   const activePerson = people.find((p) => p.id === activePersonId);
   const walletCards = activePerson?.cards ?? [];
-  const activeSpend = allSpend[activePersonId] ?? {};
+  const activeSpend = allSpend[activePersonId] ?? EMPTY_SPEND;
 
   // ── Individual mode calculations ────────────────────────────────────────────
 
