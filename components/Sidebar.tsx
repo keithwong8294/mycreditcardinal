@@ -14,6 +14,7 @@ const navItems = [
   { label: "My Wallet", href: "/wallet", icon: "◧" },
   { label: "Simulator", href: "/simulate", icon: "≋" },
   { label: "Optimize", href: "/optimize", icon: "◈" },
+  { label: "Settings", href: "/settings", icon: "⚙" },
 ];
 
 export default function Sidebar() {
