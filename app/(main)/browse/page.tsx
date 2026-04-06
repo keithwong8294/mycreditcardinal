@@ -8,6 +8,8 @@ import { CURRENCIES } from "@/lib/currencies";
 import type { Card } from "@/types";
 import { cardGradient, isLightBackground } from "@/lib/utils";
 import { CardDetailModal } from "@/components/CardDetailModal";
+import { UpgradeModal } from "@/components/UpgradeModal";
+import { useProCheck } from "@/lib/useProCheck";
 import {
   Dialog,
   DialogContent,
@@ -318,11 +320,16 @@ export default function BrowsePage() {
   const addCustomCard = useStore((s) => s.addCustomCard);
   const people = useStore((s) => s.people);
   const activePersonId = useStore((s) => s.activePersonId);
+  const { isPro } = useProCheck();
+
+  const activePerson = useMemo(
+    () => people.find((p) => p.id === activePersonId),
+    [people, activePersonId]
+  );
 
   const walletCardIds = useMemo(() => {
-    const person = people.find((p) => p.id === activePersonId);
-    return new Set(person?.cards.map((wc) => wc.card.id) ?? []);
-  }, [people, activePersonId]);
+    return new Set(activePerson?.cards.map((wc) => wc.card.id) ?? []);
+  }, [activePerson]);
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -330,6 +337,7 @@ export default function BrowsePage() {
   const [feeFilter, setFeeFilter] = useState("any");
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
   const [detailCard, setDetailCard] = useState<Card | null>(null);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
 
   // Debounce search 200ms
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -457,7 +465,14 @@ export default function BrowsePage() {
               key={card.id}
               card={card}
               inWallet={walletCardIds.has(card.id)}
-              onToggle={() => toggleCard(card.id)}
+              onToggle={() => {
+                const alreadyIn = walletCardIds.has(card.id);
+                if (!alreadyIn && !isPro && (activePerson?.cards.length ?? 0) >= 5) {
+                  setUpgradeOpen(true);
+                  return;
+                }
+                toggleCard(card.id);
+              }}
               onDetails={() => setDetailCard(card)}
             />
           ))}
@@ -469,6 +484,13 @@ export default function BrowsePage() {
         card={detailCard}
         open={detailCard !== null}
         onOpenChange={(open) => { if (!open) setDetailCard(null); }}
+      />
+
+      {/* Upgrade modal */}
+      <UpgradeModal
+        open={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
+        reason="card_limit"
       />
     </div>
   );

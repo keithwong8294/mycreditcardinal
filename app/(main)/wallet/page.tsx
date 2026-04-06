@@ -7,6 +7,8 @@ import { CURRENCY_MAP } from "@/lib/currencies";
 import { cardGradient } from "@/lib/utils";
 import type { WalletCard } from "@/types";
 import { Checkbox } from "@/components/ui/checkbox";
+import { UpgradeModal } from "@/components/UpgradeModal";
+import { useProCheck } from "@/lib/useProCheck";
 import {
   Select,
   SelectContent,
@@ -241,12 +243,14 @@ export default function WalletPage() {
   const removePerson = useStore((s) => s.removePerson);
   const renamePerson = useStore((s) => s.renamePerson);
   const valuationTier = useStore((s) => s.valuationTier);
+  const { isPro } = useProCheck();
 
   const activePerson = people.find((p) => p.id === activePersonId);
   const walletCards = activePerson?.cards ?? [];
 
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
 
   function startRename(id: string, current: string) {
     setRenamingId(id);
@@ -305,6 +309,10 @@ export default function WalletPage() {
           {/* Add person */}
           <button
             onClick={() => {
+              if (!isPro && people.length >= 1) {
+                setUpgradeOpen(true);
+                return;
+              }
               const name = prompt("Enter a name:");
               if (name?.trim()) addPerson(name.trim());
             }}
@@ -370,6 +378,12 @@ export default function WalletPage() {
 
       {/* SUB tracking */}
       <SubSection walletCards={walletCards} valuationTier={valuationTier} />
+
+      <UpgradeModal
+        open={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
+        reason="person_limit"
+      />
     </div>
   );
 }
