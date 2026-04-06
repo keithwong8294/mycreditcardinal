@@ -36,7 +36,9 @@ export interface AppState {
   activePersonId: string;
 
   // Spend & routing
-  spend: Record<string, number>;
+  // Keyed by memberId → categoryId → monthly amount.
+  // Use getSpendForPerson(memberId) to get a flat spend record for the engine.
+  spend: Record<string, Record<string, number>>;
   overrides: Record<string, string | null>; // categoryId → walletCard.id | null
 
   // Which wallet card SUBs have been marked earned (by walletCard.id)
@@ -74,8 +76,12 @@ export interface AppActions {
   removeCustomCard: (cardId: string) => void;
 
   // Spend
-  setSpend: (categoryId: string, amount: number) => void;
-  resetSpend: () => void;
+  setSpend: (memberId: string, categoryId: string, amount: number) => void;
+  resetSpend: (memberId: string) => void;
+
+  // Derived helpers for spend
+  getSpendForPerson: (memberId: string) => Record<string, number>;
+  getActivePersonSpend: () => Record<string, number>;
 
   // Overrides
   setOverride: (categoryId: string, walletCardId: string | null) => void;
@@ -98,6 +104,7 @@ export interface AppActions {
   // Derived helpers (not persisted, just convenient)
   getActivePerson: () => HouseholdMember | undefined;
   getActiveWalletCards: () => WalletCard[];
+  getWalletCardsForPerson: (personId: string) => WalletCard[];
 }
 
 export type Store = AppState & AppActions;
@@ -116,7 +123,7 @@ const initialState: AppState = {
     },
   ],
   activePersonId: initialPersonId,
-  spend: defaultSpend(),
+  spend: { [initialPersonId]: defaultSpend() },
   overrides: {},
   subEarned: [],
   cardConfigs: {},
@@ -144,6 +151,7 @@ export const useStore = create<Store>()(
             { id, name: name.trim(), sortOrder: s.people.length, cards: [] },
           ],
           activePersonId: id,
+          spend: { ...s.spend, [id]: defaultSpend() },
         }));
       },
 
@@ -262,12 +270,26 @@ export const useStore = create<Store>()(
 
       // ── Spend ────────────────────────────────────────────────────────────────
 
-      setSpend(categoryId, amount) {
-        set((s) => ({ spend: { ...s.spend, [categoryId]: amount } }));
+      setSpend(memberId, categoryId, amount) {
+        set((s) => ({
+          spend: {
+            ...s.spend,
+            [memberId]: { ...(s.spend[memberId] ?? defaultSpend()), [categoryId]: amount },
+          },
+        }));
       },
 
-      resetSpend() {
-        set({ spend: defaultSpend() });
+      resetSpend(memberId) {
+        set((s) => ({ spend: { ...s.spend, [memberId]: defaultSpend() } }));
+      },
+
+      getSpendForPerson(memberId) {
+        return get().spend[memberId] ?? defaultSpend();
+      },
+
+      getActivePersonSpend() {
+        const s = get();
+        return s.spend[s.activePersonId] ?? defaultSpend();
       },
 
       // ── Overrides ────────────────────────────────────────────────────────────
@@ -379,6 +401,10 @@ export const useStore = create<Store>()(
       getActiveWalletCards() {
         return get().getActivePerson()?.cards ?? [];
       },
+
+      getWalletCardsForPerson(personId) {
+        return get().people.find((p) => p.id === personId)?.cards ?? [];
+      },
     }),
     {
       name: "mcc-store",
@@ -397,7 +423,21 @@ export const useStore = create<Store>()(
         valuationTier: s.valuationTier,
         activeTab: s.activeTab,
       }),
-      version: 1,
+      version: 2,
+      migrate(persistedState, version) {
+        const state = persistedState as Partial<AppState>;
+        if (version < 2 && state.spend) {
+          // v1 had flat spend; migrate to nested per-person
+          const flat = state.spend as unknown as Record<string, number>;
+          // Check if the first value is a number (old format) vs object (new format)
+          const firstVal = Object.values(flat)[0];
+          if (typeof firstVal === "number") {
+            const activeId = state.activePersonId ?? initialPersonId;
+            state.spend = { [activeId]: flat } as Record<string, Record<string, number>>;
+          }
+        }
+        return state as AppState;
+      },
     }
   )
 );

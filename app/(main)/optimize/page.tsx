@@ -84,7 +84,8 @@ function WhatIfModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const { getActiveWalletCards, spend, overrides, valuationTier, subEarned } = useStore();
+  const { getActiveWalletCards, getActivePersonSpend, overrides, valuationTier, subEarned } = useStore();
+  const spend = getActivePersonSpend();
   const walletCards = getActiveWalletCards();
   const tier = valuationTier;
   const subEarnedSet = new Set(subEarned);
@@ -384,7 +385,8 @@ function RecommendationCard({
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function OptimizePage() {
-  const { getActiveWalletCards, spend, valuationTier, toggleCard, customCards } = useStore();
+  const { getActiveWalletCards, getActivePersonSpend, valuationTier, toggleCard, customCards } = useStore();
+  const spend = getActivePersonSpend();
   const walletCards = getActiveWalletCards();
 
   // Preference filter state

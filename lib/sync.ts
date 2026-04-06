@@ -47,14 +47,20 @@ export async function hydrateFromSupabase(userId: string): Promise<void> {
     .select("id, member_id, card_id, config_json")
     .in("member_id", memberIds);
 
-  // 4. Default spend profile
+  // 4. Per-member spend profiles
   const { data: profiles } = await supabase
     .from("spend_profiles")
-    .select("id, spend_json")
-    .eq("user_id", userId)
-    .eq("is_default", true)
-    .limit(1);
-  const profile = profiles?.[0] ?? null;
+    .select("id, member_id, spend_json")
+    .in("member_id", memberIds)
+    .eq("is_default", true);
+
+  // Build spend map: memberId → spend record
+  const spendByMember: Record<string, Record<string, number>> = {};
+  for (const profile of profiles ?? []) {
+    if (profile.member_id) {
+      spendByMember[profile.member_id] = profile.spend_json as Record<string, number>;
+    }
+  }
 
   // 5. Sub earned
   const allWcIds = (dbWalletCards ?? []).map((wc) => wc.id);
@@ -99,15 +105,30 @@ export async function hydrateFromSupabase(userId: string): Promise<void> {
     ? currentActiveId
     : (people[0]?.id ?? currentActiveId);
 
+  // Merge with existing spend (don't overwrite members not returned from DB)
+  const currentSpend = useStore.getState().spend;
+  const mergedSpend: Record<string, Record<string, number>> = { ...currentSpend };
+  for (const [memberId, memberSpend] of Object.entries(spendByMember)) {
+    mergedSpend[memberId] = memberSpend;
+  }
+  // Ensure every member has at least a default spend record
+  for (const person of people) {
+    if (!mergedSpend[person.id]) {
+      mergedSpend[person.id] = Object.fromEntries(
+        (await import("@/lib/categories")).CATEGORIES.map((c) => [c.id, c.defaultAmount])
+      );
+    }
+  }
+
   useStore.setState({
     people,
     activePersonId,
     cardConfigs,
     subEarned,
-    ...(profile ? { spend: profile.spend_json as Record<string, number> } : {}),
+    spend: mergedSpend,
     syncMeta: {
       householdId: household.id,
-      spendProfileId: profile?.id ?? null,
+      spendProfileId: null, // now per-member, managed in sync step
     },
   });
 }
@@ -117,7 +138,7 @@ export async function hydrateFromSupabase(userId: string): Promise<void> {
 export async function syncToSupabase(userId: string): Promise<void> {
   const supabase = createClient();
   const state = useStore.getState();
-  const { householdId, spendProfileId } = state.syncMeta;
+  const { householdId } = state.syncMeta;
   if (!householdId) return;
 
   const currentMemberIds = state.people.map((p) => p.id);
@@ -175,28 +196,36 @@ export async function syncToSupabase(userId: string): Promise<void> {
     }
   }
 
-  // 5. Upsert default spend profile
-  if (spendProfileId) {
-    await supabase.from("spend_profiles").upsert({
-      id: spendProfileId,
-      user_id: userId,
-      name: "Default",
-      spend_json: state.spend,
-      is_default: true,
-    });
-  } else {
-    const { data: newProfile } = await supabase
+  // 5. Upsert per-member spend profiles
+  for (const person of state.people) {
+    const memberSpend = state.spend[person.id];
+    if (!memberSpend) continue;
+
+    // Try to find existing spend profile for this member
+    const { data: existing } = await supabase
       .from("spend_profiles")
-      .insert({
-        user_id: userId,
-        name: "Default",
-        spend_json: state.spend,
-        is_default: true,
-      })
       .select("id")
-      .single();
-    if (newProfile) {
-      useStore.getState().setSyncMeta({ spendProfileId: newProfile.id });
+      .eq("member_id", person.id)
+      .eq("is_default", true)
+      .limit(1);
+
+    if (existing?.[0]) {
+      await supabase.from("spend_profiles").upsert({
+        id: existing[0].id,
+        user_id: userId,
+        member_id: person.id,
+        name: "Default",
+        spend_json: memberSpend,
+        is_default: true,
+      });
+    } else {
+      await supabase.from("spend_profiles").insert({
+        user_id: userId,
+        member_id: person.id,
+        name: "Default",
+        spend_json: memberSpend,
+        is_default: true,
+      });
     }
   }
 
