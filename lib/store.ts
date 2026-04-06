@@ -69,6 +69,7 @@ export interface AppActions {
 
   // Cards
   toggleCard: (cardId: string) => void;
+  toggleCardForPerson: (cardId: string, personId: string) => void;
   addCustomCard: (card: Omit<Card, "id" | "status">) => void;
   removeCustomCard: (cardId: string) => void;
 
@@ -203,6 +204,39 @@ export const useStore = create<Store>()(
           return {
             people: s.people.map((p) =>
               p.id === s.activePersonId ? { ...p, cards: updatedCards } : p
+            ),
+            cardConfigs: updatedConfigs,
+          };
+        });
+      },
+
+      toggleCardForPerson(cardId, personId) {
+        const s0 = get();
+        const card =
+          CARDS.find((c) => c.id === cardId) ??
+          s0.customCards.find((c) => c.id === cardId);
+        if (!card) return;
+
+        set((s) => {
+          const person = s.people.find((p) => p.id === personId);
+          if (!person) return {};
+
+          const exists = person.cards.find((wc) => wc.card.id === cardId);
+          let updatedCards: WalletCard[];
+          const updatedConfigs = { ...s.cardConfigs };
+
+          if (exists) {
+            updatedCards = person.cards.filter((wc) => wc.card.id !== cardId);
+          } else {
+            const walletCardId = uuid();
+            const config = defaultConfig();
+            updatedConfigs[walletCardId] = config;
+            updatedCards = [...person.cards, { id: walletCardId, card, config }];
+          }
+
+          return {
+            people: s.people.map((p) =>
+              p.id === personId ? { ...p, cards: updatedCards } : p
             ),
             cardConfigs: updatedConfigs,
           };
