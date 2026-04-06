@@ -25,20 +25,20 @@ function fmtDollar(n: number): string {
   return `$${Math.round(n).toLocaleString()}`;
 }
 
+type ViewMode = "individual" | "sideBySide" | "stacked";
+
 // ─── Spend row ────────────────────────────────────────────────────────────────
 
 function SpendRow({
   row,
   walletCards,
   overrides,
-  quarter,
   onSpendChange,
   onOverrideChange,
 }: {
   row: RoutingRow;
   walletCards: WalletCard[];
   overrides: Record<string, string | null>;
-  quarter: 1 | 2 | 3 | 4;
   onSpendChange: (catId: string, val: number) => void;
   onOverrideChange: (catId: string, walletCardId: string | null) => void;
 }) {
@@ -46,7 +46,6 @@ function SpendRow({
   const [inputVal, setInputVal] = useState(String(Math.round(row.spend)));
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Keep input in sync when row.spend changes externally
   const prevSpend = useRef(row.spend);
   if (prevSpend.current !== row.spend) {
     prevSpend.current = row.spend;
@@ -67,10 +66,8 @@ function SpendRow({
     <div className="border-b border-subtle last:border-b-0">
       {/* Primary row */}
       <div className="grid grid-cols-[120px_1fr_160px_80px_90px] items-center gap-2 px-3 py-2">
-        {/* Category */}
         <span className="text-[12px] text-primary font-medium truncate">{cat.label}</span>
 
-        {/* Slider + input */}
         <div className="flex items-center gap-2 min-w-0">
           <input
             type="range"
@@ -108,7 +105,6 @@ function SpendRow({
           </div>
         </div>
 
-        {/* Card dropdown */}
         <Select
           value={overrideId ?? "__auto__"}
           onValueChange={(v) =>
@@ -130,7 +126,6 @@ function SpendRow({
           </SelectContent>
         </Select>
 
-        {/* Rate */}
         <span
           className={`text-[12px] font-medium tabular-nums text-right ${
             row.earnRate >= 3
@@ -148,7 +143,6 @@ function SpendRow({
           )}
         </span>
 
-        {/* Points + dollar */}
         <div className="text-right">
           <div className="text-[12px] font-medium text-primary tabular-nums">
             {fmt(Math.round(row.points))}
@@ -187,6 +181,118 @@ function SpendRow({
   );
 }
 
+// ─── Table column headers ─────────────────────────────────────────────────────
+
+function TableHeaders() {
+  return (
+    <div className="grid grid-cols-[120px_1fr_160px_80px_90px] gap-2 px-3 py-2 bg-surface border-b border-subtle">
+      <span className="text-[10px] uppercase tracking-wider text-tertiary font-semibold">Category</span>
+      <span className="text-[10px] uppercase tracking-wider text-tertiary font-semibold">Monthly spend</span>
+      <span className="text-[10px] uppercase tracking-wider text-tertiary font-semibold">Card</span>
+      <span className="text-[10px] uppercase tracking-wider text-tertiary font-semibold text-right">Rate</span>
+      <span className="text-[10px] uppercase tracking-wider text-tertiary font-semibold text-right">Pts / Value</span>
+    </div>
+  );
+}
+
+// ─── Person routing table ─────────────────────────────────────────────────────
+
+function PersonTable({
+  personId,
+  personName,
+  valuationTier,
+  viewQuarter,
+  showHeader,
+}: {
+  personId: string;
+  personName: string;
+  valuationTier: ValuationTier;
+  viewQuarter: 1 | 2 | 3 | 4;
+  showHeader: boolean;
+}) {
+  const people = useStore((s) => s.people);
+  const overrides = useStore((s) => s.overrides);
+  const personSpend = useStore((s) => s.spend[personId] ?? {});
+  const setSpend = useStore((s) => s.setSpend);
+  const setOverride = useStore((s) => s.setOverride);
+
+  const walletCards = useMemo(
+    () => people.find((p) => p.id === personId)?.cards ?? [],
+    [people, personId]
+  );
+
+  const result = useMemo(
+    () => routeMonth(walletCards, personSpend, overrides, viewQuarter, valuationTier),
+    [walletCards, personSpend, overrides, viewQuarter, valuationTier]
+  );
+
+  const handleSpendChange = useCallback(
+    (catId: string, val: number) => setSpend(personId, catId, val),
+    [setSpend, personId]
+  );
+
+  const handleOverrideChange = useCallback(
+    (catId: string, walletCardId: string | null) => setOverride(catId, walletCardId),
+    [setOverride]
+  );
+
+  return (
+    <div className="bg-white border border-subtle rounded-lg overflow-hidden min-w-[520px]">
+      {showHeader && (
+        <div className="px-3 py-2 border-b border-subtle bg-[#0f1219] flex items-center justify-between">
+          <span className="text-[12px] font-semibold text-white">{personName}</span>
+          <span className="text-[11px] text-white/40">
+            {walletCards.length} card{walletCards.length !== 1 ? "s" : ""}
+          </span>
+        </div>
+      )}
+
+      <TableHeaders />
+
+      {walletCards.length === 0 ? (
+        <div className="py-8 text-center text-[12px] text-tertiary">
+          No cards in wallet.{" "}
+          <a href="/browse" className="text-green hover:underline">Add cards →</a>
+        </div>
+      ) : (
+        <>
+          {result.rows.map((row) => (
+            <SpendRow
+              key={row.categoryId}
+              row={row}
+              walletCards={walletCards}
+              overrides={overrides}
+              onSpendChange={handleSpendChange}
+              onOverrideChange={handleOverrideChange}
+            />
+          ))}
+
+          {result.rows.length === 0 && (
+            <div className="py-8 text-center text-[13px] text-tertiary">
+              No spending configured.
+            </div>
+          )}
+
+          {result.rows.length > 0 && (
+            <div className="grid grid-cols-[120px_1fr_160px_80px_90px] gap-2 px-3 py-2 bg-surface border-t border-subtle">
+              <span className="text-[11px] font-semibold text-secondary">Monthly</span>
+              <div /><div /><div />
+              <div className="text-right">
+                <div className="text-[12px] font-semibold text-primary tabular-nums">
+                  {fmt(Math.round(result.currencyTotals.reduce((s, ct) => s + ct.points, 0)))}
+                </div>
+                <div className="text-[10px] text-green font-medium tabular-nums">
+                  {fmtDollar(result.totalDollarValue)}
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Metric card ──────────────────────────────────────────────────────────────
 
 function MetricCard({
@@ -201,20 +307,14 @@ function MetricCard({
   accent?: "green" | "red" | "default";
 }) {
   const valueClass =
-    accent === "green"
-      ? "text-green"
-      : accent === "red"
-      ? "text-red"
-      : "text-primary";
+    accent === "green" ? "text-green" : accent === "red" ? "text-red" : "text-primary";
 
   return (
     <div className="bg-white border border-subtle rounded-lg p-3">
       <div className="text-[10px] uppercase tracking-wider text-tertiary font-semibold mb-1">
         {label}
       </div>
-      <div className={`text-[20px] font-semibold tabular-nums ${valueClass}`}>
-        {value}
-      </div>
+      <div className={`text-[20px] font-semibold tabular-nums ${valueClass}`}>{value}</div>
       {sub && <div className="text-[11px] text-tertiary mt-0.5">{sub}</div>}
     </div>
   );
@@ -225,7 +325,7 @@ function MetricCard({
 export default function SimulatePage() {
   const people = useStore((s) => s.people);
   const activePersonId = useStore((s) => s.activePersonId);
-  const spend = useStore((s) => s.spend);
+  const allSpend = useStore((s) => s.spend);
   const overrides = useStore((s) => s.overrides);
   const subEarned = useStore((s) => s.subEarned);
   const setSpend = useStore((s) => s.setSpend);
@@ -235,24 +335,24 @@ export default function SimulatePage() {
   const viewQuarter = useStore((s) => s.viewQuarter);
   const setViewQuarter = useStore((s) => s.setViewQuarter);
 
-  const activePerson = people.find((p) => p.id === activePersonId);
-  const walletCards = activePerson?.cards ?? [];
+  const [viewMode, setViewMode] = useState<ViewMode>("individual");
 
-  // Local valuation tier (mirrors store but also drives the page)
   const valuationTier: ValuationTier = storeValuationTier;
 
-  // Route current month
+  const activePerson = people.find((p) => p.id === activePersonId);
+  const walletCards = activePerson?.cards ?? [];
+  const activeSpend = allSpend[activePersonId] ?? {};
+
+  // ── Individual mode calculations ────────────────────────────────────────────
+
   const result = useMemo(
-    () =>
-      routeMonth(walletCards, spend, overrides, viewQuarter, valuationTier),
-    [walletCards, spend, overrides, viewQuarter, valuationTier]
+    () => routeMonth(walletCards, activeSpend, overrides, viewQuarter, valuationTier),
+    [walletCards, activeSpend, overrides, viewQuarter, valuationTier]
   );
 
-  // Annual result (for metric cards)
   const annualResult = useMemo(
-    () =>
-      routeAnnual(walletCards, spend, overrides, {}, valuationTier),
-    [walletCards, spend, overrides, valuationTier]
+    () => routeAnnual(walletCards, activeSpend, overrides, {}, valuationTier),
+    [walletCards, activeSpend, overrides, valuationTier]
   );
 
   const fees = useMemo(() => calculateFees(walletCards), [walletCards]);
@@ -262,21 +362,70 @@ export default function SimulatePage() {
     [walletCards, subEarned, valuationTier]
   );
 
-  const netTotal =
-    annualResult.totalDollarValue + subValue - fees.netFees;
+  const netTotal = annualResult.totalDollarValue + subValue - fees.netFees;
 
   const handleSpendChange = useCallback(
-    (catId: string, val: number) => setSpend(catId, val),
-    [setSpend]
+    (catId: string, val: number) => setSpend(activePersonId, catId, val),
+    [setSpend, activePersonId]
   );
 
   const handleOverrideChange = useCallback(
-    (catId: string, walletCardId: string | null) =>
-      setOverride(catId, walletCardId),
+    (catId: string, walletCardId: string | null) => setOverride(catId, walletCardId),
     [setOverride]
   );
 
-  if (walletCards.length === 0) {
+  // ── Household mode calculations ──────────────────────────────────────────────
+
+  const householdStats = useMemo(() => {
+    if (viewMode === "individual") return null;
+    const subEarnedSet = new Set(subEarned);
+    let totalAnnualValue = 0;
+    let totalGrossFees = 0;
+    let totalCredits = 0;
+    let totalNetFees = 0;
+    let totalSubValue = 0;
+    const mergedCurrencies: Record<string, { points: number; dollarValue: number }> = {};
+
+    for (const person of people) {
+      const personSpend = allSpend[person.id] ?? {};
+      const cards = person.cards;
+      const annual = routeAnnual(cards, personSpend, overrides, {}, valuationTier);
+      const personFees = calculateFees(cards);
+      const personSubVal = calculateSubValue(cards, subEarnedSet, valuationTier);
+
+      totalAnnualValue += annual.totalDollarValue;
+      totalGrossFees += personFees.grossFees;
+      totalCredits += personFees.estimatedCredits;
+      totalNetFees += personFees.netFees;
+      totalSubValue += personSubVal;
+
+      for (const ct of annual.currencyTotals) {
+        if (!mergedCurrencies[ct.currencyId]) {
+          mergedCurrencies[ct.currencyId] = { points: 0, dollarValue: 0 };
+        }
+        mergedCurrencies[ct.currencyId].points += ct.points;
+        mergedCurrencies[ct.currencyId].dollarValue += ct.dollarValue;
+      }
+    }
+
+    return {
+      totalAnnualValue,
+      totalGrossFees,
+      totalCredits,
+      totalNetFees,
+      totalSubValue,
+      netTotal: totalAnnualValue + totalSubValue - totalNetFees,
+      currencyTotals: Object.entries(mergedCurrencies).map(([currencyId, v]) => ({
+        currencyId,
+        ...v,
+      })),
+    };
+  }, [viewMode, people, allSpend, overrides, valuationTier, subEarned]);
+
+  // ── Empty state ──────────────────────────────────────────────────────────────
+
+  const hasAnyCards = people.some((p) => p.cards.length > 0);
+  if (!hasAnyCards) {
     return (
       <div className="p-6">
         <div className="bg-white border border-subtle rounded-lg py-16 text-center">
@@ -289,13 +438,51 @@ export default function SimulatePage() {
     );
   }
 
+  const isHousehold = viewMode !== "individual";
+  const displayStats = isHousehold && householdStats ? householdStats : {
+    totalAnnualValue: annualResult.totalDollarValue,
+    totalGrossFees: fees.grossFees,
+    totalCredits: fees.estimatedCredits,
+    totalNetFees: fees.netFees,
+    totalSubValue: subValue,
+    netTotal,
+    currencyTotals: annualResult.currencyTotals,
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-[14px] font-semibold text-secondary uppercase tracking-wider">
-          Spend Simulator
-        </h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-[14px] font-semibold text-secondary uppercase tracking-wider">
+            Spend Simulator
+          </h1>
+
+          {/* Household view toggle — only if multiple people */}
+          {people.length > 1 && (
+            <div className="flex rounded-lg border border-subtle overflow-hidden">
+              {(
+                [
+                  { mode: "individual" as ViewMode, label: "Individual" },
+                  { mode: "sideBySide" as ViewMode, label: "Side by Side" },
+                  { mode: "stacked" as ViewMode, label: "Stacked" },
+                ] as const
+              ).map(({ mode, label }) => (
+                <button
+                  key={mode}
+                  onClick={() => setViewMode(mode)}
+                  className={`px-3 py-1.5 text-[12px] font-medium transition-colors duration-150 ${
+                    viewMode === mode
+                      ? "bg-[#0f1219] text-white"
+                      : "bg-white text-secondary hover:bg-surface"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         <div className="flex items-center gap-2">
           {/* Quarter selector */}
@@ -334,111 +521,127 @@ export default function SimulatePage() {
         </div>
       </div>
 
-      {/* Routing table */}
+      {/* Routing table(s) */}
       <section>
-        <div className="bg-white border border-subtle rounded-lg overflow-hidden">
-          {/* Table header */}
-          <div className="grid grid-cols-[120px_1fr_160px_80px_90px] gap-2 px-3 py-2 bg-surface border-b border-subtle">
-            <span className="text-[10px] uppercase tracking-wider text-tertiary font-semibold">
-              Category
-            </span>
-            <span className="text-[10px] uppercase tracking-wider text-tertiary font-semibold">
-              Monthly spend
-            </span>
-            <span className="text-[10px] uppercase tracking-wider text-tertiary font-semibold">
-              Card
-            </span>
-            <span className="text-[10px] uppercase tracking-wider text-tertiary font-semibold text-right">
-              Rate
-            </span>
-            <span className="text-[10px] uppercase tracking-wider text-tertiary font-semibold text-right">
-              Pts / Value
-            </span>
-          </div>
-
-          {result.rows.map((row) => (
-            <SpendRow
-              key={row.categoryId}
-              row={row}
-              walletCards={walletCards}
-              overrides={overrides}
-              quarter={viewQuarter}
-              onSpendChange={handleSpendChange}
-              onOverrideChange={handleOverrideChange}
-            />
-          ))}
-
-          {result.rows.length === 0 && (
-            <div className="py-8 text-center text-[13px] text-tertiary">
-              No spending configured.
-            </div>
-          )}
-
-          {/* Totals row */}
-          {result.rows.length > 0 && (
-            <div className="grid grid-cols-[120px_1fr_160px_80px_90px] gap-2 px-3 py-2 bg-surface border-t border-subtle">
-              <span className="text-[11px] font-semibold text-secondary">Monthly</span>
-              <div />
-              <div />
-              <div />
-              <div className="text-right">
-                <div className="text-[12px] font-semibold text-primary tabular-nums">
-                  {fmt(Math.round(result.currencyTotals.reduce((s, ct) => s + ct.points, 0)))}
-                </div>
-                <div className="text-[10px] text-green font-medium tabular-nums">
-                  {fmtDollar(result.totalDollarValue)}
+        {/* Individual mode */}
+        {viewMode === "individual" && (
+          <div className="bg-white border border-subtle rounded-lg overflow-hidden">
+            <TableHeaders />
+            {result.rows.map((row) => (
+              <SpendRow
+                key={row.categoryId}
+                row={row}
+                walletCards={walletCards}
+                overrides={overrides}
+                onSpendChange={handleSpendChange}
+                onOverrideChange={handleOverrideChange}
+              />
+            ))}
+            {result.rows.length === 0 && (
+              <div className="py-8 text-center text-[13px] text-tertiary">
+                No spending configured.
+              </div>
+            )}
+            {result.rows.length > 0 && (
+              <div className="grid grid-cols-[120px_1fr_160px_80px_90px] gap-2 px-3 py-2 bg-surface border-t border-subtle">
+                <span className="text-[11px] font-semibold text-secondary">Monthly</span>
+                <div /><div /><div />
+                <div className="text-right">
+                  <div className="text-[12px] font-semibold text-primary tabular-nums">
+                    {fmt(Math.round(result.currencyTotals.reduce((s, ct) => s + ct.points, 0)))}
+                  </div>
+                  <div className="text-[10px] text-green font-medium tabular-nums">
+                    {fmtDollar(result.totalDollarValue)}
+                  </div>
                 </div>
               </div>
+            )}
+          </div>
+        )}
+
+        {/* Side by Side mode */}
+        {viewMode === "sideBySide" && (
+          <div className="overflow-x-auto">
+            <div className="flex gap-4" style={{ minWidth: `${people.length * 540}px` }}>
+              {people.map((person) => (
+                <div key={person.id} className="flex-1">
+                  <PersonTable
+                    personId={person.id}
+                    personName={person.name}
+                    valuationTier={valuationTier}
+                    viewQuarter={viewQuarter}
+                    showHeader
+                  />
+                </div>
+              ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* Stacked mode */}
+        {viewMode === "stacked" && (
+          <div className="space-y-4">
+            {people.map((person) => (
+              <PersonTable
+                key={person.id}
+                personId={person.id}
+                personName={person.name}
+                valuationTier={valuationTier}
+                viewQuarter={viewQuarter}
+                showHeader
+              />
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Metric cards */}
       <section>
         <h2 className="text-[14px] font-semibold text-secondary uppercase tracking-wider mb-3">
-          Annual Summary
+          {isHousehold ? "Household Annual Summary" : "Annual Summary"}
         </h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <MetricCard
             label="Points value"
-            value={fmtDollar(annualResult.totalDollarValue)}
+            value={fmtDollar(displayStats.totalAnnualValue)}
             sub="Annual rewards"
             accent="green"
           />
           <MetricCard
             label="Annual fees"
-            value={fmtDollar(fees.netFees)}
+            value={fmtDollar(displayStats.totalNetFees)}
             sub={
-              fees.estimatedCredits > 0
-                ? `${fmtDollar(fees.grossFees)} − ${fmtDollar(fees.estimatedCredits)} credits`
+              displayStats.totalCredits > 0
+                ? `${fmtDollar(displayStats.totalGrossFees)} − ${fmtDollar(displayStats.totalCredits)} credits`
+                : isHousehold
+                ? `${people.reduce((n, p) => n + p.cards.length, 0)} cards total`
                 : `${walletCards.length} card${walletCards.length !== 1 ? "s" : ""}`
             }
-            accent={fees.netFees > 0 ? "red" : "green"}
+            accent={displayStats.totalNetFees > 0 ? "red" : "green"}
           />
           <MetricCard
             label="SUBs earned"
-            value={fmtDollar(subValue)}
+            value={fmtDollar(displayStats.totalSubValue)}
             sub="Sign-up bonuses"
-            accent={subValue > 0 ? "green" : "default"}
+            accent={displayStats.totalSubValue > 0 ? "green" : "default"}
           />
           <MetricCard
             label="Net total value"
-            value={fmtDollar(netTotal)}
+            value={fmtDollar(displayStats.netTotal)}
             sub="Rewards + SUBs − fees"
-            accent={netTotal >= 0 ? "green" : "red"}
+            accent={displayStats.netTotal >= 0 ? "green" : "red"}
           />
         </div>
       </section>
 
       {/* Currency breakdown */}
-      {annualResult.currencyTotals.length > 0 && (
+      {displayStats.currencyTotals.length > 0 && (
         <section>
           <h2 className="text-[14px] font-semibold text-secondary uppercase tracking-wider mb-3">
-            Annual Currency Breakdown
+            {isHousehold ? "Household Currency Breakdown" : "Annual Currency Breakdown"}
           </h2>
           <div className="bg-white border border-subtle rounded-lg overflow-hidden divide-y divide-subtle">
-            {annualResult.currencyTotals
+            {displayStats.currencyTotals
               .slice()
               .sort((a, b) => b.dollarValue - a.dollarValue)
               .map((ct) => {
