@@ -22,6 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useProCheck } from "@/lib/useProCheck";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -343,8 +344,7 @@ export default function OptimizePage() {
     [walletCards]
   );
 
-  // Pro check stub — Task 3.3 will wire this to real plan data
-  const isPro = true; // trial users have full access; free tier blur applied when isPro=false
+  const { isPro } = useProCheck();
 
   return (
     <div className="p-6 space-y-5">
