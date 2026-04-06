@@ -206,18 +206,81 @@ function WhatIfModal({
   );
 }
 
+// ─── Explanation generator ────────────────────────────────────────────────────
+
+function generateExplanation(
+  rec: Recommendation,
+  spend: Record<string, number>,
+  tier: "floor" | "composite" | "ceiling"
+): string {
+  const currency = CURRENCY_MAP[rec.card.currency];
+  const cpp = currency
+    ? tier === "floor"
+      ? currency.floor
+      : tier === "ceiling"
+      ? currency.ceiling
+      : currency.composite
+    : 100;
+  const currencyName = currency?.name ?? "points";
+
+  const parts: string[] = [];
+
+  // Best earning improvement
+  const topImp = [...rec.improvements].sort((a, b) => b.annualGain - a.annualGain)[0];
+  if (topImp) {
+    const cat = CATEGORIES.find((c) => c.id === topImp.categoryId);
+    const catLabel = cat?.label ?? topImp.categoryId;
+    const monthly = spend[topImp.categoryId] ?? 0;
+    const extraAnnual = topImp.annualGain;
+
+    parts.push(
+      `This card earns ${topImp.candidateRate}x on ${catLabel} vs your current best of ${topImp.currentRate}x.`
+    );
+    if (monthly > 0) {
+      parts.push(
+        `At $${monthly.toLocaleString()}/month in ${catLabel}, that's an extra ${fmtDollar(extraAnnual)}/year in ${currencyName}.`
+      );
+    }
+  } else if (rec.subValue > 0 && rec.improvements.length === 0) {
+    parts.push(`This card doesn't improve your earn rates but carries a valuable welcome bonus.`);
+  }
+
+  // SUB
+  if (rec.card.sub_json && rec.subValue > 0) {
+    const pts = rec.card.sub_json.points.toLocaleString();
+    parts.push(
+      `Combined with the ${pts} point welcome bonus (~${fmtDollar(rec.subValue)}), ` +
+      `this card adds ${fmtDollar(rec.netValue + rec.card.fee)} in first-year value` +
+      (rec.card.fee > 0 ? ` after subtracting the ${fmtDollar(rec.card.fee)} annual fee.` : `.`)
+    );
+  } else if (rec.card.fee > 0) {
+    parts.push(
+      `After the ${fmtDollar(rec.card.fee)} annual fee, the net annual value is ${fmtDollar(rec.netValue)}.`
+    );
+  } else {
+    parts.push(
+      `With no annual fee, the net first-year value is ${fmtDollar(rec.netValue)}.`
+    );
+  }
+
+  return parts.join(" ");
+}
+
 // ─── Recommendation card ───────────────────────────────────────────────────────
 
 function RecommendationCard({
   rec,
+  spend,
   onAddToWallet,
   inWallet,
 }: {
   rec: Recommendation;
+  spend: Record<string, number>;
   onAddToWallet: () => void;
   inWallet: boolean;
 }) {
   const [whatIfOpen, setWhatIfOpen] = useState(false);
+  const { valuationTier } = useStore();
   const currency = CURRENCY_MAP[rec.card.currency];
 
   return (
@@ -287,8 +350,13 @@ function RecommendationCard({
           )}
         </div>
 
+        {/* Plain-English explanation */}
+        <p className="text-[12px] text-secondary leading-relaxed border-t border-subtle pt-2">
+          {generateExplanation(rec, spend, valuationTier)}
+        </p>
+
         {/* Actions */}
-        <div className="flex items-center gap-2 pt-1 border-t border-subtle">
+        <div className="flex items-center gap-2">
           <button
             onClick={onAddToWallet}
             className={`flex-1 text-[12px] font-medium px-3 py-1.5 rounded-md transition-colors duration-150 ${
@@ -456,6 +524,7 @@ export default function OptimizePage() {
                     <div className="select-none pointer-events-none opacity-40 blur-[3px]">
                       <RecommendationCard
                         rec={rec}
+                        spend={spend}
                         onAddToWallet={() => {}}
                         inWallet={walletCardIds.has(rec.card.id)}
                       />
@@ -478,6 +547,7 @@ export default function OptimizePage() {
                 <RecommendationCard
                   key={rec.card.id}
                   rec={rec}
+                  spend={spend}
                   onAddToWallet={() => toggleCard(rec.card.id)}
                   inWallet={walletCardIds.has(rec.card.id)}
                 />
