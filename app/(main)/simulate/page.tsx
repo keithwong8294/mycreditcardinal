@@ -123,9 +123,10 @@ function SpendRow({
               onSpendChange(categoryId, v);
               setInputVal(String(v));
             }}
-            className="flex-1 h-1.5 accent-green"
+            className="flex-1 cursor-pointer accent-green"
+            style={{ minWidth: 0 }}
           />
-          <div className="relative">
+          <div className="relative shrink-0">
             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-tertiary pointer-events-none">
               $
             </span>
@@ -148,8 +149,8 @@ function SpendRow({
             />
           </div>
           {isMonthlyOverride && defaultAmount !== undefined && (
-            <span className="text-[10px] text-tertiary shrink-0 tabular-nums">
-              avg: ${defaultAmount}
+            <span className="text-[10px] text-blue/60 shrink-0 tabular-nums hidden sm:inline">
+              avg ${defaultAmount}
             </span>
           )}
         </div>
