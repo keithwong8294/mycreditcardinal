@@ -59,6 +59,7 @@ export function CardDetailModal({
   );
   const netFee = card.fee - annualCredits;
   const cardId = card.id;
+  const cardName = card.name;
 
   function handleToggle(personId: string) {
     const person = people.find((p) => p.id === personId);
@@ -70,9 +71,9 @@ export function CardDetailModal({
     }
     toggleCardForPerson(cardId, personId);
     if (alreadyIn) {
-      trackCardRemoved(cardId, card.name, personId);
+      trackCardRemoved(cardId, cardName, personId);
     } else {
-      trackCardAdded(cardId, card.name, personId);
+      trackCardAdded(cardId, cardName, personId);
     }
   }
 
