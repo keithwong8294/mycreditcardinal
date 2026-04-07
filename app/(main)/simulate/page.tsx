@@ -533,9 +533,19 @@ export default function SimulatePage() {
 
     for (const person of people) {
       const cards = person.cards;
+      const personDefaults = allSpend[person.id] ?? EMPTY_SPEND;
+      const personMonthly = allMonthlySpend[person.id] ?? {};
+      const resolveSpend = (ym: string): Record<string, number> => {
+        const result: Record<string, number> = {};
+        for (const cat of CATEGORIES) {
+          const ov = personMonthly[cat.id]?.[ym];
+          result[cat.id] = ov !== undefined ? ov : (personDefaults[cat.id] ?? cat.defaultAmount);
+        }
+        return result;
+      };
       let personAnnual;
       if (selectedMonth) {
-        const monthSpend = getSpendForMonth(person.id, selectedMonth);
+        const monthSpend = resolveSpend(selectedMonth);
         const q = monthToQuarter(selectedMonth);
         const mr = routeMonth(cards, monthSpend, overrides, q, valuationTier);
         personAnnual = { totalDollarValue: mr.totalDollarValue * 12, currencyTotals: mr.currencyTotals.map(ct => ({ ...ct, points: ct.points * 12, dollarValue: ct.dollarValue * 12 })) };
@@ -543,7 +553,7 @@ export default function SimulatePage() {
         let tv = 0;
         const cmap: Record<string, { points: number; dollarValue: number }> = {};
         for (const ym of MONTHS_OF_YEAR) {
-          const ms = getSpendForMonth(person.id, ym);
+          const ms = resolveSpend(ym);
           const q = monthToQuarter(ym);
           const mr = routeMonth(cards, ms, overrides, q, valuationTier);
           tv += mr.totalDollarValue;
@@ -580,7 +590,7 @@ export default function SimulatePage() {
       netTotal: totalAnnualValue + totalSubValue - totalNetFees,
       currencyTotals: Object.entries(mergedCurrencies).map(([currencyId, v]) => ({ currencyId, ...v })),
     };
-  }, [viewMode, people, overrides, valuationTier, subEarned, selectedMonth, getSpendForMonth]);
+  }, [viewMode, people, overrides, valuationTier, subEarned, selectedMonth, allSpend, allMonthlySpend]);
 
   // Combined mode: merged wallet + summed spend from all people
   const combinedData = useMemo(() => {
@@ -593,11 +603,14 @@ export default function SimulatePage() {
     const combinedSpend: Record<string, number> = {};
     for (const cat of CATEGORIES) {
       combinedSpend[cat.id] = people.reduce((sum, person) => {
+        const personDefaults = allSpend[person.id] ?? EMPTY_SPEND;
+        const personMonthly = allMonthlySpend[person.id] ?? {};
         if (selectedMonth) {
-          const ms = getSpendForMonth(person.id, selectedMonth);
-          return sum + (ms[cat.id] ?? 0);
+          const ov = personMonthly[cat.id]?.[selectedMonth];
+          const val = ov !== undefined ? ov : (personDefaults[cat.id] ?? cat.defaultAmount);
+          return sum + val;
         }
-        return sum + ((allSpend[person.id] ?? {})[cat.id] ?? cat.defaultAmount);
+        return sum + (personDefaults[cat.id] ?? cat.defaultAmount);
       }, 0);
     }
 
@@ -605,7 +618,7 @@ export default function SimulatePage() {
     const result = routeMonth(allCards, combinedSpend, overrides, q, valuationTier);
     const routingMap = Object.fromEntries(result.rows.map((r) => [r.categoryId, r]));
     return { allCards, combinedSpend, result, routingMap };
-  }, [viewMode, people, selectedMonth, viewQuarter, overrides, valuationTier, allSpend, getSpendForMonth]);
+  }, [viewMode, people, selectedMonth, viewQuarter, overrides, valuationTier, allSpend, allMonthlySpend]);
 
   // ── Display stats ─────────────────────────────────────────────────────────────
 
