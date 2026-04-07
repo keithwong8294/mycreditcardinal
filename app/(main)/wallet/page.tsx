@@ -40,39 +40,76 @@ function RotationConfig({ wc }: { wc: WalletCard }) {
   const setRotation = useStore((s) => s.setRotation);
   const opts = wc.card.rot_opts ?? [];
 
+  // Get auto-populated values from rotation_schedule for current year
+  const year = new Date().getFullYear().toString();
+  const schedule = wc.card.rotation_schedule?.[year];
+  const autoValues = schedule
+    ? ([1, 2, 3, 4] as const).map((q) => schedule[`Q${q}`]?.[0] ?? null)
+    : [null, null, null, null];
+
   return (
     <div className="mt-2 pt-2 border-t border-subtle">
-      <div className="text-[10px] uppercase tracking-wider text-purple font-semibold mb-1.5">
-        Rotating quarters
+      <div className="flex items-center gap-2 mb-1.5">
+        <div className="text-[10px] uppercase tracking-wider text-purple font-semibold">
+          Rotating quarters
+        </div>
+        {schedule && (
+          <span className="text-[10px] text-tertiary">
+            · auto-filled from {year} schedule
+          </span>
+        )}
       </div>
       <div className="grid grid-cols-4 gap-1.5">
-        {QUARTERS.map((q) => (
-          <div key={q}>
-            <div className="text-[10px] text-tertiary mb-0.5 text-center">Q{q}</div>
-            <Select
-              value={wc.config.rotQ[q - 1] ?? "__none__"}
-              onValueChange={(v) =>
-                setRotation(wc.id, q, v === "__none__" ? null : v)
-              }
-            >
-              <SelectTrigger className="h-7 text-[11px] w-full px-1.5">
-                <SelectValue placeholder="—" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">—</SelectItem>
-                {opts.map((opt) => {
-                  const cat = CATEGORIES.find((c) => c.id === opt);
-                  return (
-                    <SelectItem key={opt} value={opt}>
-                      {cat?.label ?? opt}
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-          </div>
-        ))}
+        {QUARTERS.map((q) => {
+          const current = wc.config.rotQ[q - 1] ?? null;
+          const auto = autoValues[q - 1];
+          const isOverridden = current !== auto;
+          return (
+            <div key={q}>
+              <div className="text-[10px] text-tertiary mb-0.5 text-center flex items-center justify-center gap-1">
+                Q{q}
+                {isOverridden && auto !== null && (
+                  <span className="text-purple text-[9px]" title="Overriding schedule">✎</span>
+                )}
+              </div>
+              <Select
+                value={current ?? "__none__"}
+                onValueChange={(v) =>
+                  setRotation(wc.id, q, v === "__none__" ? null : v)
+                }
+              >
+                <SelectTrigger className={`h-7 text-[11px] w-full px-1.5 ${isOverridden ? "border-purple/40" : ""}`}>
+                  <SelectValue placeholder="—" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">—</SelectItem>
+                  {opts.map((opt) => {
+                    const cat = CATEGORIES.find((c) => c.id === opt);
+                    const isAuto = opt === auto;
+                    return (
+                      <SelectItem key={opt} value={opt}>
+                        {cat?.label ?? opt}{isAuto ? " ✓" : ""}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          );
+        })}
       </div>
+      {schedule && (
+        <button
+          onClick={() => {
+            ([1, 2, 3, 4] as const).forEach((q) => {
+              setRotation(wc.id, q, autoValues[q - 1]);
+            });
+          }}
+          className="mt-1.5 text-[10px] text-purple hover:text-purple/70 transition-colors"
+        >
+          Reset to {year} schedule
+        </button>
+      )}
     </div>
   );
 }
@@ -250,6 +287,8 @@ export default function WalletPage() {
 
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [addingPerson, setAddingPerson] = useState(false);
+  const [newPersonName, setNewPersonName] = useState("");
   const [upgradeOpen, setUpgradeOpen] = useState(false);
 
   function startRename(id: string, current: string) {
@@ -307,19 +346,53 @@ export default function WalletPage() {
           ))}
 
           {/* Add person */}
-          <button
-            onClick={() => {
-              if (!isPro && people.length >= 1) {
-                setUpgradeOpen(true);
-                return;
-              }
-              const name = prompt("Enter a name:");
-              if (name?.trim()) addPerson(name.trim());
-            }}
-            className="px-2 py-1 text-[12px] text-tertiary hover:text-secondary border border-dashed border-subtle rounded-lg transition-colors"
-          >
-            + Add
-          </button>
+          {addingPerson ? (
+            <form
+              className="flex items-center gap-1"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const trimmed = newPersonName.trim();
+                if (trimmed) {
+                  addPerson(trimmed);
+                  setNewPersonName("");
+                  setAddingPerson(false);
+                }
+              }}
+            >
+              <input
+                autoFocus
+                value={newPersonName}
+                onChange={(e) => setNewPersonName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    setAddingPerson(false);
+                    setNewPersonName("");
+                  }
+                }}
+                placeholder="Name…"
+                className="px-2 py-1 text-[12px] bg-field border border-medium rounded-lg w-28 focus:outline-none"
+              />
+              <button type="submit" className="px-2 py-1 text-[12px] font-medium text-green hover:text-green/70 transition-colors">
+                Add
+              </button>
+              <button type="button" onClick={() => { setAddingPerson(false); setNewPersonName(""); }} className="text-[12px] text-tertiary hover:text-secondary transition-colors">
+                ✕
+              </button>
+            </form>
+          ) : (
+            <button
+              onClick={() => {
+                if (!isPro && people.length >= 1) {
+                  setUpgradeOpen(true);
+                  return;
+                }
+                setAddingPerson(true);
+              }}
+              className="px-2 py-1 text-[12px] text-tertiary hover:text-secondary border border-dashed border-subtle rounded-lg transition-colors"
+            >
+              + Add
+            </button>
+          )}
         </div>
 
         {/* Active person actions */}

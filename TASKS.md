@@ -118,15 +118,15 @@ Build `/browse` page:
 - Card grid (responsive: 1 col mobile, 2 col tablet, 3 col desktop)
 - Each card tile per DESIGN.md (face with gradient + issuer + name, body with fee + earn pills)
 - Cards in wallet show green checkmark badge and green border
-- Click card → toggles in/out of active person's wallet
+- **Clicking anywhere on a card tile opens the detail modal** (NOT toggle add/remove)
 - "Custom card" button opens manual entry form (name, issuer, currency, fee, per-category earn rates)
 
-**Test:** see all 24 cards. Search "chase" → filters to 5 cards. Click a card → green badge appears. Click again → badge gone.
+**Test:** see all 24 cards. Search "chase" → filters to 5 cards. Click a card → detail modal opens (not add to wallet). Close modal → back to grid.
 
 ---
 
-### Task 2.2 — Card detail view
-Create a modal or slide-over for card details (triggered by a "details" button or long-press, separate from the tap-to-add action):
+### Task 2.2 — Card detail modal
+Create a modal that opens when any card tile is clicked in the browser:
 - Card face (larger, with gradient)
 - Full earn rate table: all 12 categories with rate
 - Annual fee, net fee after estimated credits
@@ -135,48 +135,69 @@ Create a modal or slide-over for card details (triggered by a "details" button o
 - Required FICO score
 - Perks list
 - Network badge
-- "Add to Wallet" / "Remove from Wallet" button
-- If rotating card: note about quarterly categories
+- If rotating card: show current quarter's auto-populated category + note about quarterly rotation
 - If custom-select: note about category selection
+- **Bottom section: list ALL household members**, each with "Add to [name]'s wallet" / "Remove from [name]'s wallet" button. E.g., if user has "Keith" and "Tiff", show both with individual add/remove controls.
+- Close modal with X button or clicking outside
 
-**Test:** click detail button on Freedom Flex → see full info including "5x rotating quarterly, 3x dining, 3x drugstore, 1x everything else." Close modal → back to grid.
+**Test:** click Freedom Flex → modal shows full info + all household members with add/remove buttons. Add to person 1 → close → card shows green badge. Reopen → person 1 shows "Remove", person 2 still shows "Add".
 
 ---
 
 ### Task 2.3 — Wallet page
 Build `/wallet` page:
-- Header showing active person's name and card count
-- Card list: each card as a row (mini face, name, issuer/fee/currency, remove button)
-- If cards have rotating categories (Freedom Flex, Discover it): show quarterly selector grid (Q1-Q4 dropdowns)
-- If cards have custom-select (Citi CC, USB Cash+, BoA CCR): show category pick buttons with max indicator
+- Person selector at top — switch between household members to see each person's wallet
+- Card list per person: each card as a row (mini face, name, issuer/fee/currency, remove button)
+- **Rotating cards (Freedom Flex, Discover it): auto-populated quarterly categories from the card's `rotation_schedule` field.** Show Q1–Q4 with the pre-filled categories and an "Override" button per quarter if the user wants to change them. Display a notification banner when a new quarter's categories auto-update.
+- Custom-select cards (Citi CC, USB Cash+, BoA CCR): show category pick buttons with max indicator
 - SUB section: list of cards with SUBs as checkbox rows. Checked = earned. Shows dollar value at current valuation.
 - Person management: rename button, remove button (if >1 person), add person button in header chip bar
 - Pro gates: if free tier and >5 cards, show "Upgrade to add more cards" when trying to add 6th. If free tier and trying to add 2nd person, show upgrade prompt.
 
-**Test:** add 6 cards → see all 6 with configs. Set Freedom Flex Q1 to "Dining" → config persists. Check 2 SUBs → see dollar values.
+**Test:** add Freedom Flex → Q1-Q4 auto-populated with 2026 categories. Override Q2 to "groceries" → persists. Check 2 SUBs → see dollar values. Switch person → see different wallet.
 
 ---
 
-### Task 2.4 — Spend simulator page
-Build `/simulate` page:
-- Quarter selector (Q1-Q4 buttons) at top
-- Valuation tier toggle (Floor / MCC Composite / Ceiling)
-- Routing table per DESIGN.md:
-  - 12 category rows (or fewer if spend is $0)
-  - Each row: category label, slider + text input, card dropdown, rate display, points + dollar value
-  - Slider and text input are synced (change one updates the other)
-  - Text input: select-all on focus, updates on blur/enter (not on every keystroke)
-  - Card dropdown: "Auto: [card name] [rate]x" as default, all eligible cards as options
-  - Overflow rows shown below primary when cap is hit
-  - Cap warning indicator
-- Below table: metric cards grid (4 columns):
-  - Annual points value (at selected valuation)
-  - Annual fees (net)
-  - SUBs earned
-  - Net total value
-- Below metrics: annual currency breakdown (per-currency points + dollar value + floor-ceiling range)
+### Task 2.4 — Spend simulator page ← USE OPUS FOR THIS TASK
+Build `/simulate` page. This is the most complex UI in the app — read INSTRUCTIONS.md carefully for the three-layer spending model, per-person routing, and view modes.
 
-**Test:** set dining to $500 → Freedom Flex 7x shows as auto-selected (if Q rotation set to dining). Change gas to $600 → see cap overflow on US Bank Cash+ if configured. Toggle valuation → dollar values change but card routing stays the same.
+**Person selector** at top — switch between household members. Each person has INDEPENDENT spending.
+
+**View mode toggle**: Individual / Combined / Compare
+- Individual: shows one person's spending, routing, monthly/annual value
+- Combined: merges all people's spending into total household view
+- Compare: side-by-side (desktop) or stacked (mobile) showing each person independently
+
+**Month view**: month selector (Jan 2026 – Dec 2026)
+- Shows spending and routing for that specific month
+- Each category row: slider + text input (pre-filled from default average)
+- If user has overridden this month, shows the override. Otherwise shows the default.
+- Editing a month's value saves as a monthly override (doesn't change the default average)
+- "Reset to average" button per category to clear the override
+
+**Annual summary view**: aggregates all 12 months
+- Uses monthly overrides where entered, default average for all other months
+- Per-month bar chart or breakdown showing earnings over time
+- Total annual value, fees, SUBs, net
+
+**Routing table** (shown in both monthly and annual views):
+- 12 category rows
+- Each row: category label, spending amount (slider + input), card dropdown (Auto: [card name] [rate]x), rate, raw points, dollar value
+- Overflow and cap indicators
+- Three valuation tiers (Floor / MCC Composite / Ceiling)
+
+**Metric cards** (4 columns):
+- Monthly points value (for monthly view) OR Annual points value (for annual view)
+- Fees (net)
+- SUBs earned
+- Net total value
+
+**Test:** 
+- Set person 1 dining to $400 → switch to person 2 → dining should be at THEIR default, not $400
+- Enter December dining as $600 (override) → switch to January → shows default $300
+- Toggle to Combined view → shows both people's spending merged
+- Toggle to Compare → see both people side by side
+- Annual summary uses December's $600 override + 11 months of $300 default = $3,900 total dining
 
 ---
 
@@ -185,28 +206,30 @@ Create `/admin` page (protected: only accessible by a hardcoded admin email, or 
 - Table of all cards in database with edit/delete buttons
 - Add card form with all fields from the Card schema
 - JSON editor for complex fields (earn rates, caps, perks)
+- **Rotation schedule editor**: for rotating cards, a visual Q1–Q4 editor per year to set the announced categories. When saved, all users with this card auto-update on next load.
 - Valuation editor: update MCC Composite values per currency per month
 
-**Test:** log in as admin → see all 24 cards → edit Chase Sapphire Reserve earn rates → save → verify change in card browser.
+**Test:** log in as admin → see all 24 cards → edit Freedom Flex 2026 Q2 rotation to "dining, streaming" → save → verify user wallets auto-populate with updated categories.
 
 ---
 
 ## Phase 3: Monetization (Weeks 6–9)
 
-### Task 3.1 — Optimizer page
+### Task 3.1 — Optimizer page ← USE OPUS FOR THIS TASK
 Build `/optimize` page:
-- Preference filters at top: max annual fee dropdown, credit score dropdown (Excellent/Good/Fair), preferred issuer dropdown, preferred currency dropdown
+- Person selector at top (optimizer runs per-person against their wallet and spending)
+- Preference filters: max annual fee dropdown, credit score dropdown (Excellent/Good/Fair), preferred issuer dropdown, preferred currency dropdown
 - Recommendation cards below (up to 8):
   - Card face mini + name + issuer + fee
   - Net annual value gained (large, green)
-  - Category improvements as pills ("Dining: 2x→4x")
-  - Earn improvement dollar amount
-  - SUB value
-  - "Add to wallet" button
-  - "What-if" button (Pro): opens side-by-side before/after annual summary
+  - **Plain-English explanation** (REQUIRED for every recommendation). Dynamically generated. Example:
+    > "This card earns 4x on dining vs your current best of 2x (Amazon Visa). At $300/month in dining, that's an extra $144/year in Chase UR points. Combined with the 60,000 point welcome bonus (~$1,230), this card adds $1,278 in first-year value after subtracting the $95 annual fee."
+  - Category improvement pills ("Dining: 2x→4x")
+  - "Add to [person]'s wallet" button
+  - "What-if" button (Pro): opens side-by-side before/after annual summary showing exactly what changes
 - Free tier gate: show top 2 results fully. Results 3-8 are blurred/overlaid with "Upgrade to Pro to see 6 more recommendations"
 
-**Test:** with 3 cards in wallet and default spending, optimizer suggests cards that genuinely improve earnings. Amex Gold should appear if no 4x grocery/dining card is present.
+**Test:** with 3 cards in wallet and real spending, optimizer suggests cards with clear explanations referencing the user's actual spend amounts and current card rates. Amex Gold should appear if no 4x grocery/dining card is present.
 
 ---
 

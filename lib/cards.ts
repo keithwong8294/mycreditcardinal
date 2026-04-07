@@ -97,6 +97,14 @@ export const CARDS: Card[] = [
     rotating: true,
     rot_cap: 1500,
     rot_opts: ["dining", "groceries", "gas", "online", "entertainment", "transit", "drugstore", "streaming"],
+    rotation_schedule: {
+      "2026": {
+        "Q1": ["groceries", "streaming"],
+        "Q2": ["dining", "hotels"],
+        "Q3": ["gas", "transit"],
+        "Q4": ["online", "groceries"],
+      },
+    },
     custom_select: false, custom_max: null, custom_rate: null, custom_opts: null,
     fico_min: 670,
     status: "active",
@@ -540,6 +548,14 @@ export const CARDS: Card[] = [
     rotating: true,
     rot_cap: 1500,
     rot_opts: ["dining", "groceries", "gas", "online", "entertainment", "transit", "drugstore", "streaming"],
+    rotation_schedule: {
+      "2026": {
+        "Q1": ["groceries", "drugstore"],
+        "Q2": ["gas", "transit"],
+        "Q3": ["dining", "online"],
+        "Q4": ["online", "groceries"],
+      },
+    },
     custom_select: false, custom_max: null, custom_rate: null, custom_opts: null,
     fico_min: 650,
     status: "active",
