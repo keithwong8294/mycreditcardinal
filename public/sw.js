@@ -1,4 +1,4 @@
-const CACHE_NAME = "mcc-v1";
+const CACHE_NAME = "mcc-v2";
 const OFFLINE_URL = "/offline";
 
 // ── Install: pre-cache the offline shell ──────────────────────────────────────
