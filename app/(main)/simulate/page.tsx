@@ -72,8 +72,10 @@ function SpendRow({
   defaultAmount?: number;
   isMonthlyOverride?: boolean;
   onClearOverride?: () => void;
+  sliderMax?: number;
 }) {
   const cat = CATEGORIES.find((c) => c.id === categoryId)!;
+  const effectiveMax = sliderMax ?? cat.sliderMax;
   const [inputVal, setInputVal] = useState(String(Math.round(spend)));
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -85,7 +87,7 @@ function SpendRow({
 
   function commitInput() {
     const n = parseInt(inputVal.replace(/[^0-9]/g, ""), 10);
-    const clamped = isNaN(n) ? 0 : Math.max(0, Math.min(n, cat.sliderMax));
+    const clamped = isNaN(n) ? 0 : Math.max(0, Math.min(n, effectiveMax));
     onSpendChange(categoryId, clamped);
     setInputVal(String(clamped));
   }
@@ -115,7 +117,7 @@ function SpendRow({
           <input
             type="range"
             min={0}
-            max={cat.sliderMax}
+            max={effectiveMax}
             step={10}
             value={Math.round(spend)}
             onChange={(e) => {
@@ -620,6 +622,26 @@ export default function SimulatePage() {
     return { allCards, combinedSpend, result, routingMap };
   }, [viewMode, people, selectedMonth, viewQuarter, overrides, valuationTier, allSpend, allMonthlySpend]);
 
+  // Distributes a combined spend value evenly across all people
+  const handleCombinedSpendChange = useCallback(
+    (catId: string, combinedVal: number) => {
+      const perPerson = Math.round(combinedVal / Math.max(people.length, 1));
+      for (const person of people) {
+        if (selectedMonth) {
+          const def = (allSpend[person.id] ?? EMPTY_SPEND)[catId] ?? CATEGORIES.find(c => c.id === catId)?.defaultAmount ?? 0;
+          if (perPerson === def) {
+            clearMonthlySpend(person.id, catId, selectedMonth);
+          } else {
+            setMonthlySpend(person.id, catId, selectedMonth, perPerson);
+          }
+        } else {
+          setSpend(person.id, catId, perPerson);
+        }
+      }
+    },
+    [people, selectedMonth, allSpend, setSpend, setMonthlySpend, clearMonthlySpend]
+  );
+
   // ── Display stats ─────────────────────────────────────────────────────────────
 
   const isHousehold = viewMode !== "individual";
@@ -822,8 +844,9 @@ export default function SimulatePage() {
                 routingRow={combinedData.routingMap[cat.id]}
                 walletCards={combinedData.allCards}
                 overrides={overrides}
-                onSpendChange={() => {}} // read-only in combined mode
+                onSpendChange={handleCombinedSpendChange}
                 onOverrideChange={() => {}}
+                sliderMax={CATEGORIES.find(c => c.id === cat.id)!.sliderMax * Math.max(people.length, 1)}
               />
             ))}
             {combinedData.result.totalDollarValue > 0 && (
