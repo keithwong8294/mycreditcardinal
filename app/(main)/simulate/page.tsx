@@ -61,6 +61,7 @@ function SpendRow({
   defaultAmount,
   isMonthlyOverride,
   onClearOverride,
+  sliderMax,
 }: {
   categoryId: string;
   spend: number;
