@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+const isDev = process.env.NODE_ENV === "development";
+
 const nextConfig: NextConfig = {
   async headers() {
     return [
@@ -9,6 +11,16 @@ const nextConfig: NextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          // In development, tell the browser never to cache pages so changes
+          // always appear immediately without a hard refresh.
+          ...(isDev
+            ? [
+                {
+                  key: "Cache-Control",
+                  value: "no-store, no-cache, must-revalidate",
+                },
+              ]
+            : []),
         ],
       },
       {
