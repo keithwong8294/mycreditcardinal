@@ -169,6 +169,12 @@ export default function LoginPage() {
           <p className="text-tertiary text-[11px] text-center">
             Free 30-day trial · No credit card required
           </p>
+          <p className="text-tertiary text-[10px] text-center">
+            By signing in you agree to our{" "}
+            <a href="/terms" className="underline hover:text-secondary transition-colors">Terms</a>
+            {" "}and{" "}
+            <a href="/privacy" className="underline hover:text-secondary transition-colors">Privacy Policy</a>
+          </p>
         </div>
       </div>
     </div>

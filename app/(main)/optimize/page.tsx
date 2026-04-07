@@ -593,6 +593,13 @@ export default function OptimizePage() {
           </div>
         </div>
       )}
+
+      {/* Disclaimer */}
+      <p className="mt-8 px-4 pb-8 text-[11px] text-tertiary text-center max-w-2xl mx-auto">
+        For informational purposes only. Not financial advice. Rewards values and earn rates are
+        estimates and may not reflect your specific card version or current issuer terms. Always
+        verify with your card issuer before making financial decisions.
+      </p>
     </div>
   );
 }
