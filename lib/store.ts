@@ -96,6 +96,7 @@ export interface AppActions {
   // Spend — Layer 2 (monthly overrides, "YYYY-MM" key)
   setMonthlySpend: (memberId: string, categoryId: string, yearMonth: string, amount: number) => void;
   clearMonthlySpend: (memberId: string, categoryId: string, yearMonth: string) => void;
+  resetMonthForPerson: (memberId: string, yearMonth: string) => void;
 
   // Derived helpers for spend
   getSpendForPerson: (memberId: string) => Record<string, number>;
@@ -336,6 +337,18 @@ export const useStore = create<Store>()(
               [memberId]: { ...memberMonthly, [categoryId]: catMonthly },
             },
           };
+        });
+      },
+
+      resetMonthForPerson(memberId, yearMonth) {
+        set((s) => {
+          const memberMonthly = { ...(s.monthlySpend[memberId] ?? {}) };
+          for (const catId of Object.keys(memberMonthly)) {
+            const catMonthly = { ...memberMonthly[catId] };
+            delete catMonthly[yearMonth];
+            memberMonthly[catId] = catMonthly;
+          }
+          return { monthlySpend: { ...s.monthlySpend, [memberId]: memberMonthly } };
         });
       },
 
