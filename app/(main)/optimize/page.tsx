@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useStore } from "@/lib/store";
-import { CARDS } from "@/lib/cards";
 import { CURRENCIES, CURRENCY_MAP } from "@/lib/currencies";
 import { CATEGORIES } from "@/lib/categories";
 import { getRecommendations, routeAnnual, calculateFees, calculateSubValue } from "@/lib/engine";
 import type { OptimizerPreferences } from "@/lib/engine";
 import type { Recommendation } from "@/types";
+import type { Card } from "@/types";
 import { cardGradient, isLightBackground } from "@/lib/utils";
 import {
   Select,
@@ -33,9 +33,6 @@ function fmtDollar(n: number): string {
 function fmtPoints(n: number): string {
   return Math.round(n).toLocaleString();
 }
-
-// All distinct issuers in the card database
-const ALL_ISSUERS = Array.from(new Set(CARDS.map((c) => c.issuer))).sort();
 
 const FEE_OPTIONS = [
   { label: "Any fee", value: "any" },
@@ -389,6 +386,17 @@ export default function OptimizePage() {
   const spend = getActivePersonSpend();
   const walletCards = getActiveWalletCards();
 
+  // Lazy-load the card database so it splits into its own chunk
+  const [baseCards, setBaseCards] = useState<Card[]>([]);
+  useEffect(() => {
+    import("@/lib/cards").then((m) => setBaseCards(m.CARDS));
+  }, []);
+
+  const allIssuers = useMemo(
+    () => Array.from(new Set(baseCards.map((c) => c.issuer))).sort(),
+    [baseCards]
+  );
+
   // Preference filter state
   const [maxFeeStr, setMaxFeeStr] = useState<string>("any");
   const [minScoreStr, setMinScoreStr] = useState<string>("any");
@@ -402,7 +410,7 @@ export default function OptimizePage() {
     preferredCurrencies: currencyFilter === "any" ? [] : [currencyFilter],
   }), [maxFeeStr, minScoreStr, issuerFilter, currencyFilter]);
 
-  const allCards = useMemo(() => [...CARDS, ...customCards], [customCards]);
+  const allCards = useMemo(() => [...baseCards, ...customCards], [baseCards, customCards]);
 
   const recommendations = useMemo(
     () => getRecommendations(walletCards, spend, preferences, allCards, valuationTier),
@@ -468,7 +476,7 @@ export default function OptimizePage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="any">Any issuer</SelectItem>
-                {ALL_ISSUERS.map((iss) => (
+                {allIssuers.map((iss) => (
                   <SelectItem key={iss} value={iss}>{iss}</SelectItem>
                 ))}
               </SelectContent>
@@ -492,8 +500,28 @@ export default function OptimizePage() {
         </div>
       </div>
 
+      {/* Loading skeleton */}
+      {baseCards.length === 0 && (
+        <div className="space-y-3 animate-pulse">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="bg-white border border-subtle rounded-lg p-4">
+              <div className="flex items-start gap-3 mb-3">
+                <div className="w-14 h-9 rounded-md bg-[#e2e8f0] shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-1/2 bg-[#e2e8f0] rounded" />
+                  <div className="h-3 w-1/3 bg-[#e2e8f0] rounded" />
+                </div>
+                <div className="h-7 w-20 bg-[#e2e8f0] rounded" />
+              </div>
+              <div className="h-px bg-[#e2e8f0] mb-3" />
+              <div className="h-3 w-3/4 bg-[#e2e8f0] rounded" />
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* No wallet state */}
-      {walletCards.length === 0 && (
+      {baseCards.length > 0 && walletCards.length === 0 && (
         <div className="bg-white border border-subtle rounded-lg p-8 text-center">
           <div className="text-[13px] text-secondary">Add cards to your wallet to see recommendations.</div>
           <div className="text-[11px] text-tertiary mt-1">The optimizer compares candidates against your current earn rates.</div>
@@ -501,7 +529,7 @@ export default function OptimizePage() {
       )}
 
       {/* No results */}
-      {walletCards.length > 0 && recommendations.length === 0 && (
+      {baseCards.length > 0 && walletCards.length > 0 && recommendations.length === 0 && (
         <div className="bg-white border border-subtle rounded-lg p-8 text-center">
           <div className="text-[13px] text-secondary">No recommendations match your current filters.</div>
           <div className="text-[11px] text-tertiary mt-1">Try relaxing the fee or credit score filters.</div>
@@ -509,7 +537,7 @@ export default function OptimizePage() {
       )}
 
       {/* Recommendation grid */}
-      {recommendations.length > 0 && (
+      {baseCards.length > 0 && recommendations.length > 0 && (
         <div className="space-y-3">
           <div className="text-[10px] font-semibold text-tertiary uppercase tracking-wider">
             {recommendations.length} recommendation{recommendations.length !== 1 ? "s" : ""}

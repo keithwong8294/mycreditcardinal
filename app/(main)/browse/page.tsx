@@ -2,7 +2,6 @@
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useStore } from "@/lib/store";
-import { CARDS } from "@/lib/cards";
 import { CATEGORIES } from "@/lib/categories";
 import { CURRENCIES } from "@/lib/currencies";
 import type { Card } from "@/types";
@@ -324,6 +323,14 @@ export default function BrowsePage() {
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
   const [detailCard, setDetailCard] = useState<Card | null>(null);
 
+  // Lazy-load the card database so it splits into its own chunk.
+  // Use baseCards.length === 0 as the skeleton condition — stable on both server
+  // and client initial render, avoiding hydration mismatches.
+  const [baseCards, setBaseCards] = useState<Card[]>([]);
+  useEffect(() => {
+    import("@/lib/cards").then((m) => setBaseCards(m.CARDS));
+  }, []);
+
   // Debounce search 200ms
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -334,11 +341,11 @@ export default function BrowsePage() {
     };
   }, [search]);
 
-  const allCards = useMemo(() => [...CARDS, ...customCards], [customCards]);
+  const allCards = useMemo(() => [...baseCards, ...customCards], [baseCards, customCards]);
 
   const issuers = useMemo(
-    () => Array.from(new Set(CARDS.map((c) => c.issuer))).sort(),
-    []
+    () => Array.from(new Set(baseCards.map((c) => c.issuer))).sort(),
+    [baseCards]
   );
 
   const filtered = useMemo(() => {
@@ -439,7 +446,22 @@ export default function BrowsePage() {
       </div>
 
       {/* Grid */}
-      {filtered.length === 0 ? (
+      {baseCards.length === 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 animate-pulse">
+          {Array.from({ length: 9 }).map((_, i) => (
+            <div key={i} className="rounded-lg overflow-hidden border border-subtle">
+              <div className="h-20 bg-[#f1f5f9]" />
+              <div className="p-2.5 space-y-2">
+                <div className="h-3 w-1/2 bg-[#e2e8f0] rounded" />
+                <div className="flex gap-1">
+                  <div className="h-4 w-16 bg-[#e2e8f0] rounded-full" />
+                  <div className="h-4 w-20 bg-[#e2e8f0] rounded-full" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="py-16 text-center text-tertiary text-[13px]">
           No cards match your filters.
         </div>

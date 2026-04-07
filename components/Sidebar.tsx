@@ -21,6 +21,8 @@ const navItems = [
 export default function Sidebar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [addingPerson, setAddingPerson] = useState(false);
+  const [newPersonName, setNewPersonName] = useState("");
   const { user } = useAuth();
 
   const people = useStore((s) => s.people);
@@ -28,10 +30,11 @@ export default function Sidebar() {
   const setActivePerson = useStore((s) => s.setActivePerson);
   const addPerson = useStore((s) => s.addPerson);
 
-  function handleAddPerson() {
-    const name = prompt("Enter a name:");
-    if (!name?.trim()) return;
-    addPerson(name.trim());
+  function commitAddPerson() {
+    const trimmed = newPersonName.trim();
+    if (trimmed) addPerson(trimmed);
+    setNewPersonName("");
+    setAddingPerson(false);
   }
 
   const displayName =
@@ -93,12 +96,33 @@ export default function Sidebar() {
               {person.name}
             </button>
           ))}
-          <button
-            onClick={handleAddPerson}
-            className="w-full text-left px-3 py-1.5 rounded-lg text-[12px] text-white/30 hover:text-white/60 transition-colors duration-150"
-          >
-            + Add person
-          </button>
+          {addingPerson ? (
+            <form
+              onSubmit={(e) => { e.preventDefault(); commitAddPerson(); }}
+              className="flex items-center gap-1 px-1 py-0.5"
+            >
+              <input
+                autoFocus
+                value={newPersonName}
+                onChange={(e) => setNewPersonName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") { setAddingPerson(false); setNewPersonName(""); }
+                }}
+                placeholder="Name…"
+                className="flex-1 px-2 py-1 bg-white/8 border border-white/15 rounded-md text-[11px] text-white placeholder:text-white/30 focus:outline-none focus:border-white/30 min-w-0"
+              />
+              <button type="submit" className="text-[11px] text-green font-medium shrink-0 px-1 hover:text-green/70 transition-colors">
+                Add
+              </button>
+            </form>
+          ) : (
+            <button
+              onClick={() => setAddingPerson(true)}
+              className="w-full text-left px-3 py-1.5 rounded-lg text-[12px] text-white/30 hover:text-white/60 transition-colors duration-150"
+            >
+              + Add person
+            </button>
+          )}
         </div>
       </div>
 

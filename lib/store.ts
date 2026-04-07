@@ -17,6 +17,19 @@ function defaultConfig(): CardConfig {
   return { rotQ: [null, null, null, null], custom: [] };
 }
 
+/** Auto-populate rotQ from the card's rotation_schedule for the current year. */
+function rotQFromSchedule(card: Card): CardConfig["rotQ"] {
+  const year = new Date().getFullYear().toString();
+  const schedule = card.rotation_schedule?.[year];
+  if (!schedule) return [null, null, null, null];
+  return [
+    schedule["Q1"]?.[0] ?? null,
+    schedule["Q2"]?.[0] ?? null,
+    schedule["Q3"]?.[0] ?? null,
+    schedule["Q4"]?.[0] ?? null,
+  ];
+}
+
 function defaultSpend(): Record<string, number> {
   return Object.fromEntries(CATEGORIES.map((c) => [c.id, c.defaultAmount]));
 }
@@ -36,9 +49,11 @@ export interface AppState {
   activePersonId: string;
 
   // Spend & routing
-  // Keyed by memberId → categoryId → monthly amount.
-  // Use getSpendForPerson(memberId) to get a flat spend record for the engine.
+  // Layer 1: default monthly average per person per category.
   spend: Record<string, Record<string, number>>;
+  // Layer 2: per-month overrides. Only months that differ from the default are stored.
+  // Shape: memberId → categoryId → "YYYY-MM" → amount
+  monthlySpend: Record<string, Record<string, Record<string, number>>>;
   overrides: Record<string, string | null>; // categoryId → walletCard.id | null
 
   // Which wallet card SUBs have been marked earned (by walletCard.id)
@@ -75,13 +90,18 @@ export interface AppActions {
   addCustomCard: (card: Omit<Card, "id" | "status">) => void;
   removeCustomCard: (cardId: string) => void;
 
-  // Spend
+  // Spend — Layer 1 (default average)
   setSpend: (memberId: string, categoryId: string, amount: number) => void;
   resetSpend: (memberId: string) => void;
+  // Spend — Layer 2 (monthly overrides, "YYYY-MM" key)
+  setMonthlySpend: (memberId: string, categoryId: string, yearMonth: string, amount: number) => void;
+  clearMonthlySpend: (memberId: string, categoryId: string, yearMonth: string) => void;
 
   // Derived helpers for spend
   getSpendForPerson: (memberId: string) => Record<string, number>;
   getActivePersonSpend: () => Record<string, number>;
+  /** Returns effective flat spend for a specific month: monthly override if set, else default. */
+  getSpendForMonth: (memberId: string, yearMonth: string) => Record<string, number>;
 
   // Overrides
   setOverride: (categoryId: string, walletCardId: string | null) => void;
@@ -124,6 +144,7 @@ const initialState: AppState = {
   ],
   activePersonId: initialPersonId,
   spend: { [initialPersonId]: defaultSpend() },
+  monthlySpend: { [initialPersonId]: {} },
   overrides: {},
   subEarned: [],
   cardConfigs: {},
@@ -152,6 +173,7 @@ export const useStore = create<Store>()(
           ],
           activePersonId: id,
           spend: { ...s.spend, [id]: defaultSpend() },
+          monthlySpend: { ...s.monthlySpend, [id]: {} },
         }));
       },
 
@@ -199,9 +221,11 @@ export const useStore = create<Store>()(
             // Remove card
             updatedCards = person.cards.filter((wc) => wc.card.id !== cardId);
           } else {
-            // Add card — reuse existing config if card was previously added
+            // Add card — auto-populate rotQ for rotating cards from rotation_schedule
             const walletCardId = uuid();
-            const config = defaultConfig();
+            const config: CardConfig = card.rotating
+              ? { rotQ: rotQFromSchedule(card), custom: [] }
+              : defaultConfig();
             updatedConfigs[walletCardId] = config;
             updatedCards = [
               ...person.cards,
@@ -237,7 +261,9 @@ export const useStore = create<Store>()(
             updatedCards = person.cards.filter((wc) => wc.card.id !== cardId);
           } else {
             const walletCardId = uuid();
-            const config = defaultConfig();
+            const config: CardConfig = card.rotating
+              ? { rotQ: rotQFromSchedule(card), custom: [] }
+              : defaultConfig();
             updatedConfigs[walletCardId] = config;
             updatedCards = [...person.cards, { id: walletCardId, card, config }];
           }
@@ -283,6 +309,36 @@ export const useStore = create<Store>()(
         set((s) => ({ spend: { ...s.spend, [memberId]: defaultSpend() } }));
       },
 
+      setMonthlySpend(memberId, categoryId, yearMonth, amount) {
+        set((s) => {
+          const memberMonthly = s.monthlySpend[memberId] ?? {};
+          const catMonthly = memberMonthly[categoryId] ?? {};
+          return {
+            monthlySpend: {
+              ...s.monthlySpend,
+              [memberId]: {
+                ...memberMonthly,
+                [categoryId]: { ...catMonthly, [yearMonth]: amount },
+              },
+            },
+          };
+        });
+      },
+
+      clearMonthlySpend(memberId, categoryId, yearMonth) {
+        set((s) => {
+          const memberMonthly = s.monthlySpend[memberId] ?? {};
+          const catMonthly = { ...(memberMonthly[categoryId] ?? {}) };
+          delete catMonthly[yearMonth];
+          return {
+            monthlySpend: {
+              ...s.monthlySpend,
+              [memberId]: { ...memberMonthly, [categoryId]: catMonthly },
+            },
+          };
+        });
+      },
+
       getSpendForPerson(memberId) {
         return get().spend[memberId] ?? defaultSpend();
       },
@@ -290,6 +346,18 @@ export const useStore = create<Store>()(
       getActivePersonSpend() {
         const s = get();
         return s.spend[s.activePersonId] ?? defaultSpend();
+      },
+
+      getSpendForMonth(memberId, yearMonth) {
+        const s = get();
+        const defaults = s.spend[memberId] ?? defaultSpend();
+        const memberMonthly = s.monthlySpend[memberId] ?? {};
+        const result: Record<string, number> = {};
+        for (const cat of CATEGORIES) {
+          const override = memberMonthly[cat.id]?.[yearMonth];
+          result[cat.id] = override !== undefined ? override : (defaults[cat.id] ?? cat.defaultAmount);
+        }
+        return result;
       },
 
       // ── Overrides ────────────────────────────────────────────────────────────
@@ -414,6 +482,7 @@ export const useStore = create<Store>()(
         people: s.people,
         activePersonId: s.activePersonId,
         spend: s.spend,
+        monthlySpend: s.monthlySpend,
         overrides: s.overrides,
         subEarned: s.subEarned,
         cardConfigs: s.cardConfigs,
@@ -423,18 +492,24 @@ export const useStore = create<Store>()(
         valuationTier: s.valuationTier,
         activeTab: s.activeTab,
       }),
-      version: 2,
+      version: 3,
       migrate(persistedState, version) {
         const state = persistedState as Partial<AppState>;
         if (version < 2 && state.spend) {
           // v1 had flat spend; migrate to nested per-person
           const flat = state.spend as unknown as Record<string, number>;
-          // Check if the first value is a number (old format) vs object (new format)
           const firstVal = Object.values(flat)[0];
           if (typeof firstVal === "number") {
             const activeId = state.activePersonId ?? initialPersonId;
             state.spend = { [activeId]: flat } as Record<string, Record<string, number>>;
           }
+        }
+        if (version < 3) {
+          // v2 had no monthlySpend; initialize empty for all people
+          const people = state.people ?? [];
+          const monthlySpend: Record<string, Record<string, Record<string, number>>> = {};
+          for (const p of people) monthlySpend[p.id] = {};
+          state.monthlySpend = monthlySpend;
         }
         return state as AppState;
       },

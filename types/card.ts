@@ -35,6 +35,15 @@ export interface Card {
   /** Available options for the rotating category slot */
   rot_opts: string[] | null;
 
+  /**
+   * Announced quarterly category schedule per year.
+   * Keys are year strings ("2026"); values are quarter maps ("Q1"-"Q4") with
+   * arrays of category IDs that earn the bonus that quarter.
+   * When a card is added to a wallet, rotQ is auto-populated from the current year.
+   * @example { "2026": { "Q1": ["groceries"], "Q2": ["dining", "streaming"], ... } }
+   */
+  rotation_schedule?: Record<string, Record<string, string[]>>;
+
   /** True if this card lets users pick bonus categories */
   custom_select: boolean;
 
