@@ -23,6 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useProCheck } from "@/lib/useProCheck";
+import { trackOptimizerViewed, trackOptimizerCardAdded } from "@/lib/analytics";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -386,6 +387,9 @@ export default function OptimizePage() {
   const spend = getActivePersonSpend();
   const walletCards = getActiveWalletCards();
 
+  // Track page view once on mount
+  useEffect(() => { trackOptimizerViewed(); }, []);
+
   // Lazy-load the card database so it splits into its own chunk
   const [baseCards, setBaseCards] = useState<Card[]>([]);
   useEffect(() => {
@@ -578,7 +582,10 @@ export default function OptimizePage() {
                   key={rec.card.id}
                   rec={rec}
                   spend={spend}
-                  onAddToWallet={() => toggleCard(rec.card.id)}
+                  onAddToWallet={() => {
+                    toggleCard(rec.card.id);
+                    trackOptimizerCardAdded(rec.card.id, rec.card.name, rec.netValue);
+                  }}
                   inWallet={walletCardIds.has(rec.card.id)}
                 />
               );

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { trackSpendUpdated } from "@/lib/analytics";
 import { useStore } from "@/lib/store";
 import { CATEGORIES } from "@/lib/categories";
 import { CURRENCY_MAP } from "@/lib/currencies";
@@ -62,6 +63,7 @@ function SpendRow({
   isMonthlyOverride,
   onClearOverride,
   sliderMax,
+  selectedMonth,
 }: {
   categoryId: string;
   spend: number;
@@ -74,6 +76,7 @@ function SpendRow({
   isMonthlyOverride?: boolean;
   onClearOverride?: () => void;
   sliderMax?: number;
+  selectedMonth?: string | null;
 }) {
   const cat = CATEGORIES.find((c) => c.id === categoryId)!;
   const effectiveMax = sliderMax ?? cat.sliderMax;
@@ -91,6 +94,7 @@ function SpendRow({
     const clamped = isNaN(n) ? 0 : Math.max(0, Math.min(n, effectiveMax));
     onSpendChange(categoryId, clamped);
     setInputVal(String(clamped));
+    trackSpendUpdated(categoryId, clamped, selectedMonth ?? null);
   }
 
   const overrideId = overrides[categoryId] ?? null;
@@ -360,6 +364,7 @@ function PersonTable({
             onClearOverride={hasMonthlyOverride && selectedMonth
               ? () => clearMonthlySpend(personId, cat.id, selectedMonth)
               : undefined}
+            selectedMonth={selectedMonth}
           />
         );
       })}
@@ -818,6 +823,7 @@ export default function SimulatePage() {
                   onOverrideChange={handleOverrideChange}
                   defaultAmount={selectedMonth ? (activeDefaultSpend[cat.id] ?? 0) : undefined}
                   isMonthlyOverride={hasMonthlyOverride}
+                  selectedMonth={selectedMonth}
                   onClearOverride={hasMonthlyOverride && selectedMonth
                     ? () => clearMonthlySpend(activePersonId, cat.id, selectedMonth)
                     : undefined}
@@ -867,6 +873,7 @@ export default function SimulatePage() {
                 onSpendChange={handleCombinedSpendChange}
                 onOverrideChange={() => {}}
                 sliderMax={CATEGORIES.find(c => c.id === cat.id)!.sliderMax * Math.max(people.length, 1)}
+                selectedMonth={selectedMonth}
               />
             ))}
             {combinedData.result.totalDollarValue > 0 && (
