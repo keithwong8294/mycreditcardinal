@@ -117,6 +117,9 @@ export interface AppActions {
   // Sync metadata (set by sync module after hydration)
   setSyncMeta: (meta: Partial<SyncMeta>) => void;
 
+  // Reorder
+  reorderPeople: (newOrder: string[]) => void;
+
   // View state
   setViewQuarter: (q: 1 | 2 | 3 | 4) => void;
   setValuation: (tier: ValuationTier) => void;
@@ -456,6 +459,19 @@ export const useStore = create<Store>()(
 
       setSyncMeta(meta) {
         set((s) => ({ syncMeta: { ...s.syncMeta, ...meta } }));
+      },
+
+      // ── Reorder ──────────────────────────────────────────────────────────────
+
+      reorderPeople(newOrder) {
+        set((s) => {
+          const byId = new Map(s.people.map((p) => [p.id, p]));
+          const reordered = newOrder
+            .map((id) => byId.get(id))
+            .filter((p): p is HouseholdMember => p !== undefined)
+            .map((p, i) => ({ ...p, sortOrder: i }));
+          return { people: reordered };
+        });
       },
 
       // ── View state ───────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { trackSpendUpdated } from "@/lib/analytics";
 import { useStore } from "@/lib/store";
 import { CATEGORIES } from "@/lib/categories";
@@ -13,8 +13,23 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  horizontalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -27,20 +42,17 @@ const MONTH_LABELS = [
 
 const CURRENT_YEAR = 2026;
 
-// Build list of "YYYY-MM" strings for the current year
 const MONTHS_OF_YEAR = MONTH_LABELS.map((_, i) => {
   const mm = String(i + 1).padStart(2, "0");
   return `${CURRENT_YEAR}-${mm}`;
 });
 
 function monthToQuarter(yearMonth: string): 1 | 2 | 3 | 4 {
-  const month = parseInt(yearMonth.split("-")[1], 10); // 1-12
+  const month = parseInt(yearMonth.split("-")[1], 10);
   return (Math.ceil(month / 3)) as 1 | 2 | 3 | 4;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-type ViewMode = "individual" | "combined" | "compare";
 
 function fmt(n: number): string {
   return n.toLocaleString();
@@ -171,8 +183,6 @@ function SpendRow({
             }
           >
             <SelectTrigger className="h-7 text-[11px] w-full px-2">
-              {/* Render display text explicitly — Base UI mirrors ItemText which
-                  can fail with JSX expressions, so we control the trigger label */}
               <span className="truncate flex-1 text-left">
                 {overrideId
                   ? (walletCards.find((wc) => wc.id === overrideId)?.card.name ?? "Card")
@@ -263,9 +273,9 @@ function TableHeaders() {
   );
 }
 
-// ─── Person routing table (compare mode) ─────────────────────────────────────
+// ─── Profile block (self-contained per person) ──────────────────────────────
 
-function PersonTable({
+function ProfileBlock({
   personId,
   personName,
   valuationTier,
@@ -285,7 +295,6 @@ function PersonTable({
   const setSpend = useStore((s) => s.setSpend);
   const setMonthlySpend = useStore((s) => s.setMonthlySpend);
   const clearMonthlySpend = useStore((s) => s.clearMonthlySpend);
-  const getSpendForMonth = useStore((s) => s.getSpendForMonth);
   const setOverride = useStore((s) => s.setOverride);
 
   const walletCards = useMemo(
@@ -338,7 +347,7 @@ function PersonTable({
 
   return (
     <div className="bg-white border border-subtle rounded-lg overflow-hidden min-w-[520px]">
-      <div className="px-3 py-2 border-b border-subtle bg-[#0f1219] flex items-center justify-between">
+      <div className="px-3 py-2 border-b border-subtle bg-[#0f1219] flex items-center justify-between cursor-grab active:cursor-grabbing">
         <span className="text-[12px] font-semibold text-white">{personName}</span>
         <span className="text-[11px] text-white/40">
           {walletCards.length} card{walletCards.length !== 1 ? "s" : ""}
@@ -382,6 +391,116 @@ function PersonTable({
   );
 }
 
+// ─── Sortable profile block wrapper ─────────────────────────────────────────
+
+function SortableProfileBlock({
+  personId,
+  personName,
+  valuationTier,
+  quarter,
+  selectedMonth,
+}: {
+  personId: string;
+  personName: string;
+  valuationTier: ValuationTier;
+  quarter: 1 | 2 | 3 | 4;
+  selectedMonth: string | null;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: personId });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 50 : undefined,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex-1 min-w-0">
+      {/* Drag handle layer over the header */}
+      <div className="relative">
+        <div {...attributes} {...listeners} className="absolute inset-x-0 top-0 h-[38px] z-10 cursor-grab active:cursor-grabbing" />
+        <ProfileBlock
+          personId={personId}
+          personName={personName}
+          valuationTier={valuationTier}
+          quarter={quarter}
+          selectedMonth={selectedMonth}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── Add person placeholder ─────────────────────────────────────────────────
+
+function AddPersonPlaceholder() {
+  const addPerson = useStore((s) => s.addPerson);
+  const [isAdding, setIsAdding] = useState(false);
+  const [name, setName] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function handleAdd() {
+    const trimmed = name.trim();
+    if (trimmed) {
+      addPerson(trimmed);
+      setName("");
+      setIsAdding(false);
+    }
+  }
+
+  return (
+    <div className="flex-1 min-w-[520px] border-2 border-dashed border-subtle rounded-lg flex flex-col items-center justify-center py-16 gap-3">
+      {isAdding ? (
+        <div className="flex items-center gap-2">
+          <input
+            ref={inputRef}
+            autoFocus
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleAdd();
+              if (e.key === "Escape") { setIsAdding(false); setName(""); }
+            }}
+            placeholder="Name"
+            className="px-3 py-1.5 text-[13px] border border-subtle rounded-lg bg-field focus:outline-none focus:border-medium w-36"
+          />
+          <button
+            onClick={handleAdd}
+            className="px-3 py-1.5 text-[12px] font-medium bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90 transition-colors"
+          >
+            Add
+          </button>
+          <button
+            onClick={() => { setIsAdding(false); setName(""); }}
+            className="px-2 py-1.5 text-[12px] text-tertiary hover:text-secondary transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <>
+          <p className="text-[13px] text-tertiary">Add a person to compare</p>
+          <button
+            onClick={() => setIsAdding(true)}
+            className="px-3 py-1.5 text-[12px] font-medium bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90 transition-colors"
+          >
+            + Add
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Metric card ──────────────────────────────────────────────────────────────
 
 function MetricCard({
@@ -410,31 +529,21 @@ function MetricCard({
 
 export default function SimulatePage() {
   const people = useStore((s) => s.people);
-  const activePersonId = useStore((s) => s.activePersonId);
-  const setActivePerson = useStore((s) => s.setActivePerson);
   const allSpend = useStore((s) => s.spend);
   const allMonthlySpend = useStore((s) => s.monthlySpend);
   const overrides = useStore((s) => s.overrides);
   const subEarned = useStore((s) => s.subEarned);
-  const setSpend = useStore((s) => s.setSpend);
-  const setMonthlySpend = useStore((s) => s.setMonthlySpend);
-  const clearMonthlySpend = useStore((s) => s.clearMonthlySpend);
   const resetMonthForPerson = useStore((s) => s.resetMonthForPerson);
-  const getSpendForMonth = useStore((s) => s.getSpendForMonth);
-  const setOverride = useStore((s) => s.setOverride);
   const storeValuationTier = useStore((s) => s.valuationTier);
   const setValuation = useStore((s) => s.setValuation);
+  const reorderPeople = useStore((s) => s.reorderPeople);
 
-  const [viewMode, setViewMode] = useState<ViewMode>("individual");
-  // null = annual summary; "YYYY-MM" = specific month view
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
 
   const valuationTier: ValuationTier = storeValuationTier;
 
-  const activePerson = people.find((p) => p.id === activePersonId);
-  const walletCards = activePerson?.cards ?? [];
-  const activeDefaultSpend = allSpend[activePersonId] ?? EMPTY_SPEND as Record<string, number>;
-  const activeMonthlySpend = allMonthlySpend[activePersonId] ?? {};
+  // Derive quarter from selected month
+  const viewQuarter: 1 | 2 | 3 | 4 = selectedMonth ? monthToQuarter(selectedMonth) : 1;
 
   // True if the selected month has at least one spend override for any person
   const selectedMonthHasOverrides = selectedMonth
@@ -443,102 +552,26 @@ export default function SimulatePage() {
       )
     : false;
 
-  // Derive quarter from selected month (for rotating card logic)
-  const viewQuarter: 1 | 2 | 3 | 4 = selectedMonth ? monthToQuarter(selectedMonth) : 1;
+  // ── DnD sensors ─────────────────────────────────────────────────────────────
 
-  // Effective spend for the active person (monthly override or default)
-  const activeSpend = useMemo(() => {
-    if (!selectedMonth) return activeDefaultSpend as Record<string, number>;
-    const result: Record<string, number> = {};
-    for (const cat of CATEGORIES) {
-      const override = activeMonthlySpend[cat.id]?.[selectedMonth];
-      result[cat.id] = override !== undefined ? override : (activeDefaultSpend[cat.id] ?? cat.defaultAmount);
-    }
-    return result;
-  }, [selectedMonth, activeDefaultSpend, activeMonthlySpend]);
-
-  // ── Individual mode calculations ─────────────────────────────────────────────
-
-  const result = useMemo(
-    () => routeMonth(walletCards, activeSpend, overrides, viewQuarter, valuationTier),
-    [walletCards, activeSpend, overrides, viewQuarter, valuationTier]
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor)
   );
 
-  const routingMap = useMemo(
-    () => Object.fromEntries(result.rows.map((r) => [r.categoryId, r])),
-    [result.rows]
-  );
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = people.findIndex((p) => p.id === active.id);
+    const newIndex = people.findIndex((p) => p.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(people.map((p) => p.id), oldIndex, newIndex);
+    reorderPeople(reordered);
+  }
 
-  // Annual result: route all 12 months using per-month spend, sum results
-  const annualResult = useMemo(() => {
-    if (selectedMonth) {
-      // In month view, show annualized estimate for this month
-      return routeAnnual(walletCards, activeSpend, overrides, {}, valuationTier);
-    }
-    // True annual: sum each month using its override or default
-    let totalDollarValue = 0;
-    const currencyMap: Record<string, { points: number; dollarValue: number }> = {};
-    for (const ym of MONTHS_OF_YEAR) {
-      const defaults = allSpend[activePersonId] ?? EMPTY_SPEND;
-      const memberMonthly = allMonthlySpend[activePersonId] ?? {};
-      const monthSpend: Record<string, number> = {};
-      for (const cat of CATEGORIES) {
-        const ov = memberMonthly[cat.id]?.[ym];
-        monthSpend[cat.id] = ov !== undefined ? ov : (defaults[cat.id] ?? cat.defaultAmount);
-      }
-      const q = monthToQuarter(ym);
-      const monthResult = routeMonth(walletCards, monthSpend, overrides, q, valuationTier);
-      totalDollarValue += monthResult.totalDollarValue;
-      for (const ct of monthResult.currencyTotals) {
-        if (!currencyMap[ct.currencyId]) currencyMap[ct.currencyId] = { points: 0, dollarValue: 0 };
-        currencyMap[ct.currencyId].points += ct.points;
-        currencyMap[ct.currencyId].dollarValue += ct.dollarValue;
-      }
-    }
-    return {
-      totalDollarValue,
-      currencyTotals: Object.entries(currencyMap).map(([currencyId, v]) => ({ currencyId, ...v })),
-      rows: [],
-    };
-  }, [selectedMonth, walletCards, activeSpend, overrides, valuationTier, activePersonId, allSpend, allMonthlySpend]);
-
-  const fees = useMemo(() => calculateFees(walletCards), [walletCards]);
-
-  const subValue = useMemo(
-    () => calculateSubValue(walletCards, new Set(subEarned), valuationTier),
-    [walletCards, subEarned, valuationTier]
-  );
-
-  const netTotal = annualResult.totalDollarValue + subValue - fees.netFees;
-
-  const monthlyPoints = result.currencyTotals.reduce((s, ct) => s + ct.points, 0);
-
-  // Spend change handlers
-  const handleSpendChange = useCallback(
-    (catId: string, val: number) => {
-      if (selectedMonth) {
-        const def = activeDefaultSpend[catId] ?? CATEGORIES.find(c => c.id === catId)?.defaultAmount ?? 0;
-        if (val === def) {
-          clearMonthlySpend(activePersonId, catId, selectedMonth);
-        } else {
-          setMonthlySpend(activePersonId, catId, selectedMonth, val);
-        }
-      } else {
-        setSpend(activePersonId, catId, val);
-      }
-    },
-    [activePersonId, selectedMonth, activeDefaultSpend, setSpend, setMonthlySpend, clearMonthlySpend]
-  );
-
-  const handleOverrideChange = useCallback(
-    (catId: string, walletCardId: string | null) => setOverride(catId, walletCardId),
-    [setOverride]
-  );
-
-  // ── Household stats (combined + compare modes) ────────────────────────────────
+  // ── Household-level aggregation ─────────────────────────────────────────────
 
   const householdStats = useMemo(() => {
-    if (viewMode === "individual") return null;
     const subEarnedSet = new Set(subEarned);
     let totalAnnualValue = 0;
     let totalGrossFees = 0;
@@ -559,12 +592,20 @@ export default function SimulatePage() {
         }
         return result;
       };
+
       let personAnnual;
       if (selectedMonth) {
         const monthSpend = resolveSpend(selectedMonth);
         const q = monthToQuarter(selectedMonth);
         const mr = routeMonth(cards, monthSpend, overrides, q, valuationTier);
-        personAnnual = { totalDollarValue: mr.totalDollarValue * 12, currencyTotals: mr.currencyTotals.map(ct => ({ ...ct, points: ct.points * 12, dollarValue: ct.dollarValue * 12 })) };
+        personAnnual = {
+          totalDollarValue: mr.totalDollarValue * 12,
+          currencyTotals: mr.currencyTotals.map(ct => ({
+            ...ct,
+            points: ct.points * 12,
+            dollarValue: ct.dollarValue * 12,
+          })),
+        };
       } else {
         let tv = 0;
         const cmap: Record<string, { points: number; dollarValue: number }> = {};
@@ -579,7 +620,10 @@ export default function SimulatePage() {
             cmap[ct.currencyId].dollarValue += ct.dollarValue;
           }
         }
-        personAnnual = { totalDollarValue: tv, currencyTotals: Object.entries(cmap).map(([c, v]) => ({ currencyId: c, ...v })) };
+        personAnnual = {
+          totalDollarValue: tv,
+          currencyTotals: Object.entries(cmap).map(([c, v]) => ({ currencyId: c, ...v })),
+        };
       }
 
       const personFees = calculateFees(cards);
@@ -606,62 +650,35 @@ export default function SimulatePage() {
       netTotal: totalAnnualValue + totalSubValue - totalNetFees,
       currencyTotals: Object.entries(mergedCurrencies).map(([currencyId, v]) => ({ currencyId, ...v })),
     };
-  }, [viewMode, people, overrides, valuationTier, subEarned, selectedMonth, allSpend, allMonthlySpend]);
+  }, [people, overrides, valuationTier, subEarned, selectedMonth, allSpend, allMonthlySpend]);
 
-  // Combined mode: merged wallet + summed spend from all people
-  const combinedData = useMemo(() => {
-    if (viewMode !== "combined") return null;
+  // ── Household monthly totals (for the bottom summary bar) ─────────────────
 
-    // Pool all wallet cards (deduplicate by walletCard.id — each person's is unique)
-    const allCards = people.flatMap((p) => p.cards);
+  const householdMonthlyTotals = useMemo(() => {
+    let totalPoints = 0;
+    let totalValue = 0;
 
-    // Sum spending by category
-    const combinedSpend: Record<string, number> = {};
-    for (const cat of CATEGORIES) {
-      combinedSpend[cat.id] = people.reduce((sum, person) => {
-        const personDefaults = allSpend[person.id] ?? EMPTY_SPEND;
-        const personMonthly = allMonthlySpend[person.id] ?? {};
+    for (const person of people) {
+      const cards = person.cards;
+      const personDefaults = allSpend[person.id] ?? EMPTY_SPEND;
+      const personMonthly = allMonthlySpend[person.id] ?? {};
+      const monthSpend: Record<string, number> = {};
+      for (const cat of CATEGORIES) {
         if (selectedMonth) {
           const ov = personMonthly[cat.id]?.[selectedMonth];
-          const val = ov !== undefined ? ov : (personDefaults[cat.id] ?? cat.defaultAmount);
-          return sum + val;
-        }
-        return sum + (personDefaults[cat.id] ?? cat.defaultAmount);
-      }, 0);
-    }
-
-    const q = selectedMonth ? monthToQuarter(selectedMonth) : viewQuarter;
-    const result = routeMonth(allCards, combinedSpend, overrides, q, valuationTier);
-    const routingMap = Object.fromEntries(result.rows.map((r) => [r.categoryId, r]));
-    return { allCards, combinedSpend, result, routingMap };
-  }, [viewMode, people, selectedMonth, viewQuarter, overrides, valuationTier, allSpend, allMonthlySpend]);
-
-  // Distributes a combined spend value evenly across all people
-  const handleCombinedSpendChange = useCallback(
-    (catId: string, combinedVal: number) => {
-      const perPerson = Math.round(combinedVal / Math.max(people.length, 1));
-      for (const person of people) {
-        if (selectedMonth) {
-          const def = (allSpend[person.id] ?? EMPTY_SPEND)[catId] ?? CATEGORIES.find(c => c.id === catId)?.defaultAmount ?? 0;
-          if (perPerson === def) {
-            clearMonthlySpend(person.id, catId, selectedMonth);
-          } else {
-            setMonthlySpend(person.id, catId, selectedMonth, perPerson);
-          }
+          monthSpend[cat.id] = ov !== undefined ? ov : (personDefaults[cat.id] ?? cat.defaultAmount);
         } else {
-          setSpend(person.id, catId, perPerson);
+          monthSpend[cat.id] = personDefaults[cat.id] ?? cat.defaultAmount;
         }
       }
-    },
-    [people, selectedMonth, allSpend, setSpend, setMonthlySpend, clearMonthlySpend]
-  );
+      const q = selectedMonth ? monthToQuarter(selectedMonth) : viewQuarter;
+      const mr = routeMonth(cards, monthSpend, overrides, q, valuationTier);
+      totalPoints += mr.currencyTotals.reduce((s, ct) => s + ct.points, 0);
+      totalValue += mr.totalDollarValue;
+    }
 
-  // ── Display stats ─────────────────────────────────────────────────────────────
-
-  const isHousehold = viewMode !== "individual";
-  const displayStats = isHousehold && householdStats
-    ? householdStats
-    : { totalAnnualValue: annualResult.totalDollarValue, totalGrossFees: fees.grossFees, totalCredits: fees.estimatedCredits, totalNetFees: fees.netFees, totalSubValue: subValue, netTotal, currencyTotals: annualResult.currencyTotals };
+    return { totalPoints, totalValue };
+  }, [people, allSpend, allMonthlySpend, overrides, valuationTier, selectedMonth, viewQuarter]);
 
   // ── Empty state ───────────────────────────────────────────────────────────────
 
@@ -683,63 +700,17 @@ export default function SimulatePage() {
     ? `${MONTH_LABELS[parseInt(selectedMonth.split("-")[1], 10) - 1]} ${CURRENT_YEAR}`
     : null;
 
+  const displayStats = householdStats;
+  const totalCards = people.reduce((n, p) => n + p.cards.length, 0);
+
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
+      {/* ── Global controls ─────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-[14px] font-semibold text-secondary uppercase tracking-wider">
-              Spend Simulator
-            </h1>
+        <h1 className="text-[14px] font-semibold text-secondary uppercase tracking-wider">
+          Spend Simulator
+        </h1>
 
-            {/* View mode toggle — only shown when multiple people */}
-            {people.length > 1 && (
-              <div className="flex rounded-lg border border-subtle overflow-hidden">
-                {(
-                  [
-                    { mode: "individual" as ViewMode, label: "Individual" },
-                    { mode: "combined" as ViewMode, label: "Combined" },
-                    { mode: "compare" as ViewMode, label: "Compare" },
-                  ] as const
-                ).map(({ mode, label }) => (
-                  <button
-                    key={mode}
-                    onClick={() => setViewMode(mode)}
-                    className={`px-3 py-1.5 text-[12px] font-medium transition-colors duration-150 ${
-                      viewMode === mode
-                        ? "bg-[#0f1219] text-white"
-                        : "bg-white text-secondary hover:bg-surface"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Person selector chips (individual mode only) */}
-          {viewMode === "individual" && people.length > 1 && (
-            <div className="flex gap-1.5">
-              {people.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => setActivePerson(p.id)}
-                  className={`px-2.5 py-1 rounded-lg text-[12px] font-medium border transition-colors duration-150 ${
-                    activePersonId === p.id
-                      ? "bg-green/10 text-green border-green/30"
-                      : "bg-white text-secondary border-subtle hover:border-medium"
-                  }`}
-                >
-                  {p.name}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Month + valuation controls */}
         <div className="flex items-center gap-2 flex-wrap">
           {/* Month selector — scrollable */}
           <div className="flex rounded-lg border border-subtle overflow-x-auto text-[12px] max-w-full shrink-0">
@@ -791,6 +762,31 @@ export default function SimulatePage() {
               </button>
             ))}
           </div>
+
+          {/* Quarter selector */}
+          {!selectedMonth && (
+            <div className="flex rounded-lg border border-subtle overflow-hidden">
+              {([1, 2, 3, 4] as const).map((q) => (
+                <button
+                  key={q}
+                  onClick={() => {
+                    // Set a month in that quarter so viewQuarter updates
+                    const monthIdx = (q - 1) * 3; // 0,3,6,9
+                    setSelectedMonth(null); // stay on annual — quarter only used for rotating cards when annual
+                  }}
+                  className={`px-2.5 py-1.5 text-[12px] font-medium transition-colors duration-150 ${
+                    viewQuarter === q && !selectedMonth
+                      ? "bg-[#0f1219] text-white"
+                      : "bg-white text-secondary hover:bg-surface"
+                  }`}
+                  disabled
+                  title="Quarter is auto-derived from selected month"
+                >
+                  Q{q}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -801,124 +797,71 @@ export default function SimulatePage() {
         </div>
       )}
 
-      {/* Routing table(s) */}
+      {/* ── Profile blocks (drag-and-drop) ─────────────────────────────────── */}
       <section>
-        {/* Individual mode */}
-        {viewMode === "individual" && (
-          <div className="bg-white border border-subtle rounded-lg overflow-hidden">
-            <TableHeaders />
-            {CATEGORIES.map((cat) => {
-              const hasMonthlyOverride = selectedMonth
-                ? activeMonthlySpend[cat.id]?.[selectedMonth] !== undefined
-                : false;
-              return (
-                <SpendRow
-                  key={`${activePersonId}-${cat.id}-${selectedMonth ?? "annual"}`}
-                  categoryId={cat.id}
-                  spend={activeSpend[cat.id] ?? 0}
-                  routingRow={routingMap[cat.id]}
-                  walletCards={walletCards}
-                  overrides={overrides}
-                  onSpendChange={handleSpendChange}
-                  onOverrideChange={handleOverrideChange}
-                  defaultAmount={selectedMonth ? (activeDefaultSpend[cat.id] ?? 0) : undefined}
-                  isMonthlyOverride={hasMonthlyOverride}
-                  selectedMonth={selectedMonth}
-                  onClearOverride={hasMonthlyOverride && selectedMonth
-                    ? () => clearMonthlySpend(activePersonId, cat.id, selectedMonth)
-                    : undefined}
-                />
-              );
-            })}
-            {/* Monthly totals footer */}
-            {monthlyPoints > 0 && (
-              <div className="grid grid-cols-[130px_1fr_170px_60px_100px] gap-2 px-3 py-2 bg-surface border-t border-subtle">
-                <span className="text-[11px] font-semibold text-secondary">
-                  {selectedMonth ? monthLabel : "Monthly avg"}
-                </span>
-                <div /><div /><div />
-                <div className="text-right">
-                  <div className="text-[12px] font-semibold text-primary tabular-nums">
-                    {fmt(Math.round(monthlyPoints))}
-                  </div>
-                  <div className="text-[10px] text-green font-medium tabular-nums">
-                    {fmtDollar(result.totalDollarValue)}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Combined mode — pooled cards + summed spend */}
-        {viewMode === "combined" && combinedData && (
-          <div className="bg-white border border-subtle rounded-lg overflow-hidden">
-            <div className="px-3 py-2 border-b border-subtle bg-[#0f1219] flex items-center justify-between">
-              <span className="text-[12px] font-semibold text-white">
-                Household Combined
-              </span>
-              <span className="text-[11px] text-white/40">
-                {people.reduce((n, p) => n + p.cards.length, 0)} cards across {people.length} people
-              </span>
-            </div>
-            <TableHeaders />
-            {CATEGORIES.map((cat) => (
-              <SpendRow
-                key={`combined-${cat.id}`}
-                categoryId={cat.id}
-                spend={combinedData.combinedSpend[cat.id] ?? 0}
-                routingRow={combinedData.routingMap[cat.id]}
-                walletCards={combinedData.allCards}
-                overrides={overrides}
-                onSpendChange={handleCombinedSpendChange}
-                onOverrideChange={() => {}}
-                sliderMax={CATEGORIES.find(c => c.id === cat.id)!.sliderMax * Math.max(people.length, 1)}
-                selectedMonth={selectedMonth}
-              />
-            ))}
-            {combinedData.result.totalDollarValue > 0 && (
-              <div className="grid grid-cols-[130px_1fr_170px_60px_100px] gap-2 px-3 py-2 bg-surface border-t border-subtle">
-                <span className="text-[11px] font-semibold text-secondary">
-                  {selectedMonth ? monthLabel : "Monthly avg"}
-                </span>
-                <div /><div /><div />
-                <div className="text-right">
-                  <div className="text-[12px] font-semibold text-primary tabular-nums">
-                    {fmt(Math.round(combinedData.result.currencyTotals.reduce((s, ct) => s + ct.points, 0)))}
-                  </div>
-                  <div className="text-[10px] text-green font-medium tabular-nums">
-                    {fmtDollar(combinedData.result.totalDollarValue)}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Compare mode — each person in their own table, side by side */}
-        {viewMode === "compare" && (
-          <div className="overflow-x-auto">
-            <div className="flex gap-4" style={{ minWidth: `${people.length * 540}px` }}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={people.map((p) => p.id)}
+            strategy={horizontalListSortingStrategy}
+          >
+            <div className="flex flex-col md:flex-row gap-4 overflow-x-auto">
               {people.map((person) => (
-                <div key={person.id} className="flex-1">
-                  <PersonTable
-                    personId={person.id}
-                    personName={person.name}
-                    valuationTier={valuationTier}
-                    quarter={selectedMonth ? monthToQuarter(selectedMonth) : 1}
-                    selectedMonth={selectedMonth}
-                  />
-                </div>
+                <SortableProfileBlock
+                  key={person.id}
+                  personId={person.id}
+                  personName={person.name}
+                  valuationTier={valuationTier}
+                  quarter={selectedMonth ? monthToQuarter(selectedMonth) : viewQuarter}
+                  selectedMonth={selectedMonth}
+                />
               ))}
+              {people.length === 1 && <AddPersonPlaceholder />}
             </div>
-          </div>
-        )}
+          </SortableContext>
+        </DndContext>
       </section>
 
-      {/* Annual summary metrics */}
+      {/* ── Household Total bar ────────────────────────────────────────────── */}
+      {people.length > 1 && householdMonthlyTotals.totalPoints > 0 && (
+        <div className="bg-[#0f1219] rounded-lg px-4 py-3 flex items-center justify-between">
+          <span className="text-[13px] font-semibold text-white">Household Total</span>
+          <div className="flex items-center gap-6">
+            <div className="text-right">
+              <div className="text-[10px] uppercase tracking-wider text-white/40 font-semibold">Monthly pts</div>
+              <div className="text-[14px] font-semibold text-white tabular-nums">
+                {fmt(Math.round(householdMonthlyTotals.totalPoints))}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-[10px] uppercase tracking-wider text-white/40 font-semibold">Monthly value</div>
+              <div className="text-[14px] font-semibold text-[#34d399] tabular-nums">
+                {fmtDollar(householdMonthlyTotals.totalValue)}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-[10px] uppercase tracking-wider text-white/40 font-semibold">Annual fees</div>
+              <div className="text-[14px] font-semibold text-white tabular-nums">
+                {fmtDollar(displayStats.totalNetFees)}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-[10px] uppercase tracking-wider text-white/40 font-semibold">Annual net</div>
+              <div className={`text-[14px] font-semibold tabular-nums ${displayStats.netTotal >= 0 ? "text-[#34d399]" : "text-red-400"}`}>
+                {fmtDollar(displayStats.netTotal)}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Annual summary metrics ─────────────────────────────────────────── */}
       <section>
         <h2 className="text-[14px] font-semibold text-secondary uppercase tracking-wider mb-3">
-          {isHousehold ? "Household Annual Summary" : "Annual Summary"}
+          {people.length > 1 ? "Household Annual Summary" : "Annual Summary"}
         </h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <MetricCard
@@ -933,9 +876,7 @@ export default function SimulatePage() {
             sub={
               displayStats.totalCredits > 0
                 ? `${fmtDollar(displayStats.totalGrossFees)} − ${fmtDollar(displayStats.totalCredits)} credits`
-                : isHousehold
-                ? `${people.reduce((n, p) => n + p.cards.length, 0)} cards total`
-                : `${walletCards.length} card${walletCards.length !== 1 ? "s" : ""}`
+                : `${totalCards} card${totalCards !== 1 ? "s" : ""} total`
             }
             accent={displayStats.totalNetFees > 0 ? "red" : "green"}
           />
@@ -954,11 +895,11 @@ export default function SimulatePage() {
         </div>
       </section>
 
-      {/* Currency breakdown */}
+      {/* ── Currency breakdown ──────────────────────────────────────────────── */}
       {displayStats.currencyTotals.length > 0 && (
         <section>
           <h2 className="text-[14px] font-semibold text-secondary uppercase tracking-wider mb-3">
-            {isHousehold ? "Household Currency Breakdown" : "Annual Currency Breakdown"}
+            {people.length > 1 ? "Household Currency Breakdown" : "Annual Currency Breakdown"}
           </h2>
           <div className="bg-white border border-subtle rounded-lg overflow-hidden divide-y divide-subtle">
             {displayStats.currencyTotals
