@@ -286,10 +286,15 @@ function PersonTable({
     [people, personId]
   );
 
-  const effectiveSpend = useMemo(
-    () => selectedMonth ? getSpendForMonth(personId, selectedMonth) : (defaultSpend as Record<string, number>),
-    [selectedMonth, personId, getSpendForMonth, defaultSpend]
-  );
+  const effectiveSpend = useMemo(() => {
+    if (!selectedMonth) return defaultSpend as Record<string, number>;
+    const result: Record<string, number> = {};
+    for (const cat of CATEGORIES) {
+      const override = monthlySpendStore[cat.id]?.[selectedMonth];
+      result[cat.id] = override !== undefined ? override : (defaultSpend[cat.id] ?? cat.defaultAmount);
+    }
+    return result;
+  }, [selectedMonth, defaultSpend, monthlySpendStore]);
 
   const result = useMemo(
     () => routeMonth(walletCards, effectiveSpend, overrides, quarter, valuationTier),
@@ -428,8 +433,13 @@ export default function SimulatePage() {
   // Effective spend for the active person (monthly override or default)
   const activeSpend = useMemo(() => {
     if (!selectedMonth) return activeDefaultSpend as Record<string, number>;
-    return getSpendForMonth(activePersonId, selectedMonth);
-  }, [selectedMonth, activePersonId, getSpendForMonth, activeDefaultSpend]);
+    const result: Record<string, number> = {};
+    for (const cat of CATEGORIES) {
+      const override = activeMonthlySpend[cat.id]?.[selectedMonth];
+      result[cat.id] = override !== undefined ? override : (activeDefaultSpend[cat.id] ?? cat.defaultAmount);
+    }
+    return result;
+  }, [selectedMonth, activeDefaultSpend, activeMonthlySpend]);
 
   // ── Individual mode calculations ─────────────────────────────────────────────
 
@@ -453,7 +463,13 @@ export default function SimulatePage() {
     let totalDollarValue = 0;
     const currencyMap: Record<string, { points: number; dollarValue: number }> = {};
     for (const ym of MONTHS_OF_YEAR) {
-      const monthSpend = getSpendForMonth(activePersonId, ym);
+      const defaults = allSpend[activePersonId] ?? EMPTY_SPEND;
+      const memberMonthly = allMonthlySpend[activePersonId] ?? {};
+      const monthSpend: Record<string, number> = {};
+      for (const cat of CATEGORIES) {
+        const ov = memberMonthly[cat.id]?.[ym];
+        monthSpend[cat.id] = ov !== undefined ? ov : (defaults[cat.id] ?? cat.defaultAmount);
+      }
       const q = monthToQuarter(ym);
       const monthResult = routeMonth(walletCards, monthSpend, overrides, q, valuationTier);
       totalDollarValue += monthResult.totalDollarValue;
@@ -468,7 +484,7 @@ export default function SimulatePage() {
       currencyTotals: Object.entries(currencyMap).map(([currencyId, v]) => ({ currencyId, ...v })),
       rows: [],
     };
-  }, [selectedMonth, walletCards, activeSpend, overrides, valuationTier, activePersonId, getSpendForMonth]);
+  }, [selectedMonth, walletCards, activeSpend, overrides, valuationTier, activePersonId, allSpend, allMonthlySpend]);
 
   const fees = useMemo(() => calculateFees(walletCards), [walletCards]);
 
