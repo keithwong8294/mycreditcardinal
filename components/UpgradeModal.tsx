@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { trackProUpgradeClicked } from "@/lib/analytics";
 import {
   Dialog,
   DialogContent,
@@ -60,6 +61,10 @@ async function redirectToCheckout(cadence: "monthly" | "annual") {
 export function UpgradeModal({ open, onClose, reason }: UpgradeModalProps) {
   const [loading, setLoading] = useState<"monthly" | "annual" | null>(null);
   const copy = REASON_COPY[reason];
+
+  useEffect(() => {
+    if (open) trackProUpgradeClicked(reason);
+  }, [open, reason]);
 
   async function handleCheckout(cadence: "monthly" | "annual") {
     setLoading(cadence);

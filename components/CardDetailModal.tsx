@@ -8,6 +8,7 @@ import type { Card } from "@/types";
 import { cardGradient, isLightBackground } from "@/lib/utils";
 import { useProCheck } from "@/lib/useProCheck";
 import { UpgradeModal } from "@/components/UpgradeModal";
+import { trackCardAdded, trackCardRemoved } from "@/lib/analytics";
 import {
   Dialog,
   DialogContent,
@@ -68,6 +69,11 @@ export function CardDetailModal({
       return;
     }
     toggleCardForPerson(cardId, personId);
+    if (alreadyIn) {
+      trackCardRemoved(cardId, card.name, personId);
+    } else {
+      trackCardAdded(cardId, card.name, personId);
+    }
   }
 
   return (

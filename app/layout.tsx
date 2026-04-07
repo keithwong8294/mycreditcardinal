@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/AuthProvider";
+import { PostHogProvider } from "@/components/PostHogProvider";
 import { createClient } from "@/lib/supabase/server";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import { OfflineBanner } from "@/components/OfflineBanner";
@@ -41,10 +42,12 @@ export default async function RootLayout({
     <html lang="en" className={outfit.variable}>
       <body className="min-h-screen antialiased font-sans">
         <AuthProvider initialUser={user}>
-          {children}
-          <ServiceWorkerRegistration />
-          <OfflineBanner />
-          <InstallPrompt />
+          <PostHogProvider>
+            {children}
+            <ServiceWorkerRegistration />
+            <OfflineBanner />
+            <InstallPrompt />
+          </PostHogProvider>
         </AuthProvider>
       </body>
     </html>
