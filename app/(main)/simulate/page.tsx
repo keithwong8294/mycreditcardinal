@@ -535,15 +535,17 @@ export default function SimulatePage() {
   const subEarned = useStore((s) => s.subEarned);
   const resetMonthForPerson = useStore((s) => s.resetMonthForPerson);
   const storeValuationTier = useStore((s) => s.valuationTier);
+  const storeViewQuarter = useStore((s) => s.viewQuarter);
   const setValuation = useStore((s) => s.setValuation);
+  const setViewQuarter = useStore((s) => s.setViewQuarter);
   const reorderPeople = useStore((s) => s.reorderPeople);
 
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
 
   const valuationTier: ValuationTier = storeValuationTier;
 
-  // Derive quarter from selected month
-  const viewQuarter: 1 | 2 | 3 | 4 = selectedMonth ? monthToQuarter(selectedMonth) : 1;
+  // Derive quarter from selected month; fall back to store-persisted quarter for annual view
+  const viewQuarter: 1 | 2 | 3 | 4 = selectedMonth ? monthToQuarter(selectedMonth) : storeViewQuarter;
 
   // True if the selected month has at least one spend override for any person
   const selectedMonthHasOverrides = selectedMonth
@@ -763,24 +765,19 @@ export default function SimulatePage() {
             ))}
           </div>
 
-          {/* Quarter selector */}
+          {/* Quarter selector — only relevant in annual view for rotating cards */}
           {!selectedMonth && (
             <div className="flex rounded-lg border border-subtle overflow-hidden">
               {([1, 2, 3, 4] as const).map((q) => (
                 <button
                   key={q}
-                  onClick={() => {
-                    // Set a month in that quarter so viewQuarter updates
-                    const monthIdx = (q - 1) * 3; // 0,3,6,9
-                    setSelectedMonth(null); // stay on annual — quarter only used for rotating cards when annual
-                  }}
+                  onClick={() => setViewQuarter(q)}
                   className={`px-2.5 py-1.5 text-[12px] font-medium transition-colors duration-150 ${
-                    viewQuarter === q && !selectedMonth
+                    viewQuarter === q
                       ? "bg-[#0f1219] text-white"
                       : "bg-white text-secondary hover:bg-surface"
                   }`}
-                  disabled
-                  title="Quarter is auto-derived from selected month"
+                  title={`View rotating card categories for Q${q}`}
                 >
                   Q{q}
                 </button>
