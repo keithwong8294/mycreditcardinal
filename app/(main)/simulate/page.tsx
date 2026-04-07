@@ -431,9 +431,11 @@ export default function SimulatePage() {
   const activeDefaultSpend = allSpend[activePersonId] ?? EMPTY_SPEND as Record<string, number>;
   const activeMonthlySpend = allMonthlySpend[activePersonId] ?? {};
 
-  // True if the selected month has at least one spend override for the active person
+  // True if the selected month has at least one spend override for any person
   const selectedMonthHasOverrides = selectedMonth
-    ? Object.values(activeMonthlySpend).some((catMap) => selectedMonth in catMap)
+    ? people.some((p) =>
+        Object.values(allMonthlySpend[p.id] ?? {}).some((catMap) => selectedMonth in catMap)
+      )
     : false;
 
   // Derive quarter from selected month (for rotating card logic)
@@ -760,7 +762,7 @@ export default function SimulatePage() {
           {/* Reset month overrides */}
           {selectedMonth && selectedMonthHasOverrides && (
             <button
-              onClick={() => resetMonthForPerson(activePersonId, selectedMonth)}
+              onClick={() => people.forEach((p) => resetMonthForPerson(p.id, selectedMonth))}
               className="px-2.5 py-1.5 text-[11px] font-medium text-red-500 hover:text-red-600 border border-red-200 hover:border-red-300 rounded-lg transition-colors duration-150 whitespace-nowrap"
               title="Reset all spend for this month to your annual averages"
             >
