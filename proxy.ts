@@ -31,18 +31,26 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Redirect unauthenticated users to /login (except the login page itself
-  // and static/api routes).
+  // Redirect unauthenticated users to /login (except the login page itself,
+  // public routes, guest-accessible app routes, and static/api routes).
+  // Admin stays gated so it still forces a real sign-in.
   const { pathname } = request.nextUrl;
   const isAuthRoute =
     pathname.startsWith("/login") || pathname.startsWith("/auth");
   const isPublicRoute = pathname === "/" || pathname.startsWith("/privacy") || pathname.startsWith("/terms");
+  const isGuestRoute =
+    pathname.startsWith("/browse") ||
+    pathname.startsWith("/wallet") ||
+    pathname.startsWith("/simulate") ||
+    pathname.startsWith("/optimize") ||
+    pathname.startsWith("/reports") ||
+    pathname.startsWith("/settings");
   const isStatic =
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api") ||
     pathname.match(/\.(ico|png|svg|jpg|jpeg|webp|woff2?)$/);
 
-  if (!user && !isAuthRoute && !isPublicRoute && !isStatic) {
+  if (!user && !isAuthRoute && !isPublicRoute && !isGuestRoute && !isStatic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
