@@ -126,8 +126,8 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* User / sign out */}
-      {user && (
+      {/* User / sign out, or guest sign-in prompt */}
+      {user ? (
         <div className="px-3 py-3 border-t border-white/5">
           <div className="px-3 py-1.5 text-[12px] text-white/40 truncate mb-1">
             {displayName}
@@ -140,6 +140,18 @@ export default function Sidebar() {
               Sign out
             </button>
           </form>
+        </div>
+      ) : (
+        <div className="px-3 py-3 border-t border-white/5">
+          <div className="px-3 py-1.5 text-[11px] text-white/30">
+            Browsing as guest — data stays on this device.
+          </div>
+          <Link
+            href="/login"
+            className="block px-3 py-1.5 rounded-lg text-[12px] font-medium text-[#34d399] hover:text-white transition-colors duration-150"
+          >
+            Sign in to save your wallet
+          </Link>
         </div>
       )}
     </div>

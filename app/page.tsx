@@ -105,6 +105,13 @@ export default async function Home() {
             </a>
           </div>
 
+          <Link
+            href="/browse"
+            className="inline-block mt-5 text-[13px] text-white/40 hover:text-white/70 transition-colors duration-150 underline underline-offset-2"
+          >
+            Or continue without signing in
+          </Link>
+
           {/* Stats row */}
           <div className="mt-16 flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
             {[

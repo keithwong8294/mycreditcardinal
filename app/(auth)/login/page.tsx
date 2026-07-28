@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signInWithGoogle, signInWithEmail } from "@/lib/supabase/actions";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -11,6 +11,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 
 export default function LoginPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const errorParam = searchParams.get("error");
 
@@ -165,9 +166,19 @@ export default function LoginPage() {
             </>
           )}
 
+          {/* Continue as guest */}
+          <button
+            onClick={() => router.push("/browse")}
+            className="w-full py-2.5 border border-subtle rounded-lg text-[13px] font-medium text-secondary hover:bg-hover hover:text-primary transition-colors duration-150"
+          >
+            Continue without signing in
+          </button>
+
           {/* Fine print */}
           <p className="text-tertiary text-[11px] text-center">
             Free 30-day trial · No credit card required
+            <br />
+            Guest data stays on this device only and won&apos;t sync across devices.
           </p>
           <p className="text-tertiary text-[10px] text-center">
             By signing in you agree to our{" "}
