@@ -259,10 +259,10 @@ describe("calculateSubValue", () => {
   });
 
   it("calculates dollar value of earned SUB at composite cpp", () => {
-    // CSR SUB: 125,000 chase_ur at 2.00¢ = $2,500
+    // CSR SUB: 100,000 chase_ur at 2.00¢ = $2,000
     const wc = makeWalletCard("csr");
     const value = calculateSubValue([wc], new Set([wc.id]), "composite");
-    expect(value).toBeCloseTo(2500);
+    expect(value).toBeCloseTo(2000);
   });
 });
 

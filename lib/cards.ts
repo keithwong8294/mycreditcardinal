@@ -60,6 +60,8 @@ interface CardInput {
   rotating?: { cap: number; opts: string[]; schedule?: Card["rotation_schedule"] };
   custom?: { max: number; rate: number; opts: string[] };
   business?: boolean;
+  /** Foreign transaction fee, percent. */
+  ftf: number;
   status?: Card["status"];
 }
 
@@ -87,6 +89,7 @@ function card(c: CardInput): Card {
     custom_rate: c.custom?.rate ?? null,
     custom_opts: c.custom?.opts ?? null,
     ...(c.business ? { business: true } : {}),
+    ftf: c.ftf,
     fico_min: c.fico_min,
     status: c.status ?? "active",
   };
@@ -108,8 +111,8 @@ export const CARDS: Card[] = [
     currency: "chase_ur",
     fee: 795,
     earn_json: earn(1, { dining: 3, travel: 4, hotels: 4 }),
-    sub_json: sub(125000, 6000, 3),
-    sub_hi_json: sub(125000, 6000, 3, 2025),
+    sub_json: sub(100000, 6000, 3),
+    sub_hi_json: sub(150000, 6000, 3, 2026),
     score: 92,
     perks_json: [
       { label: "8x on Chase Travel", value: "4x flights & hotels booked direct" },
@@ -122,6 +125,7 @@ export const CARDS: Card[] = [
       { label: "Global Entry / TSA PreCheck", value: "$120 credit every 4 yrs" },
     ],
     color_json: ["#1a2744", "#2d4a8a"],
+    ftf: 0,
     fico_min: 740,
   }),
 
@@ -132,18 +136,21 @@ export const CARDS: Card[] = [
     network: "Visa",
     currency: "chase_ur",
     fee: 95,
-    earn_json: earn(1, { dining: 3, streaming: 3, travel: 2, hotels: 2 }),
+    earn_json: earn(1, { dining: 3, streaming: 3, gas: 3, travel: 2, hotels: 2 }),
     sub_json: sub(75000, 5000, 3),
-    sub_hi_json: sub(100000, 5000, 3, 2025),
+    sub_hi_json: sub(100000, 5000, 3, 2026),
     score: 86,
     perks_json: [
-      { label: "5x on Chase Travel", value: "3x online groceries" },
-      { label: "Annual Hotel Credit", value: "$50/yr (Chase Travel)", annual_credit: 50 },
-      { label: "10% Anniversary Points Bonus", value: "On prior-year spend" },
-      { label: "DashPass", value: "Complimentary" },
+      { label: "5x on Chase Travel", value: "3x online groceries & EV charging" },
+      { label: "3x Vacation Rentals", value: "Airbnb, Vrbo & more booked direct" },
+      { label: "Chase Travel Hotel Credit", value: "$100/yr", annual_credit: 100 },
+      { label: "Global Entry / TSA PreCheck", value: "$120 credit every 4 yrs" },
+      { label: "5x on Lyft", value: "Through Sept 2027" },
+      { label: "DashPass", value: "Complimentary + $10/mo DoorDash promo" },
       { label: "Trip Cancellation Insurance", value: "Up to $10k" },
     ],
     color_json: ["#1c3a6e", "#4a7fd4"],
+    ftf: 0,
     fico_min: 700,
   }),
 
@@ -156,12 +163,12 @@ export const CARDS: Card[] = [
     fee: 0,
     earn_json: earn(1, { dining: 3, drugstore: 3 }),
     sub_json: sub(20000, 500, 3),
-    sub_hi_json: sub(20000, 500, 3, 2025),
+    sub_hi_json: sub(25000, 500, 3, 2026),
     score: 80,
     perks_json: [
       { label: "5x Rotating Quarterly Categories", value: "Up to $1,500/quarter (activate)" },
-      { label: "5x on Chase Travel", value: "No annual fee" },
-      { label: "Cell Phone Protection", value: "Up to $800/claim" },
+      { label: "5x on Chase Travel", value: "Points Boost on select hotels" },
+      { label: "No Foreign Transaction Fee", value: "Since Sept 2026" },
     ],
     color_json: ["#0a2459", "#1a4fa8"],
     rotating: {
@@ -169,13 +176,17 @@ export const CARDS: Card[] = [
       opts: ROTATING_OPTS,
       schedule: {
         "2026": {
-          Q1: ["groceries", "streaming"],
-          Q2: ["dining", "hotels"],
-          Q3: ["gas", "transit"],
-          Q4: ["online", "groceries"],
+          Q1: ["dining"],
+          Q2: ["online", "travel"],
+          Q3: ["gas", "transit", "entertainment"],
+          Q4: ["groceries", "dining"],
+        },
+        "2027": {
+          Q1: ["streaming", "groceries"],
         },
       },
     },
+    ftf: 0,
     fico_min: 670,
   }),
 
@@ -188,7 +199,7 @@ export const CARDS: Card[] = [
     fee: 0,
     earn_json: earn(1.5, { dining: 3, drugstore: 3 }),
     sub_json: sub(20000, 500, 3),
-    sub_hi_json: sub(30000, 500, 3, 2024),
+    sub_hi_json: sub(30000, 500, 3, 2025),
     score: 78,
     perks_json: [
       { label: "1.5x on Everything", value: "No category restrictions" },
@@ -196,6 +207,7 @@ export const CARDS: Card[] = [
       { label: "Purchase Protection", value: "Up to $500/claim" },
     ],
     color_json: ["#2c2c2c", "#5a5a5a"],
+    ftf: 3,
     fico_min: 670,
   }),
 
@@ -217,6 +229,7 @@ export const CARDS: Card[] = [
       { label: "No Foreign Transaction Fee", value: "Visa Signature" },
     ],
     color_json: ["#1a1a1a", "#f90"],
+    ftf: 0,
     fico_min: 670,
   }),
 
@@ -229,7 +242,7 @@ export const CARDS: Card[] = [
     fee: 0,
     earn_json: earn(1.5),
     sub_json: sub(75000, 6000, 3),
-    sub_hi_json: sub(90000, 6000, 3, 2025),
+    sub_hi_json: sub(100000, 8000, 4, 2026),
     score: 76,
     perks_json: [
       { label: "1.5x on Everything", value: "Business card" },
@@ -237,6 +250,7 @@ export const CARDS: Card[] = [
       { label: "Employee Cards", value: "No extra cost" },
     ],
     color_json: ["#14213d", "#2b4c7e"],
+    ftf: 3,
     fico_min: 690,
     business: true,
   }),
@@ -251,7 +265,7 @@ export const CARDS: Card[] = [
     earn_json: earn(1, { streaming: 5, dining: 2, gas: 2 }),
     caps_json: { streaming: 2083, dining: 2083, gas: 2083 },
     sub_json: sub(75000, 6000, 3),
-    sub_hi_json: sub(90000, 6000, 3, 2025),
+    sub_hi_json: sub(100000, 8000, 4, 2026),
     score: 75,
     perks_json: [
       { label: "5x Office Supply, Internet, Cable & Phone", value: "First $25k/yr combined" },
@@ -259,6 +273,7 @@ export const CARDS: Card[] = [
       { label: "Business card", value: "Pairs with Sapphire for transfers" },
     ],
     color_json: ["#0b3d2e", "#1f7a5c"],
+    ftf: 3,
     fico_min: 690,
     business: true,
   }),
@@ -271,7 +286,7 @@ export const CARDS: Card[] = [
     currency: "chase_ur",
     fee: 95,
     earn_json: earn(1, { travel: 3, hotels: 3 }),
-    sub_json: sub(90000, 8000, 3),
+    sub_json: sub(100000, 8000, 3),
     sub_hi_json: sub(120000, 8000, 3, 2024),
     score: 80,
     perks_json: [
@@ -280,6 +295,7 @@ export const CARDS: Card[] = [
       { label: "Transfer Partners", value: "Chase Ultimate Rewards 1:1" },
     ],
     color_json: ["#111827", "#374151"],
+    ftf: 0,
     fico_min: 700,
     business: true,
   }),
@@ -292,15 +308,18 @@ export const CARDS: Card[] = [
     currency: "hyatt",
     fee: 95,
     earn_json: earn(1, { hotels: 4, dining: 2, travel: 2, transit: 2 }),
-    sub_json: sub(30000, 3000, 3),
-    sub_hi_json: sub(60000, 6000, 6, 2023),
+    // Current offer is 4 free nights (Cat 1–4), counted as ~60k points.
+    sub_json: sub(60000, 5000, 3),
+    sub_hi_json: sub(65000, 3000, 6, 2025),
     score: 74,
     perks_json: [
+      { label: "Welcome Offer", value: "4 free nights (Cat 1–4) after $5k / 3 mo" },
       { label: "4x at Hyatt", value: "Plus up to 5x as a member" },
-      { label: "Free Night (Cat 1–4)", value: "Every cardmember anniversary" },
-      { label: "Discoverist Status", value: "Complimentary" },
+      { label: "Free Night (Cat 1–4)", value: "Every anniversary, 2nd after $15k spend" },
+      { label: "Discoverist Status", value: "+5 elite nights/yr" },
     ],
     color_json: ["#2b1d0e", "#7a5c2e"],
+    ftf: 0,
     fico_min: 700,
   }),
 
@@ -311,17 +330,21 @@ export const CARDS: Card[] = [
     network: "Visa",
     currency: "united",
     fee: 150,
-    earn_json: earn(1, { travel: 2, hotels: 2, dining: 2 }),
-    sub_json: sub(60000, 3000, 3),
-    sub_hi_json: sub(80000, 3000, 3, 2025),
+    earn_json: earn(1, { travel: 3, hotels: 2, dining: 2 }),
+    sub_json: sub(70000, 3000, 3),
+    sub_hi_json: sub(80000, 3000, 3, 2026),
     score: 68,
     perks_json: [
+      { label: "3x United, 5x United Hotels", value: "2x dining & hotels booked direct" },
       { label: "Free First Checked Bag", value: "You + 1 companion" },
+      { label: "United Hotels Credit", value: "$100/yr ($50 x2 stays)", annual_credit: 100 },
+      { label: "Rideshare Credit", value: "$60/yr ($5/mo)", annual_credit: 60 },
+      { label: "JSX & Avis/Budget Credits", value: "$100 + $50/yr" },
       { label: "United Club Passes", value: "2 one-time passes/yr" },
-      { label: "Global Entry / TSA PreCheck", value: "$120 credit" },
       { label: "$0 Intro Annual Fee", value: "First year" },
     ],
     color_json: ["#002244", "#0b4a8b"],
+    ftf: 0,
     fico_min: 690,
   }),
 
@@ -334,15 +357,17 @@ export const CARDS: Card[] = [
     fee: 95,
     earn_json: earn(2, { hotels: 6, groceries: 3, gas: 3, dining: 3 }),
     caps_json: { groceries: 500, gas: 500, dining: 500 },
-    sub_json: sub(100000, 3000, 3),
-    sub_hi_json: sub(150000, 3000, 3, 2024),
+    sub_json: sub(125000, 3000, 3),
+    sub_hi_json: sub(200000, 3000, 3, 2026),
     score: 62,
     perks_json: [
       { label: "6x at Marriott", value: "3x grocery/gas/dining on first $6k/yr" },
       { label: "Free Night (up to 35k pts)", value: "Every anniversary" },
+      { label: "Airline Credit", value: "$100/yr after $500 airline spend (thru Jun 2027)" },
       { label: "Silver Elite Status", value: "Complimentary" },
     ],
     color_json: ["#3b0d0c", "#8a2b26"],
+    ftf: 0,
     fico_min: 690,
   }),
 
@@ -356,22 +381,24 @@ export const CARDS: Card[] = [
     currency: "amex_mr",
     fee: 895,
     earn_json: earn(1, { travel: 5 }),
-    sub_json: sub(100000, 8000, 6),
+    sub_json: sub(175000, 12000, 6),
     sub_hi_json: sub(175000, 8000, 6, 2025),
     score: 88,
     perks_json: [
-      { label: "5x Flights", value: "Direct with airline or Amex Travel (first $500k/yr)" },
-      { label: "Hotel Credit (FHR / Hotel Collection)", value: "$600/yr ($300 semiannual)", annual_credit: 600 },
+      { label: "5x Flights & Amex Travel Hotels", value: "Flights direct or via Amex Travel (first $500k/yr)" },
+      { label: "Lodging Credit (FHR / THC / Airbnb Luxe)", value: "$600/yr ($300 semiannual)", annual_credit: 600 },
       { label: "Resy Dining Credit", value: "$400/yr ($100/qtr)", annual_credit: 400 },
       { label: "Digital Entertainment Credit", value: "$300/yr ($25/mo)", annual_credit: 300 },
       { label: "lululemon Credit", value: "$300/yr ($75/qtr)", annual_credit: 300 },
       { label: "Airline Fee Credit", value: "$200/yr", annual_credit: 200 },
+      { label: "Oura Ring Credit", value: "$200/yr", annual_credit: 200 },
       { label: "Uber Cash + Uber One", value: "$200 + $120/yr", annual_credit: 320 },
-      { label: "CLEAR+ Credit", value: "$209/yr", annual_credit: 209 },
+      { label: "CLEAR+ Credit", value: "$219/yr", annual_credit: 219 },
       { label: "Walmart+ Credit", value: "$155/yr", annual_credit: 155 },
       { label: "Centurion + Priority Pass Lounges", value: "Unlimited" },
     ],
     color_json: ["#8a8a8a", "#c8c8c8", "#e8e8e8"],
+    ftf: 0,
     fico_min: 720,
   }),
 
@@ -384,17 +411,20 @@ export const CARDS: Card[] = [
     fee: 325,
     earn_json: earn(1, { dining: 4, groceries: 4, travel: 3 }),
     caps_json: { dining: 4167, groceries: 2083 },
-    sub_json: sub(60000, 6000, 6),
+    sub_json: sub(100000, 8000, 6),
     sub_hi_json: sub(100000, 6000, 6, 2025),
     score: 88,
     perks_json: [
       { label: "4x Restaurants & US Supermarkets", value: "$50k / $25k per year" },
-      { label: "Dining Credit", value: "$120/yr (Grubhub, Cheesecake, etc.)", annual_credit: 120 },
+      { label: "5x Prepaid Hotels via Amex Travel", value: "3x flights" },
+      { label: "Dining Credit", value: "$120/yr (Grubhub, Five Guys, etc.)", annual_credit: 120 },
       { label: "Uber Cash", value: "$120/yr", annual_credit: 120 },
       { label: "Resy Credit", value: "$100/yr ($50 semiannual)", annual_credit: 100 },
       { label: "Dunkin' Credit", value: "$84/yr", annual_credit: 84 },
+      { label: "Hotel Collection Credit", value: "$100 on 2+ night stays" },
     ],
     color_json: ["#c9940a", "#e8b82a", "#f5d060"],
+    ftf: 0,
     fico_min: 700,
   }),
 
@@ -415,6 +445,7 @@ export const CARDS: Card[] = [
       { label: "No Foreign Transaction Fee", value: "Transfer to 20+ partners" },
     ],
     color_json: ["#1f4d3a", "#3f8a68"],
+    ftf: 0,
     fico_min: 690,
   }),
 
@@ -427,8 +458,8 @@ export const CARDS: Card[] = [
     fee: 95,
     earn_json: earn(1, { groceries: 6, streaming: 6, gas: 3, transit: 3 }),
     caps_json: { groceries: 500 },
-    sub_json: sub(25000, 3000, 6),
-    sub_hi_json: sub(35000, 3000, 6, 2023),
+    sub_json: sub(30000, 3000, 6),
+    sub_hi_json: sub(30000, 3000, 6, 2026),
     score: 78,
     perks_json: [
       { label: "6% US Supermarkets", value: "First $6k/yr, then 1%" },
@@ -437,6 +468,7 @@ export const CARDS: Card[] = [
       { label: "$0 Intro Annual Fee", value: "First year" },
     ],
     color_json: ["#003087", "#0057b8"],
+    ftf: 2.7,
     fico_min: 670,
   }),
 
@@ -449,8 +481,8 @@ export const CARDS: Card[] = [
     fee: 0,
     earn_json: earn(1, { groceries: 3, gas: 3, online: 3 }),
     caps_json: { groceries: 500, gas: 500, online: 500 },
-    sub_json: sub(20000, 2000, 6),
-    sub_hi_json: sub(25000, 2000, 6, 2024),
+    sub_json: sub(25000, 2000, 6),
+    sub_hi_json: sub(25000, 2000, 6, 2026),
     score: 64,
     perks_json: [
       { label: "3% Supermarkets, Gas & Online Retail", value: "$6k/yr each" },
@@ -458,6 +490,7 @@ export const CARDS: Card[] = [
       { label: "Home Chef Credit", value: "$180/yr ($15/mo)", annual_credit: 180 },
     ],
     color_json: ["#003087", "#4a90d9"],
+    ftf: 2.7,
     fico_min: 670,
   }),
 
@@ -470,8 +503,8 @@ export const CARDS: Card[] = [
     fee: 0,
     earn_json: earn(2),
     caps_json: Object.fromEntries(ALL_CATEGORIES.map((c) => [c, 4167])),
-    sub_json: sub(15000, 3000, 3),
-    sub_hi_json: sub(15000, 3000, 3, 2024),
+    sub_json: sub(50000, 5000, 3),
+    sub_hi_json: sub(75000, 15000, 3, 2026),
     score: 74,
     perks_json: [
       { label: "2x on Everything", value: "First $50k/yr, then 1x" },
@@ -479,6 +512,7 @@ export const CARDS: Card[] = [
       { label: "Business card", value: "Expanded buying power" },
     ],
     color_json: ["#0b2a5b", "#2563eb"],
+    ftf: 2.7,
     fico_min: 680,
     business: true,
   }),
@@ -492,15 +526,17 @@ export const CARDS: Card[] = [
     fee: 150,
     earn_json: earn(3, { hotels: 12, dining: 6, groceries: 6, gas: 6, online: 4 }),
     sub_json: sub(130000, 3000, 6),
-    sub_hi_json: sub(170000, 3000, 6, 2024),
+    sub_hi_json: sub(180000, 10000, 6, 2024),
     score: 66,
     perks_json: [
       { label: "12x at Hilton", value: "6x dining, supermarkets, gas" },
+      { label: "Welcome Free Night", value: "Plus 130k pts after $3k / 6 mo" },
       { label: "Hilton Credit", value: "$200/yr ($50/qtr)", annual_credit: 200 },
       { label: "Gold Status", value: "Diamond after $40k spend" },
       { label: "Free Night Reward", value: "After $15k spend/yr" },
     ],
     color_json: ["#0c2340", "#1d4e89"],
+    ftf: 0,
     fico_min: 690,
   }),
 
@@ -512,8 +548,8 @@ export const CARDS: Card[] = [
     currency: "delta",
     fee: 150,
     earn_json: earn(1, { travel: 2, dining: 2, groceries: 2 }),
-    sub_json: sub(50000, 2000, 6),
-    sub_hi_json: sub(80000, 3000, 6, 2025),
+    sub_json: sub(80000, 2000, 6),
+    sub_hi_json: sub(90000, 5000, 6, 2026),
     score: 60,
     perks_json: [
       { label: "Free First Checked Bag", value: "Up to 9 on your reservation" },
@@ -522,6 +558,7 @@ export const CARDS: Card[] = [
       { label: "$0 Intro Annual Fee", value: "First year" },
     ],
     color_json: ["#7a5c00", "#c9a227"],
+    ftf: 0,
     fico_min: 680,
   }),
 
@@ -546,6 +583,7 @@ export const CARDS: Card[] = [
       { label: "Global Entry / TSA PreCheck", value: "$120 credit" },
     ],
     color_json: ["#0a0a0a", "#1a1a2e", "#2d2d44"],
+    ftf: 0,
     fico_min: 720,
   }),
 
@@ -564,8 +602,10 @@ export const CARDS: Card[] = [
       { label: "2x on Everything", value: "5x hotels & cars via C1 Travel" },
       { label: "Global Entry / TSA PreCheck", value: "$120 credit" },
       { label: "Transfer Partners", value: "15+ airlines & hotels" },
+      { label: "Welcome Travel Credit", value: "$300 Capital One Travel (first year)" },
     ],
     color_json: ["#1c1c2e", "#4a4a7a"],
+    ftf: 0,
     fico_min: 700,
   }),
 
@@ -584,6 +624,8 @@ export const CARDS: Card[] = [
       { label: "Transfer Partners", value: "Capital One miles" },
     ],
     color_json: ["#232946", "#5a6496"],
+    ftf: 0,
+    sub_hi_json: sub(40000, 1000, 3, 2026),
     fico_min: 670,
   }),
 
@@ -595,14 +637,15 @@ export const CARDS: Card[] = [
     currency: "cash",
     fee: 0,
     earn_json: earn(1, { dining: 3, groceries: 3, entertainment: 3, streaming: 3 }),
-    sub_json: sub(20000, 500, 3),
-    sub_hi_json: sub(25000, 500, 3, 2025),
+    sub_json: sub(25000, 500, 3),
+    sub_hi_json: sub(25000, 500, 3, 2026),
     score: 70,
     perks_json: [
       { label: "3% Dining, Groceries, Entertainment, Streaming", value: "No annual fee" },
-      { label: "No Foreign Transaction Fee", value: "Formerly SavorOne" },
+      { label: "5% Hotels & Cars via C1 Travel", value: "Formerly SavorOne" },
     ],
     color_json: ["#0d0d0d", "#2a0a0a"],
+    ftf: 0,
     fico_min: 670,
   }),
 
@@ -618,9 +661,10 @@ export const CARDS: Card[] = [
     score: 56,
     perks_json: [
       { label: "1.5% on Everything", value: "No annual fee" },
-      { label: "No Foreign Transaction Fee", value: "Mastercard" },
+      { label: "Welcome Travel Credit", value: "$100 Capital One Travel" },
     ],
     color_json: ["#3a3a3a", "#7a7a7a", "#b0b0b0"],
+    ftf: 0,
     fico_min: 670,
   }),
 
@@ -634,8 +678,8 @@ export const CARDS: Card[] = [
     currency: "citi_typ",
     fee: 595,
     earn_json: earn(1.5, { dining: 3 }),
-    sub_json: sub(100000, 6000, 3),
-    sub_hi_json: sub(100000, 6000, 3, 2025),
+    sub_json: sub(75000, 6000, 3),
+    sub_hi_json: sub(100000, 4000, 3, 2025),
     score: 80,
     perks_json: [
       { label: "12x Hotels/Cars, 6x Flights", value: "Via Citi Travel" },
@@ -646,6 +690,7 @@ export const CARDS: Card[] = [
       { label: "Priority Pass + Admirals Club Passes", value: "4 AA lounge passes/yr" },
     ],
     color_json: ["#0a0a14", "#1a1a2e", "#2a2a4a"],
+    ftf: 0,
     fico_min: 720,
   }),
 
@@ -658,7 +703,7 @@ export const CARDS: Card[] = [
     fee: 95,
     earn_json: earn(1, { dining: 3, groceries: 3, gas: 3, travel: 3, hotels: 3 }),
     sub_json: sub(60000, 4000, 3),
-    sub_hi_json: sub(80000, 4000, 3, 2023),
+    sub_hi_json: sub(75000, 4000, 3, 2025),
     score: 82,
     perks_json: [
       { label: "3x Dining, Supermarkets, Gas/EV, Air & Hotels", value: "10x via Citi Travel" },
@@ -666,6 +711,7 @@ export const CARDS: Card[] = [
       { label: "Transfer Partners", value: "Incl. American AAdvantage" },
     ],
     color_json: ["#0a1628", "#1a3a6e"],
+    ftf: 0,
     fico_min: 700,
   }),
 
@@ -685,6 +731,8 @@ export const CARDS: Card[] = [
     ],
     color_json: ["#16324f", "#2f6690"],
     custom: { max: 1, rate: 3, opts: ["streaming", "entertainment", "transit"] },
+    ftf: 3,
+    sub_hi_json: sub(30000, 1000, 3, 2025),
     fico_min: 670,
   }),
 
@@ -709,6 +757,7 @@ export const CARDS: Card[] = [
       rate: 5,
       opts: ["dining", "groceries", "gas", "travel", "transit", "streaming", "drugstore", "entertainment"],
     },
+    ftf: 3,
     fico_min: 670,
   }),
 
@@ -727,6 +776,7 @@ export const CARDS: Card[] = [
       { label: "Convertible to ThankYou Points", value: "Pairs with Strata Premier" },
     ],
     color_json: ["#1a3a6e", "#2d5aaa"],
+    ftf: 3,
     fico_min: 670,
   }),
 
@@ -740,12 +790,12 @@ export const CARDS: Card[] = [
     currency: "discover",
     fee: 0,
     earn_json: earn(1),
-    sub_json: sub(0, 0, 12),
+    sub_json: sub(20000, 500, 3),
     score: 60,
     perks_json: [
       { label: "5% Rotating Quarterly Categories", value: "Up to $1,500/quarter (activate)" },
       { label: "Cashback Match", value: "All first-year rewards doubled" },
-      { label: "No Annual Fee", value: "No foreign transaction fee" },
+      { label: "Now Issued by Capital One", value: "No annual or foreign transaction fee" },
     ],
     color_json: ["#e8e8e8", "#f5a623", "#e8e8e8"],
     rotating: {
@@ -753,13 +803,14 @@ export const CARDS: Card[] = [
       opts: ROTATING_OPTS,
       schedule: {
         "2026": {
-          Q1: ["groceries", "drugstore"],
-          Q2: ["gas", "transit"],
-          Q3: ["dining", "online"],
-          Q4: ["online", "groceries"],
+          Q1: ["groceries", "streaming"],
+          Q2: ["dining"],
+          Q3: ["gas", "transit", "travel", "drugstore"],
+          Q4: ["entertainment", "dining"],
         },
       },
     },
+    ftf: 0,
     fico_min: 650,
   }),
 
@@ -783,6 +834,7 @@ export const CARDS: Card[] = [
     ],
     color_json: ["#8b0000", "#cc0000"],
     custom: { max: 2, rate: 5, opts: ["streaming", "entertainment", "transit", "dining"] },
+    ftf: 3,
     fico_min: 670,
   }),
 
@@ -797,11 +849,12 @@ export const CARDS: Card[] = [
     sub_json: sub(20000, 1000, 3),
     score: 65,
     perks_json: [
-      { label: "4x Dining", value: "Incl. takeout & delivery" },
+      { label: "4x Dining", value: "Incl. takeout & delivery (first $2k/qtr)" },
       { label: "Streaming Credit", value: "$15/yr", annual_credit: 15 },
-      { label: "No Foreign Transaction Fee", value: "No annual fee" },
     ],
     color_json: ["#1b1b3a", "#4b3f72"],
+    ftf: 0,
+    caps_json: { dining: 667 },
     fico_min: 670,
   }),
 
@@ -823,6 +876,7 @@ export const CARDS: Card[] = [
       { label: "Cell Phone Protection", value: "Up to $600/claim" },
     ],
     color_json: ["#6b1a1a", "#c0392b"],
+    ftf: 0,
     fico_min: 670,
   }),
 
@@ -842,6 +896,7 @@ export const CARDS: Card[] = [
       { label: "Transfer Partners", value: "Incl. Avios, Flying Blue, Choice" },
     ],
     color_json: ["#3d0c11", "#9e2a2b"],
+    ftf: 0,
     fico_min: 700,
   }),
 
@@ -860,6 +915,7 @@ export const CARDS: Card[] = [
       { label: "Cell Phone Protection", value: "Up to $600/claim" },
     ],
     color_json: ["#4a0000", "#8b1a1a"],
+    ftf: 3,
     fico_min: 670,
   }),
 
@@ -879,10 +935,12 @@ export const CARDS: Card[] = [
     perks_json: [
       { label: "3% Chosen Category", value: "Gas/EV, online, dining, travel, drugstore, or home improvement" },
       { label: "2% Grocery & Wholesale Clubs", value: "$2,500/qtr combined with 3%" },
-      { label: "Preferred Rewards Boost", value: "Up to +75% for BofA clients" },
+      { label: "6% First Year", value: "On your 3% category" },
+      { label: "BofA Rewards Boost", value: "Up to +75% for BofA clients" },
     ],
     color_json: ["#8b0000", "#b22222", "#cc3333"],
     custom: { max: 1, rate: 3, opts: ["gas", "online", "dining", "travel", "drugstore"] },
+    ftf: 3,
     fico_min: 670,
   }),
 
@@ -902,6 +960,7 @@ export const CARDS: Card[] = [
       { label: "Global Entry / TSA PreCheck", value: "$120 credit" },
     ],
     color_json: ["#0b1d3a", "#3a5a98"],
+    ftf: 0,
     fico_min: 700,
   }),
 
@@ -920,9 +979,10 @@ export const CARDS: Card[] = [
     perks_json: [
       { label: "3% on Everything", value: "Requires Robinhood Gold ($50/yr)" },
       { label: "5% Travel", value: "Via Robinhood travel portal" },
-      { label: "No Foreign Transaction Fee", value: "Visa Signature" },
+      { label: "3% Foreign Transaction Fee", value: "New accounts since July 2026" },
     ],
     color_json: ["#2a2208", "#b08d2e", "#e6c763"],
+    ftf: 3,
     fico_min: 690,
   }),
 
@@ -939,11 +999,14 @@ export const CARDS: Card[] = [
     sub_json: null,
     score: 68,
     perks_json: [
-      { label: "Points on Rent & Mortgage", value: "No transaction fee" },
-      { label: "Bilt Cash", value: "Earned on everyday spend" },
+      { label: "Welcome Bonus", value: "$100 Bilt Cash on approval" },
+      { label: "Points on Rent & Mortgage", value: "Up to 1.25x, no transaction fee" },
+      { label: "4% Bilt Cash", value: "On everyday spend (Bilt Cash option)" },
+      { label: "4x Bilt Dining, 3x Bilt Travel Hotels", value: "3x Lyft" },
       { label: "Transfer Partners", value: "Hyatt, United, Alaska & more 1:1" },
     ],
     color_json: ["#1a1a1a", "#2d2d2d", "#404040"],
+    ftf: 0,
     fico_min: 670,
   }),
 
@@ -959,12 +1022,15 @@ export const CARDS: Card[] = [
     sub_json: null,
     score: 70,
     perks_json: [
+      { label: "Welcome Bonus", value: "$200 Bilt Cash on approval" },
       { label: "3x Dining OR Groceries", value: "Your choice (groceries up to $25k/yr)" },
-      { label: "2x Travel", value: "Points on rent & mortgage" },
-      { label: "Hotel Credit", value: "$100/yr (Bilt Travel)", annual_credit: 100 },
+      { label: "2x Travel", value: "4x hotels via Bilt Travel" },
+      { label: "Points on Rent & Mortgage", value: "Up to 1.25x, no transaction fee" },
+      { label: "Hotel Credit", value: "$100/yr ($50 semiannual, Bilt Travel)", annual_credit: 100 },
     ],
     color_json: ["#0b0b0b", "#1f1f1f", "#3a3a3a"],
     custom: { max: 1, rate: 3, opts: ["dining", "groceries"] },
+    ftf: 0,
     fico_min: 700,
   }),
 
@@ -975,16 +1041,18 @@ export const CARDS: Card[] = [
     network: "Mastercard",
     currency: "bilt",
     fee: 495,
-    earn_json: earn(2),
+    earn_json: earn(2, { rent: 1 }),
     sub_json: sub(50000, 4000, 3),
     score: 74,
     perks_json: [
-      { label: "2x on Everything", value: "Points on rent & mortgage" },
+      { label: "2x on Everything", value: "Rent & mortgage up to 1.25x, no fee" },
+      { label: "Welcome Bilt Cash", value: "$300 on approval + Gold status" },
       { label: "Hotel Credit", value: "$400/yr ($200 semiannual, Bilt Travel)", annual_credit: 400 },
       { label: "Bilt Cash", value: "$200/yr", annual_credit: 200 },
       { label: "Priority Pass", value: "Unlimited lounge access" },
     ],
     color_json: ["#4a3728", "#8b6914", "#c9a84c"],
+    ftf: 0,
     fico_min: 720,
   }),
 ];

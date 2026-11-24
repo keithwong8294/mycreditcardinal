@@ -114,9 +114,13 @@ export function CardDetailModal({
             </DialogHeader>
 
             {/* Meta row */}
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <MetaCell label="Network" value={card.network} />
               <MetaCell label="Credit score" value={ficoLabel(card.fico_min)} />
+              <MetaCell
+                label="Foreign fee"
+                value={card.ftf == null ? "—" : card.ftf === 0 ? "None" : `${card.ftf}%`}
+              />
               <div className="bg-surface rounded-lg p-2.5">
                 <div className="text-[10px] uppercase tracking-wider text-tertiary font-semibold mb-0.5">
                   Annual fee

@@ -63,6 +63,9 @@ export interface Card {
    */
   business?: boolean;
 
+  /** Foreign transaction fee in percent (0 = none). */
+  ftf?: number;
+
   /** Required FICO score range */
   fico_min: number | null;
 
