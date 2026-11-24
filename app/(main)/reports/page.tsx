@@ -1,5 +1,6 @@
 "use client";
 
+import { PageHeader } from "@/components/PageHeader";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { createClient } from "@/lib/supabase/client";
@@ -45,12 +46,12 @@ function ReportCard({ report }: { report: HealthReport }) {
         className="w-full flex items-center justify-between px-4 py-3 hover:bg-surface transition-colors"
       >
         <div className="text-left">
-          <div className="text-[13px] font-semibold text-primary">{monthLabel(c.month)}</div>
-          <div className="text-[11px] text-secondary mt-0.5">
+          <div className="text-[14px] font-semibold text-primary">{monthLabel(c.month)}</div>
+          <div className="text-[12px] text-secondary mt-0.5">
             {fmtDollar(c.totalAnnualEarn)} projected annual earn · {fmtDollar(c.netFees)} net fees
           </div>
         </div>
-        <span className="text-tertiary text-[12px]">{expanded ? "▲" : "▼"}</span>
+        <span className="text-tertiary text-[13px]">{expanded ? "▲" : "▼"}</span>
       </button>
 
       {expanded && (
@@ -59,27 +60,27 @@ function ReportCard({ report }: { report: HealthReport }) {
           <div className="px-4 py-3 grid grid-cols-2 gap-3">
             <div className="bg-surface rounded-lg p-3 text-center">
               <div className="text-[22px] font-semibold text-green">{fmtDollar(c.totalAnnualEarn)}</div>
-              <div className="text-[10px] text-tertiary mt-0.5">annual earn value</div>
+              <div className="text-[11px] text-tertiary mt-0.5">annual earn value</div>
             </div>
             <div className="bg-surface rounded-lg p-3 text-center">
               <div className={`text-[22px] font-semibold ${c.netFees > 0 ? "text-red" : "text-green"}`}>
                 {c.netFees > 0 ? "−" : ""}{fmtDollar(c.netFees)}
               </div>
-              <div className="text-[10px] text-tertiary mt-0.5">net annual fees</div>
+              <div className="text-[11px] text-tertiary mt-0.5">net annual fees</div>
             </div>
           </div>
 
           {/* Top routing */}
           {c.topImprovements.length > 0 && (
             <div className="px-4 py-3">
-              <div className="text-[10px] font-semibold text-tertiary uppercase tracking-wider mb-2">
+              <div className="text-[13px] font-medium text-tertiary mb-2">
                 Top earning categories
               </div>
               <div className="space-y-1.5">
                 {c.topImprovements.map((imp, i) => {
                   const cat = CATEGORIES.find((cat) => cat.id === imp.categoryId);
                   return (
-                    <div key={i} className="flex items-center justify-between text-[12px]">
+                    <div key={i} className="flex items-center justify-between text-[13px]">
                       <span className="text-secondary">{cat?.label ?? imp.categoryId}</span>
                       <span className="text-primary font-medium">
                         {imp.rate}x via {imp.cardName}
@@ -94,12 +95,12 @@ function ReportCard({ report }: { report: HealthReport }) {
           {/* Recommendations */}
           {c.recommendations.length > 0 && (
             <div className="px-4 py-3">
-              <div className="text-[10px] font-semibold text-tertiary uppercase tracking-wider mb-2">
+              <div className="text-[13px] font-medium text-tertiary mb-2">
                 Card recommendations
               </div>
               <div className="space-y-1.5">
                 {c.recommendations.map((r, i) => (
-                  <div key={i} className="flex items-center justify-between text-[12px]">
+                  <div key={i} className="flex items-center justify-between text-[13px]">
                     <span className="text-secondary">{r.cardName}</span>
                     <span className="text-green font-medium">+{fmtDollar(r.netValue)}/yr</span>
                   </div>
@@ -111,12 +112,12 @@ function ReportCard({ report }: { report: HealthReport }) {
           {/* Annual fees */}
           {c.upcomingFees.length > 0 && (
             <div className="px-4 py-3">
-              <div className="text-[10px] font-semibold text-tertiary uppercase tracking-wider mb-2">
+              <div className="text-[13px] font-medium text-tertiary mb-2">
                 Annual fees in your wallet
               </div>
               <div className="space-y-1.5">
                 {c.upcomingFees.map((f, i) => (
-                  <div key={i} className="flex items-center justify-between text-[12px]">
+                  <div key={i} className="flex items-center justify-between text-[13px]">
                     <span className="text-secondary">{f.cardName}</span>
                     <span className="text-red font-medium">{fmtDollar(f.fee)}/yr</span>
                   </div>
@@ -150,22 +151,18 @@ export default function ReportsPage() {
   }, [user]);
 
   return (
-    <div className="p-6 space-y-5 max-w-2xl">
-      <div>
-        <h1 className="text-[14px] font-semibold text-secondary uppercase tracking-wider">
-          Wallet Health Reports
-        </h1>
-        <p className="text-[12px] text-tertiary mt-0.5">
-          Monthly analysis of your wallet performance and optimization opportunities.
-        </p>
-      </div>
+    <div className="px-4 sm:px-8 lg:px-10 pt-6 sm:pt-8 pb-14 mx-auto max-w-[800px] space-y-6">
+      <PageHeader
+        title="Monthly report"
+        subtitle="How your wallet did each month, and what it left on the table."
+      />
 
       {loading ? (
-        <div className="text-[13px] text-tertiary">Loading…</div>
+        <div className="text-[14px] text-tertiary">Loading…</div>
       ) : reports.length === 0 ? (
         <div className="bg-white border border-subtle rounded-lg p-8 text-center">
-          <div className="text-[13px] text-secondary">No reports yet.</div>
-          <div className="text-[11px] text-tertiary mt-1">
+          <div className="text-[14px] text-secondary">No reports yet.</div>
+          <div className="text-[12px] text-tertiary mt-1">
             Your first report will arrive at the start of next month.
           </div>
         </div>

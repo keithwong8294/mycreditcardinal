@@ -1,5 +1,6 @@
 "use client";
 
+import { PageHeader } from "@/components/PageHeader";
 import { useState, useMemo, useEffect } from "react";
 import { CARDS } from "@/lib/cards";
 import { useStore } from "@/lib/store";
@@ -97,9 +98,9 @@ function ChoiceChips<T extends string | boolean>({
             type="button"
             aria-pressed={active}
             onClick={() => onChange(o.value)}
-            className={`text-[12px] px-3 py-1.5 rounded-full border transition-colors duration-150 ${
+            className={`text-[13px] px-3 py-1.5 rounded-full border transition-colors duration-150 ${
               active
-                ? "bg-green text-white border-green"
+                ? "bg-ink text-paper border-ink"
                 : "bg-white text-secondary border-subtle hover:border-medium hover:text-primary"
             }`}
           >
@@ -114,7 +115,7 @@ function ChoiceChips<T extends string | boolean>({
 function Question({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[12px] font-medium text-primary mb-1.5">{label}</div>
+      <div className="text-[13px] font-medium text-primary mb-1.5">{label}</div>
       {children}
     </div>
   );
@@ -193,8 +194,8 @@ function WhatIfModal({
         <div className="flex items-center gap-3 pb-3 border-b border-subtle">
           <MiniCardFace colorJson={rec.card.color_json} name={rec.card.name} issuer={rec.card.issuer} />
           <div>
-            <div className="text-[13px] font-medium text-primary">{rec.card.name}</div>
-            <div className="text-[11px] text-secondary">
+            <div className="text-[14px] font-medium text-primary">{rec.card.name}</div>
+            <div className="text-[12px] text-secondary">
               {rec.card.issuer} · {currency?.name ?? rec.card.currency} · {rec.card.fee === 0 ? "No annual fee" : `$${rec.card.fee}/yr`}
             </div>
           </div>
@@ -219,21 +220,21 @@ function WhatIfModal({
             const net = col.earn + col.subs - col.fees;
             return (
               <div key={col.label} className="bg-surface rounded-lg p-3 space-y-2">
-                <div className="text-[10px] font-semibold text-tertiary uppercase tracking-wider">{col.label}</div>
+                <div className="text-[13px] font-medium text-tertiary">{col.label}</div>
                 <div className="space-y-1.5">
-                  <div className="flex justify-between text-[12px]">
+                  <div className="flex justify-between text-[13px]">
                     <span className="text-secondary">Annual earn</span>
                     <span className="text-primary font-medium">{fmtDollar(col.earn)}</span>
                   </div>
-                  <div className="flex justify-between text-[12px]">
+                  <div className="flex justify-between text-[13px]">
                     <span className="text-secondary">Net fees</span>
                     <span className="text-red font-medium">−{fmtDollar(col.fees)}</span>
                   </div>
-                  <div className="flex justify-between text-[12px]">
+                  <div className="flex justify-between text-[13px]">
                     <span className="text-secondary">SUBs earned</span>
                     <span className="text-primary font-medium">{fmtDollar(col.subs)}</span>
                   </div>
-                  <div className="flex justify-between text-[12px] pt-1.5 border-t border-subtle">
+                  <div className="flex justify-between text-[13px] pt-1.5 border-t border-subtle">
                     <span className="text-secondary font-medium">Net value</span>
                     <span className={`font-semibold ${net >= 0 ? "text-green" : "text-red"}`}>
                       {net >= 0 ? "" : "−"}{fmtDollar(net)}
@@ -248,14 +249,14 @@ function WhatIfModal({
         {/* Category improvements */}
         {rec.improvements.length > 0 && (
           <div>
-            <div className="text-[10px] font-semibold text-tertiary uppercase tracking-wider mb-2">
+            <div className="text-[13px] font-medium text-tertiary mb-2">
               Earn rate improvements
             </div>
             <div className="space-y-1">
               {rec.improvements.map((imp) => {
                 const cat = CATEGORIES.find((c) => c.id === imp.categoryId);
                 return (
-                  <div key={imp.categoryId} className="flex items-center justify-between text-[12px]">
+                  <div key={imp.categoryId} className="flex items-center justify-between text-[13px]">
                     <span className="text-secondary">{cat?.label ?? imp.categoryId}</span>
                     <div className="flex items-center gap-2">
                       <span className="text-tertiary">{imp.currentRate}x → {imp.candidateRate}x</span>
@@ -338,11 +339,11 @@ function RecommendationCard({
         <div className="flex items-start gap-3">
           <MiniCardFace colorJson={rec.card.color_json} name={rec.card.name} issuer={rec.card.issuer} />
           <div className="flex-1 min-w-0">
-            <div className="text-[13px] font-medium text-primary truncate">{rec.card.name}</div>
-            <div className="text-[11px] text-secondary">
+            <div className="text-[14px] font-medium text-primary truncate">{rec.card.name}</div>
+            <div className="text-[12px] text-secondary">
               {rec.card.issuer} · {rec.card.fee === 0 ? "No annual fee" : `$${rec.card.fee}/yr`}
               {rec.card.business && (
-                <span className="ml-1.5 inline-flex items-center px-1.5 py-px rounded bg-surface border border-subtle text-[10px] text-secondary">
+                <span className="ml-1.5 inline-flex items-center px-1.5 py-px rounded bg-surface border border-subtle text-[11px] text-secondary">
                   Business
                 </span>
               )}
@@ -353,9 +354,9 @@ function RecommendationCard({
             <div className={`text-[22px] font-semibold leading-none ${rec.ongoingValue >= 0 ? "text-green" : "text-red"}`}>
               {rec.ongoingValue >= 0 ? "+" : "−"}{fmtDollar(rec.ongoingValue)}
             </div>
-            <div className="text-[10px] text-tertiary mt-0.5">per year</div>
+            <div className="text-[11px] text-tertiary mt-0.5">per year</div>
             {rec.subValue > 0 && (
-              <div className="text-[11px] text-secondary mt-1">
+              <div className="text-[12px] text-secondary mt-1">
                 <span className="font-medium text-primary">
                   {rec.firstYearValue >= 0 ? "+" : "−"}{fmtDollar(rec.firstYearValue)}
                 </span>{" "}
@@ -373,14 +374,14 @@ function RecommendationCard({
               return (
                 <span
                   key={imp.categoryId}
-                  className="inline-flex items-center px-2 py-0.5 rounded-full bg-green/10 text-green text-[11px] font-medium"
+                  className="inline-flex items-center px-2 py-0.5 rounded-full bg-green/10 text-green text-[12px] font-medium"
                 >
                   {cat?.label ?? imp.categoryId}: {imp.currentRate}x→{imp.candidateRate}x
                 </span>
               );
             })}
             {rec.improvements.length > 4 && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface text-secondary border border-subtle text-[11px]">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface text-secondary border border-subtle text-[12px]">
                 +{rec.improvements.length - 4} more
               </span>
             )}
@@ -388,7 +389,7 @@ function RecommendationCard({
         )}
 
         {/* Value breakdown */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-secondary">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-secondary">
           {rec.earnGain > 0 && (
             <span>
               <span className="font-medium text-primary">+{fmtDollar(rec.earnGain)}</span> earn/yr
@@ -417,7 +418,7 @@ function RecommendationCard({
         </div>
 
         {/* Plain-English explanation */}
-        <p className="text-[12px] text-secondary leading-relaxed border-t border-subtle pt-2">
+        <p className="text-[13px] text-secondary leading-relaxed border-t border-subtle pt-2">
           {generateExplanation(rec, spend)}
         </p>
 
@@ -425,17 +426,17 @@ function RecommendationCard({
         <div className="flex items-center gap-2">
           <button
             onClick={onAddToWallet}
-            className={`flex-1 text-[12px] font-medium px-3 py-1.5 rounded-md transition-colors duration-150 ${
+            className={`flex-1 text-[13px] font-medium px-3 py-1.5 rounded-md transition-colors duration-150 ${
               inWallet
                 ? "bg-green/10 text-green hover:bg-green/20"
-                : "bg-green hover:bg-green/90 text-white"
+                : "bg-ink hover:bg-ink/85 text-paper"
             }`}
           >
             {inWallet ? "In wallet ✓" : "Add to wallet"}
           </button>
           <button
             onClick={() => setWhatIfOpen(true)}
-            className="text-[12px] font-medium px-3 py-1.5 rounded-md border border-subtle text-secondary hover:text-primary hover:border-medium transition-colors duration-150"
+            className="text-[13px] font-medium px-3 py-1.5 rounded-md border border-subtle text-secondary hover:text-primary hover:border-medium transition-colors duration-150"
           >
             What-if
           </button>
@@ -504,18 +505,15 @@ export default function OptimizePage() {
   const { isPro } = useProCheck();
 
   return (
-    <div className="p-6 space-y-5">
-      {/* Page header */}
-      <div>
-        <h1 className="text-[14px] font-semibold text-secondary uppercase tracking-wider">Optimizer</h1>
-        <p className="text-[12px] text-tertiary mt-0.5">
-          Cards ranked by what they add to your wallet, based on your answers below
-        </p>
-      </div>
+    <div className="px-4 sm:px-8 lg:px-10 pt-6 sm:pt-8 pb-14 mx-auto max-w-[1180px] space-y-6">
+      <PageHeader
+        title="Find a better card"
+        subtitle="Answer a few questions. Cards are ranked by what they add to the wallet you already have."
+      />
 
       {/* Questionnaire */}
       <div className="bg-white border border-subtle rounded-lg p-4 space-y-4">
-        <div className="text-[10px] font-semibold text-tertiary uppercase tracking-wider">About your next card</div>
+        <h2 className="text-[18px] font-semibold text-ink">About your next card</h2>
 
         <Question label="What's your goal with your next card?">
           <ChoiceChips
@@ -523,7 +521,7 @@ export default function OptimizePage() {
             value={optimizerAnswers.goal}
             onChange={(goal) => setOptimizerAnswers({ goal })}
           />
-          {goalHint && <div className="text-[11px] text-tertiary mt-1.5">{goalHint}</div>}
+          {goalHint && <div className="text-[12px] text-tertiary mt-1.5">{goalHint}</div>}
         </Question>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -573,12 +571,12 @@ export default function OptimizePage() {
 
       {/* Preference filters */}
       <div className="bg-white border border-subtle rounded-lg p-4">
-        <div className="text-[10px] font-semibold text-tertiary uppercase tracking-wider mb-3">Filters</div>
+        <div className="text-[13px] font-medium text-tertiary mb-3">Filters</div>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
           <div>
-            <div className="text-[11px] font-medium text-secondary mb-1">Max annual fee</div>
+            <div className="text-[12px] font-medium text-secondary mb-1">Max annual fee</div>
             <Select value={maxFeeStr} onValueChange={(v) => v && setMaxFeeStr(v)}>
-              <SelectTrigger className="h-8 text-[12px]">
+              <SelectTrigger className="h-8 text-[13px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -592,9 +590,9 @@ export default function OptimizePage() {
           </div>
 
           <div>
-            <div className="text-[11px] font-medium text-secondary mb-1">Credit score</div>
+            <div className="text-[12px] font-medium text-secondary mb-1">Credit score</div>
             <Select value={minScoreStr} onValueChange={(v) => v && setMinScoreStr(v)}>
-              <SelectTrigger className="h-8 text-[12px]">
+              <SelectTrigger className="h-8 text-[13px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -606,9 +604,9 @@ export default function OptimizePage() {
           </div>
 
           <div>
-            <div className="text-[11px] font-medium text-secondary mb-1">Preferred issuer</div>
+            <div className="text-[12px] font-medium text-secondary mb-1">Preferred issuer</div>
             <Select value={issuerFilter} onValueChange={(v) => v && setIssuerFilter(v)}>
-              <SelectTrigger className="h-8 text-[12px]">
+              <SelectTrigger className="h-8 text-[13px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -621,9 +619,9 @@ export default function OptimizePage() {
           </div>
 
           <div>
-            <div className="text-[11px] font-medium text-secondary mb-1">Preferred currency</div>
+            <div className="text-[12px] font-medium text-secondary mb-1">Preferred currency</div>
             <Select value={currencyFilter} onValueChange={(v) => v && setCurrencyFilter(v)}>
-              <SelectTrigger className="h-8 text-[12px]">
+              <SelectTrigger className="h-8 text-[13px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -643,15 +641,15 @@ export default function OptimizePage() {
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="bg-white border border-subtle rounded-lg p-4">
               <div className="flex items-start gap-3 mb-3">
-                <div className="w-14 h-9 rounded-md bg-[#e2e8f0] shrink-0" />
+                <div className="w-14 h-9 rounded-md bg-hover shrink-0" />
                 <div className="flex-1 space-y-2">
-                  <div className="h-4 w-1/2 bg-[#e2e8f0] rounded" />
-                  <div className="h-3 w-1/3 bg-[#e2e8f0] rounded" />
+                  <div className="h-4 w-1/2 bg-hover rounded" />
+                  <div className="h-3 w-1/3 bg-hover rounded" />
                 </div>
-                <div className="h-7 w-20 bg-[#e2e8f0] rounded" />
+                <div className="h-7 w-20 bg-hover rounded" />
               </div>
-              <div className="h-px bg-[#e2e8f0] mb-3" />
-              <div className="h-3 w-3/4 bg-[#e2e8f0] rounded" />
+              <div className="h-px bg-hover mb-3" />
+              <div className="h-3 w-3/4 bg-hover rounded" />
             </div>
           ))}
         </div>
@@ -660,22 +658,22 @@ export default function OptimizePage() {
       {/* No wallet state */}
       {baseCards.length > 0 && walletCards.length === 0 && recommendations.length === 0 && (
         <div className="bg-white border border-subtle rounded-lg p-8 text-center">
-          <div className="text-[13px] text-secondary">Add cards to your wallet to see recommendations.</div>
-          <div className="text-[11px] text-tertiary mt-1">The optimizer compares candidates against your current earn rates.</div>
+          <div className="text-[14px] text-secondary">Add cards to your wallet to see recommendations.</div>
+          <div className="text-[12px] text-tertiary mt-1">The optimizer compares candidates against your current earn rates.</div>
         </div>
       )}
 
       {/* No results */}
       {baseCards.length > 0 && walletCards.length > 0 && recommendations.length === 0 && (
         <div className="bg-white border border-subtle rounded-lg p-8 text-center">
-          <div className="text-[13px] text-secondary">No recommendations match your current filters.</div>
-          <div className="text-[11px] text-tertiary mt-1">Try a different goal or relax the fee and credit score filters.</div>
+          <div className="text-[14px] text-secondary">No recommendations match your current filters.</div>
+          <div className="text-[12px] text-tertiary mt-1">Try a different goal or relax the fee and credit score filters.</div>
         </div>
       )}
 
       {/* What the answers hid */}
       {walletCards.length > 0 && (hiddenBusinessCount > 0 || hidden524Count > 0) && (
-        <div className="text-[11px] text-tertiary">
+        <div className="text-[12px] text-tertiary">
           {hiddenBusinessCount > 0 &&
             `${hiddenBusinessCount} business card${hiddenBusinessCount !== 1 ? "s" : ""} hidden since you don't have a business. `}
           {hidden524Count > 0 &&
@@ -686,7 +684,7 @@ export default function OptimizePage() {
       {/* Recommendation grid */}
       {baseCards.length > 0 && recommendations.length > 0 && (
         <div className="space-y-3">
-          <div className="text-[10px] font-semibold text-tertiary uppercase tracking-wider">
+          <div className="text-[13px] font-medium text-tertiary">
             {recommendations.length} recommendation{recommendations.length !== 1 ? "s" : ""}
           </div>
 
@@ -708,11 +706,11 @@ export default function OptimizePage() {
                     </div>
                     {/* Upgrade overlay */}
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 rounded-lg">
-                      <div className="text-[13px] font-semibold text-primary">Upgrade to Pro</div>
-                      <div className="text-[11px] text-secondary mt-0.5 text-center px-4">
+                      <div className="text-[14px] font-semibold text-primary">Upgrade to Pro</div>
+                      <div className="text-[12px] text-secondary mt-0.5 text-center px-4">
                         See {recommendations.length - 2} more recommendation{recommendations.length - 2 !== 1 ? "s" : ""}
                       </div>
-                      <button className="mt-3 px-4 py-1.5 bg-green hover:bg-green/90 text-white text-[12px] font-medium rounded-md transition-colors duration-150">
+                      <button className="mt-3 px-4 py-1.5 bg-ink hover:bg-ink/85 text-paper text-[13px] font-medium rounded-md transition-colors duration-150">
                         Upgrade to Pro
                       </button>
                     </div>
@@ -738,7 +736,7 @@ export default function OptimizePage() {
       )}
 
       {/* Disclaimer */}
-      <p className="mt-8 px-4 pb-8 text-[11px] text-tertiary text-center max-w-2xl mx-auto">
+      <p className="mt-8 px-4 pb-8 text-[12px] text-tertiary text-center max-w-2xl mx-auto">
         For informational purposes only. Not financial advice. Rewards values and earn rates are
         estimates and may not reflect your specific card version or current issuer terms. Always
         verify with your card issuer before making financial decisions.

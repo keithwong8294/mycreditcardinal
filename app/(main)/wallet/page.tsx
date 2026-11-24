@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useStore } from "@/lib/store";
 import { CATEGORIES } from "@/lib/categories";
 import { CURRENCY_MAP } from "@/lib/currencies";
@@ -50,11 +51,11 @@ function RotationConfig({ wc }: { wc: WalletCard }) {
   return (
     <div className="mt-2 pt-2 border-t border-subtle">
       <div className="flex items-center gap-2 mb-1.5">
-        <div className="text-[10px] uppercase tracking-wider text-purple font-semibold">
+        <div className="text-[13px] text-purple font-medium">
           Rotating quarters
         </div>
         {schedule && (
-          <span className="text-[10px] text-tertiary">
+          <span className="text-[11px] text-tertiary">
             · auto-filled from {year} schedule
           </span>
         )}
@@ -66,10 +67,10 @@ function RotationConfig({ wc }: { wc: WalletCard }) {
           const isOverridden = current !== auto;
           return (
             <div key={q}>
-              <div className="text-[10px] text-tertiary mb-0.5 text-center flex items-center justify-center gap-1">
+              <div className="text-[11px] text-tertiary mb-0.5 text-center flex items-center justify-center gap-1">
                 Q{q}
                 {isOverridden && auto !== null && (
-                  <span className="text-purple text-[9px]" title="Overriding schedule">✎</span>
+                  <span className="text-purple text-[11px]" title="Overriding schedule">✎</span>
                 )}
               </div>
               <Select
@@ -78,7 +79,7 @@ function RotationConfig({ wc }: { wc: WalletCard }) {
                   setRotation(wc.id, q, v === "__none__" ? null : v)
                 }
               >
-                <SelectTrigger className={`h-7 text-[11px] w-full px-1.5 ${isOverridden ? "border-purple/40" : ""}`}>
+                <SelectTrigger className={`h-7 text-[12px] w-full px-1.5 ${isOverridden ? "border-purple/40" : ""}`}>
                   <SelectValue placeholder="—" />
                 </SelectTrigger>
                 <SelectContent>
@@ -105,7 +106,7 @@ function RotationConfig({ wc }: { wc: WalletCard }) {
               setRotation(wc.id, q, autoValues[q - 1]);
             });
           }}
-          className="mt-1.5 text-[10px] text-purple hover:text-purple/70 transition-colors"
+          className="mt-1.5 text-[11px] text-purple hover:text-purple/70 transition-colors"
         >
           Reset to {year} schedule
         </button>
@@ -124,7 +125,7 @@ function CustomSelectConfig({ wc }: { wc: WalletCard }) {
 
   return (
     <div className="mt-2 pt-2 border-t border-subtle">
-      <div className="text-[10px] uppercase tracking-wider text-purple font-semibold mb-1.5">
+      <div className="text-[13px] text-purple font-medium mb-1.5">
         Pick {max === 1 ? "1 category" : `up to ${max} categories`}
       </div>
       <div className="flex flex-wrap gap-1">
@@ -135,7 +136,7 @@ function CustomSelectConfig({ wc }: { wc: WalletCard }) {
             <button
               key={opt}
               onClick={() => setCustomCategory(wc.id, opt, !isSelected)}
-              className={`px-2 py-0.5 rounded-full text-[11px] font-medium border transition-colors duration-150 ${
+              className={`px-2 py-0.5 rounded-full text-[12px] font-medium border transition-colors duration-150 ${
                 isSelected
                   ? "bg-purple/10 text-purple border-purple/30"
                   : "bg-surface text-secondary border-subtle hover:border-medium"
@@ -146,7 +147,7 @@ function CustomSelectConfig({ wc }: { wc: WalletCard }) {
           );
         })}
       </div>
-      <div className="text-[10px] text-tertiary mt-1">
+      <div className="text-[11px] text-tertiary mt-1">
         {selected.length}/{max} selected
         {wc.card.caps_json["custom"] != null &&
           ` · $${wc.card.caps_json["custom"].toLocaleString()}/mo cap`}
@@ -172,10 +173,10 @@ function WalletCardRow({ wc }: { wc: WalletCard }) {
 
         {/* Info */}
         <div className="flex-1 min-w-0">
-          <div className="text-[13px] font-medium text-primary truncate">
+          <div className="text-[14px] font-medium text-primary truncate">
             {wc.card.name}
           </div>
-          <div className="text-[11px] text-secondary">
+          <div className="text-[12px] text-secondary">
             {wc.card.issuer}
             {" · "}
             {wc.card.fee === 0 ? "No fee" : `$${wc.card.fee}/yr`}
@@ -186,7 +187,7 @@ function WalletCardRow({ wc }: { wc: WalletCard }) {
         {/* Remove */}
         <button
           onClick={() => toggleCard(wc.card.id)}
-          className="text-[12px] text-tertiary hover:text-red transition-colors px-1 py-0.5 shrink-0"
+          className="text-[13px] text-tertiary hover:text-red transition-colors px-1 py-0.5 shrink-0"
         >
           Remove
         </button>
@@ -223,11 +224,11 @@ function SubSection({
   return (
     <section>
       <div className="flex items-baseline justify-between mb-3">
-        <h2 className="text-[14px] font-semibold text-secondary uppercase tracking-wider">
+        <h2 className="text-[20px] font-semibold text-ink">
           Sign-up Bonuses
         </h2>
         {totalEarned > 0 && (
-          <span className="text-[12px] text-green font-medium">
+          <span className="text-[13px] text-green font-medium">
             ${fmt(Math.round(totalEarned))} earned
           </span>
         )}
@@ -247,23 +248,23 @@ function SubSection({
                 onCheckedChange={() => toggleSub(wc.id)}
               />
               <div className="flex-1 min-w-0">
-                <div className="text-[13px] font-medium text-primary truncate">
+                <div className="text-[14px] font-medium text-primary truncate">
                   {wc.card.name}
                 </div>
-                <div className="text-[11px] text-secondary">
+                <div className="text-[12px] text-secondary">
                   {fmt(sub.points)} {CURRENCY_MAP[wc.card.currency]?.name ?? "pts"}
                   {" · "}
                   Spend ${fmt(sub.spend_requirement)} in {sub.timeframe_months}mo
                 </div>
               </div>
-              <span className={`text-[12px] font-medium shrink-0 ${isEarned ? "text-green" : "text-secondary"}`}>
+              <span className={`text-[13px] font-medium shrink-0 ${isEarned ? "text-green" : "text-secondary"}`}>
                 ${Math.round(value).toLocaleString()}
               </span>
             </label>
           );
         })}
       </div>
-      <p className="text-[10px] text-tertiary mt-1.5">
+      <p className="text-[11px] text-tertiary mt-1.5">
         Check off SUBs you&apos;ve earned to track their value.
       </p>
     </section>
@@ -304,12 +305,10 @@ export default function WalletPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="px-4 sm:px-8 lg:px-10 pt-6 sm:pt-8 pb-14 mx-auto max-w-[1180px] space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-[14px] font-semibold text-secondary uppercase tracking-wider mb-3">
-          My Wallet
-        </h1>
+        <h1 className="font-display text-[40px] sm:text-[44px] leading-none text-ink mb-5">Wallet</h1>
 
         {/* Person chips */}
         <div className="flex flex-wrap items-center gap-1.5">
@@ -325,19 +324,19 @@ export default function WalletPage() {
                     if (e.key === "Enter") commitRename();
                     if (e.key === "Escape") setRenamingId(null);
                   }}
-                  className="px-2 py-1 text-[12px] bg-field border border-medium rounded-lg w-24 focus:outline-none"
+                  className="px-2 py-1 text-[13px] bg-field border border-medium rounded-lg w-24 focus:outline-none"
                 />
               ) : (
                 <button
                   onClick={() => setActivePerson(person.id)}
-                  className={`px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors duration-150 ${
+                  className={`px-3.5 py-2 min-h-10 rounded-full text-[14px] transition-colors duration-150 ${
                     activePersonId === person.id
-                      ? "bg-green/10 text-green border border-green/30"
-                      : "bg-white border border-subtle text-secondary hover:border-medium"
+                      ? "bg-ink text-paper border border-ink"
+                      : "bg-white border border-medium text-ink hover:border-strong"
                   }`}
                 >
                   {person.name}
-                  <span className="text-[10px] ml-1 opacity-60">
+                  <span className="text-[11px] ml-1 opacity-60">
                     {person.cards.length}
                   </span>
                 </button>
@@ -370,12 +369,12 @@ export default function WalletPage() {
                   }
                 }}
                 placeholder="Name…"
-                className="px-2 py-1 text-[12px] bg-field border border-medium rounded-lg w-28 focus:outline-none"
+                className="px-2 py-1 text-[13px] bg-field border border-medium rounded-lg w-28 focus:outline-none"
               />
-              <button type="submit" className="px-2 py-1 text-[12px] font-medium text-green hover:text-green/70 transition-colors">
+              <button type="submit" className="px-2 py-1 text-[13px] font-medium text-green hover:text-green/70 transition-colors">
                 Add
               </button>
-              <button type="button" onClick={() => { setAddingPerson(false); setNewPersonName(""); }} className="text-[12px] text-tertiary hover:text-secondary transition-colors">
+              <button type="button" onClick={() => { setAddingPerson(false); setNewPersonName(""); }} className="text-[13px] text-tertiary hover:text-secondary transition-colors">
                 ✕
               </button>
             </form>
@@ -388,7 +387,7 @@ export default function WalletPage() {
                 }
                 setAddingPerson(true);
               }}
-              className="px-2 py-1 text-[12px] text-tertiary hover:text-secondary border border-dashed border-subtle rounded-lg transition-colors"
+              className="px-2 py-1 text-[13px] text-tertiary hover:text-secondary border border-dashed border-subtle rounded-lg transition-colors"
             >
               + Add
             </button>
@@ -398,19 +397,19 @@ export default function WalletPage() {
         {/* Active person actions */}
         {activePerson && (
           <div className="flex items-center gap-3 mt-2">
-            <span className="text-[12px] text-tertiary">
+            <span className="text-[13px] text-tertiary">
               {walletCards.length} card{walletCards.length !== 1 ? "s" : ""}
             </span>
             <button
               onClick={() => startRename(activePerson.id, activePerson.name)}
-              className="text-[11px] text-tertiary hover:text-secondary transition-colors"
+              className="text-[12px] text-tertiary hover:text-secondary transition-colors"
             >
               Rename
             </button>
             {people.length > 1 && (
               <button
                 onClick={() => removePerson(activePerson.id)}
-                className="text-[11px] text-tertiary hover:text-red transition-colors"
+                className="text-[12px] text-tertiary hover:text-red transition-colors"
               >
                 Remove person
               </button>
@@ -422,23 +421,21 @@ export default function WalletPage() {
       {/* Cards section */}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-[14px] font-semibold text-secondary uppercase tracking-wider">
-            Cards
-          </h2>
-          <a
+          <h2 className="text-[20px] font-semibold text-ink">Cards</h2>
+          <Link
             href="/browse"
-            className="text-[12px] text-blue hover:underline"
+            className="text-[14px] font-medium text-cardinal hover:text-cardinal-dark"
           >
-            Browse cards →
-          </a>
+            Add a card
+          </Link>
         </div>
 
         {walletCards.length === 0 ? (
           <div className="bg-white border border-subtle rounded-lg py-10 text-center">
-            <p className="text-[13px] text-tertiary mb-2">No cards yet.</p>
-            <a href="/browse" className="text-[13px] text-green font-medium hover:underline">
-              Browse cards to add some →
-            </a>
+            <p className="text-[14px] text-tertiary mb-2">No cards yet.</p>
+            <Link href="/browse" className="text-[14px] text-cardinal font-medium hover:text-cardinal-dark">
+              Browse cards to add some
+            </Link>
           </div>
         ) : (
           <div className="space-y-2">

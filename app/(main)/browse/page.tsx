@@ -1,13 +1,17 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { Fragment, useState, useMemo, useDeferredValue } from "react";
 import { CARDS } from "@/lib/cards";
 import { useStore } from "@/lib/store";
 import { CATEGORIES } from "@/lib/categories";
 import { CURRENCIES } from "@/lib/currencies";
 import type { Card } from "@/types";
-import { cardGradient, isLightBackground } from "@/lib/utils";
+import { cardGradient } from "@/lib/utils";
+import { cardKind, earnLines, feeLabel } from "@/lib/cardDisplay";
+import { useProCheck } from "@/lib/useProCheck";
+import { trackCardAdded } from "@/lib/analytics";
 import { CardDetailModal } from "@/components/CardDetailModal";
+import { UpgradeModal } from "@/components/UpgradeModal";
 import {
   Dialog,
   DialogContent,
@@ -23,131 +27,95 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Filters ──────────────────────────────────────────────────────────────────
 
-interface EarnPill {
-  label: string;
-  highlight: boolean;
-}
+type Chip = "all" | "nofee" | "travel" | "cash" | "cobrand" | "business";
 
-function getEarnPills(card: Card): EarnPill[] {
-  const pills: EarnPill[] = [];
-
-  if (card.rotating) {
-    pills.push({ label: "5x Rotating +", highlight: true });
-  }
-  if (card.custom_select && card.custom_rate != null) {
-    pills.push({ label: `${card.custom_rate}x Custom`, highlight: true });
-  }
-
-  const entries = Object.entries(card.earn_json)
-    .filter(([, rate]) => rate > 1)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, card.rotating || card.custom_select ? 2 : 4);
-
-  for (const [catId, rate] of entries) {
-    const cat = CATEGORIES.find((c) => c.id === catId);
-    if (!cat) continue;
-    pills.push({ label: `${rate}x ${cat.label}`, highlight: rate >= 3 });
-  }
-
-  const baseRate = card.earn_json["other"] ?? 1;
-  if (baseRate > 1) {
-    pills.push({ label: `${baseRate}x Everything`, highlight: baseRate >= 2 });
-  }
-
-  return pills.slice(0, 5);
-}
-
-const FEE_OPTIONS = [
-  { label: "Any fee", value: "any" },
-  { label: "No fee", value: "0" },
-  { label: "Under $100", value: "100" },
-  { label: "Under $250", value: "250" },
-  { label: "Under $500", value: "500" },
+const CHIPS: { id: Chip; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "nofee", label: "No annual fee" },
+  { id: "travel", label: "Travel points" },
+  { id: "cash", label: "Cash back" },
+  { id: "cobrand", label: "Hotel & airline" },
+  { id: "business", label: "Business" },
 ];
+
+function matchesChip(card: Card, chip: Chip): boolean {
+  switch (chip) {
+    case "all": return true;
+    case "nofee": return card.fee === 0;
+    case "business": return !!card.business;
+    default: return cardKind(card) === chip;
+  }
+}
 
 // ─── Card tile ────────────────────────────────────────────────────────────────
 
 function CardTile({
   card,
   inWallet,
-  onClick,
+  onDetails,
+  onAdd,
 }: {
   card: Card;
   inWallet: boolean;
-  onClick: () => void;
+  onDetails: () => void;
+  onAdd: () => void;
 }) {
-  const pills = getEarnPills(card);
+  const lines = earnLines(card);
 
   return (
-    <button
-      onClick={onClick}
-      className={`w-full text-left bg-white rounded-lg overflow-hidden border transition-all duration-150 ${
-        inWallet
-          ? "ring-1 ring-green border-green"
-          : "border-subtle hover:border-medium"
-      }`}
-    >
-      {/* Card face */}
-      <div
-        className="relative h-20 flex flex-col justify-end p-2"
-        style={{ background: cardGradient(card.color_json) }}
+    <article className="bg-white border border-subtle rounded-xl p-4 flex flex-col gap-3.5">
+      <button
+        onClick={onDetails}
+        className="flex gap-3.5 items-center text-left rounded-lg -m-1 p-1 hover:bg-paper transition-colors"
       >
-        {inWallet && (
-          <span className="absolute top-1.5 right-1.5 bg-green text-white rounded-full text-[10px] font-semibold px-1.5 py-px leading-tight">
-            ✓
-          </span>
-        )}
-        {(() => {
-          const light = isLightBackground(card.color_json);
-          const shadow = "0 1px 2px rgba(0,0,0,0.3)";
-          return (
-            <>
-              <div
-                className="text-[9px] uppercase tracking-wide font-medium"
-                style={{ color: light ? "#1a1a2eaa" : "rgba(255,255,255,0.6)", textShadow: shadow }}
-              >
-                {card.issuer}
-              </div>
-              <div
-                className="text-[13px] font-medium leading-tight truncate"
-                style={{ color: light ? "#1a1a2e" : "rgba(255,255,255,0.95)", textShadow: shadow }}
-              >
-                {card.name}
-              </div>
-            </>
-          );
-        })()}
-      </div>
+        <div
+          aria-hidden="true"
+          className="w-16 h-10 rounded-[5px] shrink-0 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]"
+          style={{ background: cardGradient(card.color_json) }}
+        />
+        <div className="min-w-0">
+          <h2 className="text-[16px] font-semibold leading-snug text-ink">{card.name}</h2>
+          <div className="text-[13px] text-secondary mt-0.5">
+            {card.issuer} · {feeLabel(card.fee)}
+          </div>
+        </div>
+      </button>
 
-      {/* Body */}
-      <div className="p-2.5">
-        <div className="mb-1.5">
-          <span className="text-[11px] text-secondary">
-            {card.fee === 0 ? (
-              <span className="text-green font-medium">No annual fee</span>
-            ) : (
-              `$${card.fee}/yr`
-            )}
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-[14px]">
+        {lines.map((l, i) => (
+          <Fragment key={i}>
+            <dt className="font-mono text-ink tabular-nums">{l.rate}</dt>
+            <dd className="text-[#44403c]">{l.label}</dd>
+          </Fragment>
+        ))}
+      </dl>
+
+      <div className="mt-auto flex items-center justify-between gap-2 border-t border-subtle pt-3">
+        <button
+          onClick={onDetails}
+          className="text-[14px] text-[#44403c] hover:text-ink py-2 min-h-10"
+        >
+          Details
+        </button>
+        {inWallet ? (
+          <span className="flex items-center gap-1.5 text-[14px] text-green min-h-10">
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 8.5l3 3 7-7" />
+            </svg>
+            In wallet
           </span>
-        </div>
-        <div className="flex flex-wrap gap-1">
-          {pills.map((pill, i) => (
-            <span
-              key={i}
-              className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium border ${
-                pill.highlight
-                  ? "bg-green/10 text-green border-transparent"
-                  : "bg-[#f1f5f9] text-[#475569] border-[rgba(0,0,0,0.08)]"
-              }`}
-            >
-              {pill.label}
-            </span>
-          ))}
-        </div>
+        ) : (
+          <button
+            onClick={onAdd}
+            className="text-[14px] font-medium text-ink bg-white border border-medium hover:border-ink rounded-lg px-3.5 py-2 min-h-10 transition-colors"
+          >
+            Add
+          </button>
+        )}
       </div>
-    </button>
+    </article>
   );
 }
 
@@ -290,7 +258,7 @@ function CustomCardForm({
         </button>
         <button
           onClick={handleSave}
-          className="px-4 py-1.5 text-[13px] font-medium bg-green hover:bg-green/90 text-white rounded-lg transition-colors"
+          className="px-4 py-1.5 text-[13px] font-medium bg-ink hover:bg-ink/85 text-paper rounded-lg transition-colors"
         >
           Save card
         </button>
@@ -306,6 +274,8 @@ export default function BrowsePage() {
   const addCustomCard = useStore((s) => s.addCustomCard);
   const people = useStore((s) => s.people);
   const activePersonId = useStore((s) => s.activePersonId);
+  const toggleCardForPerson = useStore((s) => s.toggleCardForPerson);
+  const { isPro } = useProCheck();
 
   const activePerson = useMemo(
     () => people.find((p) => p.id === activePersonId),
@@ -317,170 +287,151 @@ export default function BrowsePage() {
   }, [activePerson]);
 
   const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
+  const [chip, setChip] = useState<Chip>("all");
   const [issuerFilter, setIssuerFilter] = useState("all");
-  const [feeFilter, setFeeFilter] = useState("any");
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
   const [detailCard, setDetailCard] = useState<Card | null>(null);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
 
-  // The card list is already in the client bundle (the store imports it),
-  // so read it directly instead of lazy-loading it behind a skeleton.
-  const baseCards = CARDS;
-
-  // Debounce search 200ms
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => setDebouncedSearch(search), 200);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [search]);
-
-  const allCards = useMemo(() => [...baseCards, ...customCards], [baseCards, customCards]);
+  const allCards = useMemo(() => [...CARDS, ...customCards], [customCards]);
 
   const issuers = useMemo(
-    () => Array.from(new Set(baseCards.map((c) => c.issuer))).sort(),
-    [baseCards]
+    () => Array.from(new Set(CARDS.map((c) => c.issuer))).sort(),
+    []
   );
 
   const filtered = useMemo(() => {
-    const q = debouncedSearch.toLowerCase();
+    const q = deferredSearch.trim().toLowerCase();
     return allCards.filter((card) => {
       if (card.status !== "active") return false;
-      if (
-        q &&
-        !card.name.toLowerCase().includes(q) &&
-        !card.issuer.toLowerCase().includes(q)
-      )
-        return false;
+      if (q && !card.name.toLowerCase().includes(q) && !card.issuer.toLowerCase().includes(q)) return false;
       if (issuerFilter !== "all" && card.issuer !== issuerFilter) return false;
-      if (feeFilter !== "any") {
-        const max = parseInt(feeFilter);
-        if (max === 0 && card.fee !== 0) return false;
-        if (max > 0 && card.fee >= max) return false;
-      }
-      return true;
+      return matchesChip(card, chip);
     });
-  }, [allCards, debouncedSearch, issuerFilter, feeFilter]);
+  }, [allCards, deferredSearch, issuerFilter, chip]);
+
+  function addToWallet(card: Card) {
+    if (!activePerson) return;
+    if (!isPro && activePerson.cards.length >= 5) {
+      setUpgradeOpen(true);
+      return;
+    }
+    toggleCardForPerson(card.id, activePerson.id);
+    trackCardAdded(card.id, card.name, activePerson.id);
+  }
+
+  const owner = activePerson?.name === "You" || !activePerson ? "your" : `${activePerson.name}\u2019s`;
+  const filtering = deferredSearch.trim() !== "" || chip !== "all" || issuerFilter !== "all";
 
   return (
-    <div className="p-6 space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-[14px] font-semibold text-secondary uppercase tracking-wider">
-            Browse Cards
-          </h1>
-          <p className="text-[12px] text-tertiary mt-0.5">
-            {filtered.length} card{filtered.length !== 1 ? "s" : ""}
-            {debouncedSearch || issuerFilter !== "all" || feeFilter !== "any"
-              ? " matching filters"
-              : " in database"}
-          </p>
+    <div className="px-4 sm:px-8 lg:px-10 pt-6 sm:pt-8 pb-14">
+      <div className="max-w-[1100px] mx-auto flex flex-col gap-6">
+        <header className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="font-display text-[40px] sm:text-[44px] leading-none text-ink">Browse cards</h1>
+            <p className="mt-2 text-[15px] text-secondary">
+              {filtered.length} card{filtered.length !== 1 ? "s" : ""}
+              {filtering ? " match" : ""}. Adding one puts it in {owner} wallet.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-[0_1_420px] min-w-0 w-full sm:w-auto">
+            <label className="flex items-center gap-2 bg-white border border-medium rounded-[10px] px-3 min-h-11 flex-1 min-w-0 focus-within:border-ink">
+              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="#57534e" strokeWidth="1.6" strokeLinecap="round">
+                <circle cx="7" cy="7" r="4.5" />
+                <path d="M10.5 10.5L14 14" />
+              </svg>
+              <span className="sr-only">Search cards</span>
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by card or issuer"
+                className="border-0 outline-none bg-transparent text-[15px] w-full text-ink placeholder:text-tertiary"
+              />
+            </label>
+            <Dialog open={customDialogOpen} onOpenChange={setCustomDialogOpen}>
+              <DialogTrigger className="shrink-0 min-h-11 px-3.5 text-[14px] text-ink bg-white border border-medium rounded-[10px] hover:border-ink transition-colors">
+                Custom card
+              </DialogTrigger>
+              <DialogContent showCloseButton={false} className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Add custom card</DialogTitle>
+                </DialogHeader>
+                <CustomCardForm
+                  onSave={(partial) => {
+                    addCustomCard(partial);
+                    setCustomDialogOpen(false);
+                  }}
+                  onCancel={() => setCustomDialogOpen(false)}
+                />
+              </DialogContent>
+            </Dialog>
+          </div>
+        </header>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {CHIPS.map((c) => {
+            const on = chip === c.id;
+            return (
+              <button
+                key={c.id}
+                onClick={() => setChip(c.id)}
+                aria-pressed={on}
+                className={`text-[14px] px-3.5 py-2 min-h-10 rounded-full border transition-colors ${
+                  on ? "bg-ink text-paper border-ink" : "bg-white text-ink border-medium hover:border-strong"
+                }`}
+              >
+                {c.label}
+              </button>
+            );
+          })}
+          <label className="sm:ml-auto flex items-center gap-2 text-[14px] text-secondary">
+            Issuer
+            <select
+              value={issuerFilter}
+              onChange={(e) => setIssuerFilter(e.target.value)}
+              className="text-[14px] text-ink px-2.5 py-2 min-h-10 border border-medium rounded-lg bg-white"
+            >
+              <option value="all">All issuers</option>
+              {issuers.map((issuer) => (
+                <option key={issuer} value={issuer}>{issuer}</option>
+              ))}
+            </select>
+          </label>
         </div>
 
-        {/* Custom card dialog */}
-        <Dialog open={customDialogOpen} onOpenChange={setCustomDialogOpen}>
-          <DialogTrigger className="px-3 py-1.5 text-[12px] font-medium text-secondary border border-subtle rounded-lg hover:bg-hover transition-colors">
-            + Custom card
-          </DialogTrigger>
-          <DialogContent
-            showCloseButton={false}
-            className="sm:max-w-md max-h-[90vh] overflow-y-auto"
-          >
-            <DialogHeader>
-              <DialogTitle>Add custom card</DialogTitle>
-            </DialogHeader>
-            <CustomCardForm
-              onSave={(partial) => {
-                addCustomCard(partial);
-                setCustomDialogOpen(false);
-              }}
-              onCancel={() => setCustomDialogOpen(false)}
-            />
-          </DialogContent>
-        </Dialog>
+        {filtered.length === 0 ? (
+          <div className="py-16 text-center text-secondary text-[15px]">
+            No cards match.{" "}
+            <button
+              onClick={() => { setSearch(""); setChip("all"); setIssuerFilter("all"); }}
+              className="text-cardinal hover:text-cardinal-dark font-medium"
+            >
+              Clear filters
+            </button>
+          </div>
+        ) : (
+          <section aria-label="Cards" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filtered.map((card) => (
+              <CardTile
+                key={card.id}
+                card={card}
+                inWallet={walletCardIds.has(card.id)}
+                onDetails={() => setDetailCard(card)}
+                onAdd={() => addToWallet(card)}
+              />
+            ))}
+          </section>
+        )}
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-2">
-        <input
-          type="search"
-          placeholder="Search cards…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full sm:w-52 px-3 py-1.5 bg-white border border-subtle rounded-lg text-[13px] text-primary placeholder:text-tertiary focus:outline-none focus:border-medium transition-colors"
-        />
-
-        <Select value={issuerFilter} onValueChange={(v) => v && setIssuerFilter(v)}>
-          <SelectTrigger className="h-8 text-[13px] min-w-[120px]">
-            <SelectValue placeholder="Issuer" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All issuers</SelectItem>
-            {issuers.map((issuer) => (
-              <SelectItem key={issuer} value={issuer}>
-                {issuer}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={feeFilter} onValueChange={(v) => v && setFeeFilter(v)}>
-          <SelectTrigger className="h-8 text-[13px] min-w-[120px]">
-            <SelectValue placeholder="Fee" />
-          </SelectTrigger>
-          <SelectContent>
-            {FEE_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Grid */}
-      {baseCards.length === 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 animate-pulse">
-          {Array.from({ length: 9 }).map((_, i) => (
-            <div key={i} className="rounded-lg overflow-hidden border border-subtle">
-              <div className="h-20 bg-[#f1f5f9]" />
-              <div className="p-2.5 space-y-2">
-                <div className="h-3 w-1/2 bg-[#e2e8f0] rounded" />
-                <div className="flex gap-1">
-                  <div className="h-4 w-16 bg-[#e2e8f0] rounded-full" />
-                  <div className="h-4 w-20 bg-[#e2e8f0] rounded-full" />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="py-16 text-center text-tertiary text-[13px]">
-          No cards match your filters.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-          {filtered.map((card) => (
-            <CardTile
-              key={card.id}
-              card={card}
-              inWallet={walletCardIds.has(card.id)}
-              onClick={() => setDetailCard(card)}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Card detail modal */}
       <CardDetailModal
         card={detailCard}
         open={detailCard !== null}
         onOpenChange={(open) => { if (!open) setDetailCard(null); }}
       />
-
+      <UpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} reason="card_limit" />
     </div>
   );
 }

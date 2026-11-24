@@ -58,7 +58,8 @@ function fmt(n: number): string {
   return n.toLocaleString();
 }
 function fmtDollar(n: number): string {
-  return `$${Math.round(n).toLocaleString()}`;
+  const r = Math.round(n);
+  return `${r < 0 ? "-" : ""}$${Math.abs(r).toLocaleString()}`;
 }
 
 // ─── Spend row ────────────────────────────────────────────────────────────────
@@ -116,15 +117,15 @@ function SpendRow({
 
   return (
     <div className="border-b border-subtle last:border-b-0">
-      <div className="grid grid-cols-[130px_1fr_170px_60px_100px] items-center gap-2 px-3 py-2">
+      <div className="grid grid-cols-[140px_minmax(170px,1fr)_minmax(150px,210px)_52px_92px] items-center gap-2 px-3 py-2">
         {/* Category */}
         <div className="flex items-center gap-1 min-w-0">
-          <span className="text-[12px] text-primary font-medium truncate">{cat.label}</span>
+          <span className="text-[13px] text-primary font-medium truncate">{cat.label}</span>
           {isMonthlyOverride && onClearOverride && (
             <button
               onClick={onClearOverride}
               title="Reset to average"
-              className="shrink-0 text-[10px] text-blue hover:text-blue/70 transition-colors leading-none"
+              className="shrink-0 text-[11px] text-blue hover:text-blue/70 transition-colors leading-none"
             >
               ↺
             </button>
@@ -144,11 +145,11 @@ function SpendRow({
               onSpendChange(categoryId, v);
               setInputVal(String(v));
             }}
-            className="flex-1 cursor-pointer accent-green"
+            className="flex-1 cursor-pointer accent-[#b3261e]"
             style={{ minWidth: 0 }}
           />
           <div className="relative shrink-0">
-            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-tertiary pointer-events-none">
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[12px] text-tertiary pointer-events-none">
               $
             </span>
             <input
@@ -162,7 +163,7 @@ function SpendRow({
               onKeyDown={(e) => {
                 if (e.key === "Enter") { commitInput(); inputRef.current?.blur(); }
               }}
-              className={`w-20 pl-5 pr-2 py-1 border rounded-md text-[12px] text-primary text-right focus:outline-none focus:border-medium ${
+              className={`w-20 pl-5 pr-2 py-1 border rounded-md text-[13px] text-primary text-right focus:outline-none focus:border-medium ${
                 isMonthlyOverride
                   ? "bg-blue/5 border-blue/30"
                   : "bg-field border-subtle"
@@ -170,7 +171,7 @@ function SpendRow({
             />
           </div>
           {isMonthlyOverride && defaultAmount !== undefined && (
-            <span className="text-[10px] text-blue/60 shrink-0 tabular-nums hidden sm:inline">
+            <span className="text-[11px] text-blue/60 shrink-0 tabular-nums hidden sm:inline">
               avg ${defaultAmount}
             </span>
           )}
@@ -184,7 +185,7 @@ function SpendRow({
               onOverrideChange(categoryId, v === "__auto__" ? null : v)
             }
           >
-            <SelectTrigger className="h-7 text-[11px] w-full px-2">
+            <SelectTrigger className="h-7 text-[12px] w-full px-2">
               <span className="truncate flex-1 text-left">
                 {overrideId
                   ? (walletCards.find((wc) => wc.id === overrideId)?.card.name ?? "Card")
@@ -203,13 +204,13 @@ function SpendRow({
             </SelectContent>
           </Select>
         ) : (
-          <span className="text-[11px] text-tertiary px-2">—</span>
+          <span className="text-[12px] text-tertiary px-2">—</span>
         )}
 
         {/* Rate */}
         {routingRow && spend > 0 ? (
           <span
-            className={`text-[12px] font-medium tabular-nums text-right ${
+            className={`text-[13px] font-medium tabular-nums text-right ${
               routingRow.earnRate >= 3
                 ? "text-green"
                 : routingRow.earnRate >= 2
@@ -219,25 +220,25 @@ function SpendRow({
           >
             {routingRow.earnRate}x
             {routingRow.capHit && (
-              <span className="ml-1 text-amber text-[10px]" title="Cap reached">⚠</span>
+              <span className="ml-1 text-amber text-[11px]" title="Cap reached">⚠</span>
             )}
           </span>
         ) : (
-          <span className="text-[11px] text-tertiary text-right">—</span>
+          <span className="text-[12px] text-tertiary text-right">—</span>
         )}
 
         {/* Points + dollar */}
         {routingRow && spend > 0 ? (
           <div className="text-right">
-            <div className="text-[12px] font-medium text-primary tabular-nums">
+            <div className="text-[13px] font-medium text-primary tabular-nums">
               {fmt(Math.round(routingRow.points))}
             </div>
-            <div className="text-[10px] text-tertiary tabular-nums">
+            <div className="text-[11px] text-tertiary tabular-nums">
               {fmtDollar(routingRow.dollarValue)}
             </div>
           </div>
         ) : (
-          <span className="text-[11px] text-tertiary text-right">—</span>
+          <span className="text-[12px] text-tertiary text-right">—</span>
         )}
       </div>
 
@@ -245,15 +246,15 @@ function SpendRow({
       {routingRow?.overflow.map((ov, i) => (
         <div
           key={i}
-          className="grid grid-cols-[130px_1fr_170px_60px_100px] items-center gap-2 px-3 py-1 bg-surface/50"
+          className="grid grid-cols-[140px_minmax(170px,1fr)_minmax(150px,210px)_52px_92px] items-center gap-2 px-3 py-1 bg-surface/50"
         >
-          <span className="text-[10px] text-tertiary pl-2">↳ overflow</span>
-          <span className="text-[11px] text-secondary truncate">{ov.walletCard.card.name}</span>
+          <span className="text-[11px] text-tertiary pl-2">↳ overflow</span>
+          <span className="text-[12px] text-secondary truncate">{ov.walletCard.card.name}</span>
           <div />
-          <span className="text-[11px] text-secondary tabular-nums text-right">{ov.earnRate}x</span>
+          <span className="text-[12px] text-secondary tabular-nums text-right">{ov.earnRate}x</span>
           <div className="text-right">
-            <div className="text-[11px] text-secondary tabular-nums">{fmt(Math.round(ov.points))}</div>
-            <div className="text-[10px] text-tertiary tabular-nums">{fmtDollar(ov.dollarValue)}</div>
+            <div className="text-[12px] text-secondary tabular-nums">{fmt(Math.round(ov.points))}</div>
+            <div className="text-[11px] text-tertiary tabular-nums">{fmtDollar(ov.dollarValue)}</div>
           </div>
         </div>
       ))}
@@ -265,12 +266,12 @@ function SpendRow({
 
 function TableHeaders() {
   return (
-    <div className="grid grid-cols-[130px_1fr_170px_60px_100px] gap-2 px-3 py-2 bg-surface border-b border-subtle">
-      <span className="text-[10px] uppercase tracking-wider text-tertiary font-semibold">Category</span>
-      <span className="text-[10px] uppercase tracking-wider text-tertiary font-semibold">Monthly spend</span>
-      <span className="text-[10px] uppercase tracking-wider text-tertiary font-semibold">Card</span>
-      <span className="text-[10px] uppercase tracking-wider text-tertiary font-semibold text-right">Rate</span>
-      <span className="text-[10px] uppercase tracking-wider text-tertiary font-semibold text-right">Pts / Value</span>
+    <div className="grid grid-cols-[140px_minmax(170px,1fr)_minmax(150px,210px)_52px_92px] gap-2 px-3 py-2 bg-surface border-b border-subtle">
+      <span className="text-[13px] text-tertiary font-medium">Category</span>
+      <span className="text-[13px] text-tertiary font-medium">Monthly spend</span>
+      <span className="text-[13px] text-tertiary font-medium">Card</span>
+      <span className="text-[13px] text-tertiary font-medium text-right">Rate</span>
+      <span className="text-[13px] text-tertiary font-medium text-right">Pts / Value</span>
     </div>
   );
 }
@@ -348,10 +349,10 @@ function ProfileBlock({
   );
 
   return (
-    <div className="bg-white border border-subtle rounded-lg overflow-hidden min-w-[520px]">
-      <div className="px-3 py-2 border-b border-subtle bg-[#0f1219] flex items-center justify-between cursor-grab active:cursor-grabbing">
-        <span className="text-[12px] font-semibold text-white">{personName}</span>
-        <span className="text-[11px] text-white/40">
+    <div className="bg-white border border-subtle rounded-xl overflow-hidden min-w-[660px]">
+      <div className="px-4 py-3 border-b border-subtle bg-white flex items-center justify-between cursor-grab active:cursor-grabbing">
+        <span className="text-[16px] font-semibold text-ink">{personName}</span>
+        <span className="text-[13px] text-secondary">
           {walletCards.length} card{walletCards.length !== 1 ? "s" : ""}
         </span>
       </div>
@@ -380,12 +381,12 @@ function ProfileBlock({
         );
       })}
       {monthlyPoints > 0 && (
-        <div className="grid grid-cols-[130px_1fr_170px_60px_100px] gap-2 px-3 py-2 bg-surface border-t border-subtle">
-          <span className="text-[11px] font-semibold text-secondary">Monthly</span>
+        <div className="grid grid-cols-[140px_minmax(170px,1fr)_minmax(150px,210px)_52px_92px] gap-2 px-3 py-2 bg-surface border-t border-subtle">
+          <span className="text-[12px] font-semibold text-secondary">Monthly</span>
           <div /><div /><div />
           <div className="text-right">
-            <div className="text-[12px] font-semibold text-primary tabular-nums">{fmt(Math.round(monthlyPoints))}</div>
-            <div className="text-[10px] text-green font-medium tabular-nums">{fmtDollar(result.totalDollarValue)}</div>
+            <div className="text-[13px] font-semibold text-primary tabular-nums">{fmt(Math.round(monthlyPoints))}</div>
+            <div className="text-[11px] text-green font-medium tabular-nums">{fmtDollar(result.totalDollarValue)}</div>
           </div>
         </div>
       )}
@@ -428,7 +429,7 @@ function SortableProfileBlock({
     <div ref={setNodeRef} style={style} className="flex-1 min-w-0">
       {/* Drag handle layer over the header */}
       <div className="relative">
-        <div {...attributes} {...listeners} className="absolute inset-x-0 top-0 h-[38px] z-10 cursor-grab active:cursor-grabbing" />
+        <div {...attributes} {...listeners} className="absolute inset-x-0 top-0 h-[48px] z-10 cursor-grab active:cursor-grabbing" />
         <ProfileBlock
           personId={personId}
           personName={personName}
@@ -437,68 +438,6 @@ function SortableProfileBlock({
           selectedMonth={selectedMonth}
         />
       </div>
-    </div>
-  );
-}
-
-// ─── Add person placeholder ─────────────────────────────────────────────────
-
-function AddPersonPlaceholder() {
-  const addPerson = useStore((s) => s.addPerson);
-  const [isAdding, setIsAdding] = useState(false);
-  const [name, setName] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  function handleAdd() {
-    const trimmed = name.trim();
-    if (trimmed) {
-      addPerson(trimmed);
-      setName("");
-      setIsAdding(false);
-    }
-  }
-
-  return (
-    <div className="flex-1 min-w-[520px] border-2 border-dashed border-subtle rounded-lg flex flex-col items-center justify-center py-16 gap-3">
-      {isAdding ? (
-        <div className="flex items-center gap-2">
-          <input
-            ref={inputRef}
-            autoFocus
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleAdd();
-              if (e.key === "Escape") { setIsAdding(false); setName(""); }
-            }}
-            placeholder="Name"
-            className="px-3 py-1.5 text-[13px] border border-subtle rounded-lg bg-field focus:outline-none focus:border-medium w-36"
-          />
-          <button
-            onClick={handleAdd}
-            className="px-3 py-1.5 text-[12px] font-medium bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90 transition-colors"
-          >
-            Add
-          </button>
-          <button
-            onClick={() => { setIsAdding(false); setName(""); }}
-            className="px-2 py-1.5 text-[12px] text-tertiary hover:text-secondary transition-colors"
-          >
-            Cancel
-          </button>
-        </div>
-      ) : (
-        <>
-          <p className="text-[13px] text-tertiary">Add a person to compare</p>
-          <button
-            onClick={() => setIsAdding(true)}
-            className="px-3 py-1.5 text-[12px] font-medium bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90 transition-colors"
-          >
-            + Add
-          </button>
-        </>
-      )}
     </div>
   );
 }
@@ -519,10 +458,10 @@ function MetricCard({
   const valueClass =
     accent === "green" ? "text-green" : accent === "red" ? "text-red" : "text-primary";
   return (
-    <div className="bg-white border border-subtle rounded-lg p-3">
-      <div className="text-[10px] uppercase tracking-wider text-tertiary font-semibold mb-1">{label}</div>
-      <div className={`text-[20px] font-semibold tabular-nums ${valueClass}`}>{value}</div>
-      {sub && <div className="text-[11px] text-tertiary mt-0.5">{sub}</div>}
+    <div className="bg-white border border-subtle rounded-xl p-4">
+      <div className="text-[14px] text-secondary mb-1">{label}</div>
+      <div className={`font-mono text-[24px] tracking-tight tabular-nums ${valueClass}`}>{value}</div>
+      {sub && <div className="text-[12px] text-tertiary mt-0.5">{sub}</div>}
     </div>
   );
 }
@@ -691,8 +630,8 @@ export default function SimulatePage() {
     return (
       <div className="p-6">
         <div className="bg-white border border-subtle rounded-lg py-16 text-center">
-          <p className="text-[13px] text-tertiary mb-2">No cards in wallet yet.</p>
-          <a href="/browse" className="text-[13px] text-green font-medium hover:underline">
+          <p className="text-[14px] text-tertiary mb-2">No cards in wallet yet.</p>
+          <a href="/browse" className="text-[14px] text-green font-medium hover:underline">
             Go to Wallet to add cards →
           </a>
         </div>
@@ -708,20 +647,21 @@ export default function SimulatePage() {
   const totalCards = people.reduce((n, p) => n + p.cards.length, 0);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="px-4 sm:px-8 lg:px-10 pt-6 sm:pt-8 pb-14 mx-auto max-w-[1180px] space-y-6">
       {/* ── Global controls ─────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <h1 className="text-[14px] font-semibold text-secondary uppercase tracking-wider">
-          Spend Simulator
-        </h1>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="font-display text-[40px] sm:text-[44px] leading-none text-ink">Simulator</h1>
+          <p className="mt-2 text-[15px] text-secondary">Set what you spend. We route every category to your best card.</p>
+        </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap min-w-0 max-w-full">
           {/* Month selector — scrollable */}
-          <div className="flex rounded-lg border border-subtle overflow-x-auto text-[12px] max-w-full shrink-0">
+          <div className="flex rounded-lg border border-subtle overflow-x-auto text-[13px] max-w-full shrink-0">
             <button
               onClick={() => setSelectedMonth(null)}
               className={`px-3 py-1.5 font-medium transition-colors duration-150 whitespace-nowrap shrink-0 ${
-                !selectedMonth ? "bg-[#0f1219] text-white" : "bg-white text-secondary hover:bg-surface"
+                !selectedMonth ? "bg-ink text-paper" : "bg-white text-secondary hover:bg-surface"
               }`}
             >
               Annual
@@ -731,7 +671,7 @@ export default function SimulatePage() {
                 key={ym}
                 onClick={() => setSelectedMonth(ym)}
                 className={`px-2.5 py-1.5 font-medium transition-colors duration-150 border-l border-subtle whitespace-nowrap shrink-0 ${
-                  selectedMonth === ym ? "bg-green text-white" : "bg-white text-secondary hover:bg-surface"
+                  selectedMonth === ym ? "bg-ink text-paper" : "bg-white text-secondary hover:bg-surface"
                 }`}
               >
                 {MONTH_LABELS[i]}
@@ -743,7 +683,7 @@ export default function SimulatePage() {
           {selectedMonth && selectedMonthHasOverrides && (
             <button
               onClick={() => people.forEach((p) => resetMonthForPerson(p.id, selectedMonth))}
-              className="px-2.5 py-1.5 text-[11px] font-medium text-red-500 hover:text-red-600 border border-red-200 hover:border-red-300 rounded-lg transition-colors duration-150 whitespace-nowrap"
+              className="px-2.5 py-1.5 text-[12px] font-medium text-red-500 hover:text-red-600 border border-red-200 hover:border-red-300 rounded-lg transition-colors duration-150 whitespace-nowrap"
               title="Reset all spend for this month to your annual averages"
             >
               ↺ Reset {MONTH_LABELS[MONTHS_OF_YEAR.indexOf(selectedMonth)]}
@@ -756,9 +696,9 @@ export default function SimulatePage() {
               <button
                 key={tier}
                 onClick={() => setValuation(tier)}
-                className={`px-3 py-1.5 text-[12px] font-medium transition-colors duration-150 capitalize ${
+                className={`px-3 py-1.5 text-[13px] font-medium transition-colors duration-150 capitalize ${
                   valuationTier === tier
-                    ? "bg-blue/10 text-blue border-blue/20"
+                    ? "bg-ink text-paper border-ink"
                     : "bg-white text-secondary hover:bg-surface"
                 }`}
               >
@@ -774,9 +714,9 @@ export default function SimulatePage() {
                 <button
                   key={q}
                   onClick={() => setViewQuarter(q)}
-                  className={`px-2.5 py-1.5 text-[12px] font-medium transition-colors duration-150 ${
+                  className={`px-2.5 py-1.5 text-[13px] font-medium transition-colors duration-150 ${
                     viewQuarter === q
-                      ? "bg-[#0f1219] text-white"
+                      ? "bg-ink text-white"
                       : "bg-white text-secondary hover:bg-surface"
                   }`}
                   title={`View rotating card categories for Q${q}`}
@@ -789,80 +729,12 @@ export default function SimulatePage() {
         </div>
       </div>
 
-      {/* Monthly override hint */}
-      {selectedMonth && (
-        <div className="flex items-center gap-2 px-3 py-2 bg-blue/5 border border-blue/15 rounded-lg text-[12px] text-blue/80">
-          <span>Editing spend for <strong>{monthLabel}</strong>. Changes save as monthly overrides. Tap ↺ next to a category to reset it to your default average.</span>
-        </div>
-      )}
-
-      {/* ── Profile blocks (drag-and-drop) ─────────────────────────────────── */}
-      <section>
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={people.map((p) => p.id)}
-            strategy={horizontalListSortingStrategy}
-          >
-            <div className="flex flex-col md:flex-row gap-4 overflow-x-auto">
-              {people.map((person) => (
-                <SortableProfileBlock
-                  key={person.id}
-                  personId={person.id}
-                  personName={person.name}
-                  valuationTier={valuationTier}
-                  quarter={selectedMonth ? monthToQuarter(selectedMonth) : viewQuarter}
-                  selectedMonth={selectedMonth}
-                />
-              ))}
-              {people.length === 1 && <AddPersonPlaceholder />}
-            </div>
-          </SortableContext>
-        </DndContext>
-      </section>
-
-      {/* ── Household Total bar ────────────────────────────────────────────── */}
-      {people.length > 1 && householdMonthlyTotals.totalPoints > 0 && (
-        <div className="bg-[#0f1219] rounded-lg px-4 py-3 flex items-center justify-between">
-          <span className="text-[13px] font-semibold text-white">Household Total</span>
-          <div className="flex items-center gap-6">
-            <div className="text-right">
-              <div className="text-[10px] uppercase tracking-wider text-white/40 font-semibold">Monthly pts</div>
-              <div className="text-[14px] font-semibold text-white tabular-nums">
-                {fmt(Math.round(householdMonthlyTotals.totalPoints))}
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-[10px] uppercase tracking-wider text-white/40 font-semibold">Monthly value</div>
-              <div className="text-[14px] font-semibold text-[#34d399] tabular-nums">
-                {fmtDollar(householdMonthlyTotals.totalValue)}
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-[10px] uppercase tracking-wider text-white/40 font-semibold">Annual fees</div>
-              <div className="text-[14px] font-semibold text-white tabular-nums">
-                {fmtDollar(displayStats.totalNetFees)}
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-[10px] uppercase tracking-wider text-white/40 font-semibold">Annual net</div>
-              <div className={`text-[14px] font-semibold tabular-nums ${displayStats.netTotal >= 0 ? "text-[#34d399]" : "text-red-400"}`}>
-                {fmtDollar(displayStats.netTotal)}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── Annual summary metrics ─────────────────────────────────────────── */}
       <section>
-        <h2 className="text-[14px] font-semibold text-secondary uppercase tracking-wider mb-3">
-          {people.length > 1 ? "Household Annual Summary" : "Annual Summary"}
+        <h2 className="text-[20px] font-semibold text-ink mb-3">
+          {people.length > 1 ? "Your household this year" : "Your wallet this year"}
         </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <MetricCard
             label="Points value"
             value={fmtDollar(displayStats.totalAnnualValue)}
@@ -894,11 +766,79 @@ export default function SimulatePage() {
         </div>
       </section>
 
+      {/* Monthly override hint */}
+      {selectedMonth && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-blue/5 border border-blue/15 rounded-lg text-[13px] text-blue/80">
+          <span>Editing spend for <strong>{monthLabel}</strong>. Changes save as monthly overrides. Tap ↺ next to a category to reset it to your default average.</span>
+        </div>
+      )}
+
+      {/* ── Profile blocks (drag-and-drop) ─────────────────────────────────── */}
+      <section>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={people.map((p) => p.id)}
+            strategy={horizontalListSortingStrategy}
+          >
+            <div className="flex flex-col md:flex-row gap-4 overflow-x-auto">
+              {people.map((person) => (
+                <SortableProfileBlock
+                  key={person.id}
+                  personId={person.id}
+                  personName={person.name}
+                  valuationTier={valuationTier}
+                  quarter={selectedMonth ? monthToQuarter(selectedMonth) : viewQuarter}
+                  selectedMonth={selectedMonth}
+                />
+              ))}
+              
+            </div>
+          </SortableContext>
+        </DndContext>
+      </section>
+
+      {/* ── Household Total bar ────────────────────────────────────────────── */}
+      {people.length > 1 && householdMonthlyTotals.totalPoints > 0 && (
+        <div className="bg-ink rounded-lg px-4 py-3 flex items-center justify-between">
+          <span className="text-[14px] font-semibold text-white">Household Total</span>
+          <div className="flex items-center gap-6">
+            <div className="text-right">
+              <div className="text-[13px] text-white/40 font-medium">Monthly pts</div>
+              <div className="text-[14px] font-semibold text-white tabular-nums">
+                {fmt(Math.round(householdMonthlyTotals.totalPoints))}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-[13px] text-white/40 font-medium">Monthly value</div>
+              <div className="text-[14px] font-semibold text-[#8fd3a8] tabular-nums">
+                {fmtDollar(householdMonthlyTotals.totalValue)}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-[13px] text-white/40 font-medium">Annual fees</div>
+              <div className="text-[14px] font-semibold text-white tabular-nums">
+                {fmtDollar(displayStats.totalNetFees)}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-[13px] text-white/40 font-medium">Annual net</div>
+              <div className={`text-[14px] font-semibold tabular-nums ${displayStats.netTotal >= 0 ? "text-[#8fd3a8]" : "text-red-400"}`}>
+                {fmtDollar(displayStats.netTotal)}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Currency breakdown ──────────────────────────────────────────────── */}
       {displayStats.currencyTotals.length > 0 && (
         <section>
-          <h2 className="text-[14px] font-semibold text-secondary uppercase tracking-wider mb-3">
-            {people.length > 1 ? "Household Currency Breakdown" : "Annual Currency Breakdown"}
+          <h2 className="text-[20px] font-semibold text-ink mb-3">
+            {people.length > 1 ? "Where the points land" : "Where the points land"}
           </h2>
           <div className="bg-white border border-subtle rounded-lg overflow-hidden divide-y divide-subtle">
             {displayStats.currencyTotals
@@ -911,18 +851,18 @@ export default function SimulatePage() {
                 return (
                   <div key={ct.currencyId} className="flex items-center justify-between px-4 py-2.5">
                     <div>
-                      <div className="text-[13px] font-medium text-primary">
+                      <div className="text-[14px] font-medium text-primary">
                         {currency?.name ?? ct.currencyId}
                       </div>
-                      <div className="text-[11px] text-tertiary mt-0.5">
+                      <div className="text-[12px] text-tertiary mt-0.5">
                         {fmt(Math.round(ct.points))} pts
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-[13px] font-semibold text-primary tabular-nums">
+                      <div className="text-[14px] font-semibold text-primary tabular-nums">
                         {fmtDollar(ct.dollarValue)}
                       </div>
-                      <div className="text-[11px] text-tertiary tabular-nums">
+                      <div className="text-[12px] text-tertiary tabular-nums">
                         {fmtDollar(floorVal)} – {fmtDollar(ceilVal)}
                       </div>
                     </div>

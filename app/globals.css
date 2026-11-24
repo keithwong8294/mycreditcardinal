@@ -5,40 +5,50 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
+  /* Paper, ink and cardinal: shared with the landing page */
+  --color-paper: #f6f3ee;
+  --color-ink: #1c1917;
+  --color-cardinal: #b3261e;
+  --color-cardinal-dark: #7a1712;
+
   /* Background surfaces */
-  --color-surface: #f8f9fb;
+  --color-surface: #f6f3ee;
   --color-elevated: #ffffff;
-  --color-field: #f1f5f9;
-  --color-hover: #e2e8f0;
+  --color-field: #f1ece4;
+  --color-hover: #ebe4d8;
 
   /* Border colors */
-  --color-subtle: rgb(0 0 0 / 0.07);
-  --color-medium: rgb(0 0 0 / 0.13);
-  --color-strong: rgb(0 0 0 / 0.22);
+  --color-subtle: rgb(28 25 23 / 0.1);
+  --color-medium: rgb(28 25 23 / 0.18);
+  --color-strong: rgb(28 25 23 / 0.3);
 
   /* Text colors */
-  --color-primary: #1a1a2e;
-  --color-secondary: #64748b;
-  --color-tertiary: #94a3b8;
+  --color-primary: #1c1917;
+  --color-secondary: #57534e;
+  --color-tertiary: #78716c;
 
   /* Accent colors */
-  --color-green: #059669;
-  --color-blue: #2563eb;
-  --color-amber: #d97706;
-  --color-red: #dc2626;
-  --color-purple: #7c3aed;
-  --color-gold: #c9a84c;
-  --color-pink: #db2777;
+  --color-green: #1f6f43;
+  --color-blue: #2b4c7e;
+  --color-amber: #9a5b13;
+  --color-red: #b3261e;
+  --color-purple: #6b3fa0;
+  --color-gold: #a8842c;
+  --color-pink: #a3285d;
 
   /* Currency colors */
-  --color-chase-ur: #059669;
-  --color-amex-mr: #7c3aed;
-  --color-cap1: #c9a84c;
-  --color-citi-typ: #2563eb;
-  --color-bilt: #db2777;
-  --color-cash: #64748b;
-  --color-discover: #d97706;
-  --color-wf: #dc2626;
+  --color-chase-ur: #2b4c7e;
+  --color-amex-mr: #6b3fa0;
+  --color-cap1: #a8842c;
+  --color-citi-typ: #1f6f8b;
+  --color-bilt: #a3285d;
+  --color-cash: #57534e;
+  --color-discover: #9a5b13;
+  --color-wf: #b3261e;
+
+  /* Type */
+  --font-serif: var(--font-instrument-serif), Georgia, serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
 }
 
 
@@ -86,24 +96,24 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: #f6f3ee;
+  --foreground: #1c1917;
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
+  --primary: #1c1917;
+  --primary-foreground: #f6f3ee;
+  --secondary: #f1ece4;
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: rgb(28 25 23 / 0.12);
+  --input: rgb(28 25 23 / 0.18);
+  --ring: #b3261e;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -168,13 +178,20 @@
 
 /* Re-assert custom app tokens after @theme inline to prevent shadcn overrides */
 @theme {
-  --color-primary: #1a1a2e;
-  --color-secondary: #64748b;
-  --color-tertiary: #94a3b8;
-  --color-surface: #f8f9fb;
-  --color-green: #059669;
-  --color-blue: #2563eb;
-  --color-amber: #d97706;
-  --color-red: #dc2626;
-  --color-purple: #7c3aed;
+  --color-primary: #1c1917;
+  --color-secondary: #57534e;
+  --color-tertiary: #78716c;
+  --color-surface: #f6f3ee;
+  --color-green: #1f6f43;
+  --color-blue: #2b4c7e;
+  --color-amber: #9a5b13;
+  --color-red: #b3261e;
+  --color-purple: #6b3fa0;
+}
+
+/* Headline face used across the app, same as the landing page */
+.font-display {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  letter-spacing: -0.01em;
 }

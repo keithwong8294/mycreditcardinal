@@ -8,15 +8,16 @@ import { signOut } from "@/lib/supabase/actions";
 import { useStore } from "@/lib/store";
 import { CardinalMark } from "@/lib/brand";
 
-const SIDEBAR_BG = "#0f1219";
+const primaryNav = [
+  { label: "Simulator", href: "/simulate" },
+  { label: "Wallet", href: "/wallet" },
+  { label: "Find a better card", href: "/optimize" },
+  { label: "Browse cards", href: "/browse" },
+];
 
-const navItems = [
-  { label: "Browse Cards", href: "/browse", icon: "▤" },
-  { label: "My Wallet", href: "/wallet", icon: "◧" },
-  { label: "Simulator", href: "/simulate", icon: "≋" },
-  { label: "Optimize", href: "/optimize", icon: "◈" },
-  { label: "Reports", href: "/reports", icon: "◎" },
-  { label: "Settings", href: "/settings", icon: "⚙" },
+const secondaryNav = [
+  { label: "Monthly report", href: "/reports" },
+  { label: "Settings", href: "/settings" },
 ];
 
 export default function Sidebar() {
@@ -45,62 +46,76 @@ export default function Sidebar() {
     "Account";
 
   const sidebarContent = (
-    <div className="flex flex-col h-full" style={{ background: SIDEBAR_BG }}>
-      {/* Logo */}
-      <Link href="/browse" className="px-4 py-5 border-b border-white/5 flex items-center gap-2.5">
-        <CardinalMark size={34} variant="on-dark" />
-        <div>
-          <div className="text-white font-semibold text-[16px] leading-tight">
-            MyCreditCardinal
-          </div>
-        </div>
+    <div className="flex flex-col h-full bg-[#fbfaf7] border-r border-subtle px-4 py-6 gap-7 overflow-y-auto">
+      <Link href="/simulate" className="flex items-center gap-2.5 px-2 text-ink">
+        <CardinalMark size={30} />
+        <span className="text-[16px] font-semibold tracking-tight">MyCreditCardinal</span>
       </Link>
 
-      {/* Nav */}
-      <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
-        {navItems.map((item) => {
+      <nav aria-label="Main" className="flex flex-col gap-0.5">
+        {primaryNav.map((item) => {
           const isActive = pathname.startsWith(item.href);
           return (
             <Link
               key={item.href}
               href={item.href}
+              aria-current={isActive ? "page" : undefined}
               onClick={() => setMobileOpen(false)}
-              className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors duration-150 ${
+              className={`block px-3 py-2.5 rounded-lg text-[15px] transition-colors duration-150 ${
                 isActive
-                  ? "bg-[#059669] text-white"
-                  : "text-white/50 hover:text-white hover:bg-white/5"
+                  ? "bg-ink text-paper font-medium"
+                  : "text-[#44403c] hover:bg-hover"
               }`}
             >
-              <span className="text-[14px] w-4 text-center">{item.icon}</span>
               {item.label}
             </Link>
           );
         })}
       </nav>
 
-      {/* People section */}
-      <div className="px-3 py-4 border-t border-white/5">
-        <div className="text-white/30 text-[10px] uppercase tracking-wider mb-2 px-1">
-          People
-        </div>
-        <div className="space-y-0.5">
-          {people.map((person) => (
-            <button
-              key={person.id}
-              onClick={() => setActivePerson(person.id)}
-              className={`w-full text-left px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors duration-150 ${
-                activePersonId === person.id
-                  ? "bg-[#059669]/15 text-[#34d399]"
-                  : "text-white/45 hover:text-white hover:bg-white/5"
+      <nav aria-label="More" className="flex flex-col gap-0.5 border-t border-subtle pt-4 -mt-3">
+        {secondaryNav.map((item) => {
+          const isActive = pathname.startsWith(item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={isActive ? "page" : undefined}
+              onClick={() => setMobileOpen(false)}
+              className={`block px-3 py-2 rounded-lg text-[14px] transition-colors duration-150 ${
+                isActive ? "text-ink font-medium bg-hover" : "text-secondary hover:text-ink"
               }`}
             >
-              {person.name}
-            </button>
-          ))}
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div>
+        <div className="px-3 mb-2 text-[12px] text-tertiary">Whose wallet</div>
+        <div className="flex flex-wrap gap-1.5 px-2">
+          {people.map((person) => {
+            const active = activePersonId === person.id;
+            return (
+              <button
+                key={person.id}
+                onClick={() => setActivePerson(person.id)}
+                aria-pressed={active}
+                className={`px-3 py-1.5 rounded-full text-[13px] border transition-colors duration-150 ${
+                  active
+                    ? "bg-ink text-paper border-ink"
+                    : "bg-white text-ink border-medium hover:border-strong"
+                }`}
+              >
+                {person.name}
+              </button>
+            );
+          })}
           {addingPerson ? (
             <form
               onSubmit={(e) => { e.preventDefault(); commitAddPerson(); }}
-              className="flex items-center gap-1 px-1 py-0.5"
+              className="flex items-center gap-1 w-full mt-1"
             >
               <input
                 autoFocus
@@ -109,52 +124,44 @@ export default function Sidebar() {
                 onKeyDown={(e) => {
                   if (e.key === "Escape") { setAddingPerson(false); setNewPersonName(""); }
                 }}
-                placeholder="Name…"
-                className="flex-1 px-2 py-1 bg-white/8 border border-white/15 rounded-md text-[11px] text-white placeholder:text-white/30 focus:outline-none focus:border-white/30 min-w-0"
+                placeholder="Name"
+                aria-label="New person's name"
+                className="flex-1 min-w-0 px-3 py-1.5 bg-white border border-medium rounded-lg text-[13px] text-ink placeholder:text-tertiary focus:outline-none focus:border-strong"
               />
-              <button type="submit" className="text-[11px] text-green font-medium shrink-0 px-1 hover:text-green/70 transition-colors">
+              <button type="submit" className="px-2 py-1.5 text-[13px] font-medium text-cardinal hover:text-cardinal-dark">
                 Add
               </button>
             </form>
           ) : (
             <button
               onClick={() => setAddingPerson(true)}
-              className="w-full text-left px-3 py-1.5 rounded-lg text-[12px] text-white/30 hover:text-white/60 transition-colors duration-150"
+              className="px-3 py-1.5 rounded-full text-[13px] border border-dashed border-medium text-secondary hover:text-ink transition-colors"
             >
-              + Add person
+              + Person
             </button>
           )}
         </div>
       </div>
 
-      {/* User / sign out, or guest sign-in prompt */}
-      {user ? (
-        <div className="px-3 py-3 border-t border-white/5">
-          <div className="px-3 py-1.5 text-[12px] text-white/40 truncate mb-1">
-            {displayName}
-          </div>
-          <form action={signOut}>
-            <button
-              type="submit"
-              className="w-full text-left px-3 py-1.5 rounded-lg text-[12px] text-white/30 hover:text-white/60 transition-colors duration-150"
-            >
-              Sign out
-            </button>
-          </form>
-        </div>
-      ) : (
-        <div className="px-3 py-3 border-t border-white/5">
-          <div className="px-3 py-1.5 text-[11px] text-white/30">
-            Browsing as guest — data stays on this device.
-          </div>
-          <Link
-            href="/login"
-            className="block px-3 py-1.5 rounded-lg text-[12px] font-medium text-[#34d399] hover:text-white transition-colors duration-150"
-          >
-            Sign in to save your wallet
-          </Link>
-        </div>
-      )}
+      <div className="mt-auto rounded-[10px] bg-field p-3.5 text-[13px] leading-relaxed text-[#44403c]">
+        {user ? (
+          <>
+            <div className="truncate font-medium text-ink">{displayName}</div>
+            <form action={signOut}>
+              <button type="submit" className="mt-1.5 font-medium text-cardinal hover:text-cardinal-dark">
+                Sign out
+              </button>
+            </form>
+          </>
+        ) : (
+          <>
+            Guest mode. Your wallet is saved in this browser only.
+            <Link href="/login" className="block mt-1.5 font-medium text-cardinal hover:text-cardinal-dark">
+              Sign in to sync
+            </Link>
+          </>
+        )}
+      </div>
     </div>
   );
 
@@ -162,18 +169,19 @@ export default function Sidebar() {
     <>
       {/* Mobile top bar */}
       <header
-        className="md:hidden fixed top-0 left-0 right-0 z-40 h-14 flex items-center px-4 gap-3 border-b border-white/5"
-        style={{ background: SIDEBAR_BG }}
+        className="md:hidden fixed top-0 left-0 right-0 z-40 h-14 flex items-center px-2 gap-1 border-b border-subtle bg-[#fbfaf7]"
       >
         <button
           onClick={() => setMobileOpen(true)}
-          className="text-white/60 hover:text-white text-[18px] leading-none transition-colors"
+          className="w-11 h-11 flex items-center justify-center rounded-lg text-ink hover:bg-hover transition-colors"
           aria-label="Open menu"
         >
-          ☰
+          <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+            <path d="M3 6h14M3 10h14M3 14h14" />
+          </svg>
         </button>
-        <span className="flex items-center gap-2 text-white font-semibold text-[16px]">
-          <CardinalMark size={26} variant="on-dark" />
+        <span className="flex items-center gap-2 text-ink font-semibold text-[16px]">
+          <CardinalMark size={26} />
           MyCreditCardinal
         </span>
       </header>
@@ -181,14 +189,14 @@ export default function Sidebar() {
       {/* Mobile overlay */}
       {mobileOpen && (
         <div
-          className="md:hidden fixed inset-0 z-40 bg-black/50"
+          className="md:hidden fixed inset-0 z-40 bg-ink/40"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
       {/* Sidebar — fixed desktop, slide-in mobile */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-[220px] transition-transform duration-200 ease-in-out
+        className={`fixed inset-y-0 left-0 z-50 w-[248px] transition-transform duration-200 ease-in-out
           ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
           md:translate-x-0`}
       >

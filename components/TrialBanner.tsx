@@ -11,12 +11,12 @@ export function TrialBanner() {
   if (isExpired) {
     return (
       <div className="bg-amber/10 border-b border-amber/30 px-4 py-2 flex items-center justify-between gap-3">
-        <span className="text-[12px] text-amber font-medium">
+        <span className="text-[13px] text-amber font-medium">
           Your trial has ended. Upgrade to keep Pro features.
         </span>
         <Link
           href="/settings"
-          className="shrink-0 text-[12px] font-semibold px-3 py-1 bg-green hover:bg-green/90 text-white rounded-md transition-colors"
+          className="shrink-0 text-[13px] font-semibold px-3 py-1 bg-ink hover:bg-ink/85 text-paper rounded-md transition-colors"
         >
           Upgrade
         </Link>
@@ -27,14 +27,14 @@ export function TrialBanner() {
   if (isTrial && daysLeft !== null && daysLeft <= 7) {
     return (
       <div className="bg-surface border-b border-subtle px-4 py-2 flex items-center justify-between gap-3">
-        <span className="text-[12px] text-secondary">
+        <span className="text-[13px] text-secondary">
           {daysLeft === 0
             ? "Your trial expires today."
             : `${daysLeft} day${daysLeft !== 1 ? "s" : ""} left on your free trial.`}
         </span>
         <Link
           href="/settings"
-          className="shrink-0 text-[12px] font-medium text-green hover:underline"
+          className="shrink-0 text-[13px] font-medium text-green hover:underline"
         >
           Upgrade to Pro →
         </Link>

@@ -94,12 +94,12 @@ function LoginForm() {
     <div className="flex min-h-screen items-center justify-center bg-surface px-4">
       <div className="w-full max-w-md">
         {/* Card */}
-        <div className="bg-white border border-subtle rounded-lg p-8 space-y-6">
+        <div className="bg-white border border-subtle rounded-xl p-8 space-y-6">
           {/* Logo */}
           <div className="flex items-center gap-3">
             <CardinalMark size={44} title="MyCreditCardinal" />
             <div>
-              <h1 className="text-[20px] font-semibold text-primary leading-tight">
+              <h1 className="font-display text-[30px] text-primary leading-none">
                 MyCreditCardinal
               </h1>
               <p className="text-secondary text-[13px] mt-0.5">
@@ -112,7 +112,7 @@ function LoginForm() {
           <button
             onClick={continueAsGuest}
             autoFocus
-            className="group w-full flex flex-col items-center justify-center gap-1 px-6 py-5 rounded-xl bg-green hover:bg-green/90 active:scale-[0.99] text-white shadow-lg shadow-green/20 transition-all duration-150 focus:outline-none focus-visible:ring-4 focus-visible:ring-green/30"
+            className="group w-full flex flex-col items-center justify-center gap-1 px-6 py-5 rounded-xl bg-cardinal hover:bg-cardinal-dark active:scale-[0.99] text-white shadow-lg shadow-cardinal/20 transition-all duration-150 focus:outline-none focus-visible:ring-4 focus-visible:ring-cardinal/30"
           >
             <span className="text-[18px] font-semibold leading-tight">
               Continue without signing in →

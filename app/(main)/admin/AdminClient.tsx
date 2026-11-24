@@ -303,7 +303,7 @@ function CardForm({
         <button onClick={onCancel} className="px-4 py-1.5 text-[13px] text-secondary border border-subtle rounded-lg hover:bg-hover transition-colors">
           Cancel
         </button>
-        <button onClick={handleSave} className="px-4 py-1.5 text-[13px] font-medium bg-green hover:bg-green/90 text-white rounded-lg transition-colors">
+        <button onClick={handleSave} className="px-4 py-1.5 text-[13px] font-medium bg-ink hover:bg-ink/85 text-paper rounded-lg transition-colors">
           {initial ? "Save changes" : "Add card"}
         </button>
       </div>
@@ -417,7 +417,7 @@ function ValuationEditor() {
       <div className="flex justify-end">
         <button
           onClick={() => setSaved(true)}
-          className="px-4 py-1.5 text-[13px] font-medium bg-green hover:bg-green/90 text-white rounded-lg transition-colors"
+          className="px-4 py-1.5 text-[13px] font-medium bg-ink hover:bg-ink/85 text-paper rounded-lg transition-colors"
         >
           {saved ? "Saved ✓" : "Save valuations"}
         </button>
@@ -516,7 +516,7 @@ export function AdminClient() {
               />
               <button
                 onClick={openAdd}
-                className="px-3 py-1.5 text-[12px] font-medium bg-green hover:bg-green/90 text-white rounded-lg transition-colors"
+                className="px-3 py-1.5 text-[12px] font-medium bg-ink hover:bg-ink/85 text-paper rounded-lg transition-colors"
               >
                 + Add card
               </button>

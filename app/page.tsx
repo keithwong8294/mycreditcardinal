@@ -1,13 +1,12 @@
 import Link from "next/link";
-import { Instrument_Serif, JetBrains_Mono } from "next/font/google";
 import { CARDS, CARD_MAP } from "@/lib/cards";
 import { CATEGORIES } from "@/lib/categories";
 import { routeMonth } from "@/lib/engine";
 import type { WalletCard } from "@/types";
 import { CardinalMark } from "@/lib/brand";
 
-const serif = Instrument_Serif({ subsets: ["latin"], weight: "400", style: ["normal", "italic"] });
-const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500"] });
+const serif = { className: "font-serif" };
+const mono = { className: "font-mono" };
 
 export const metadata = {
   title: "MyCreditCardinal — Use the right card, every time",

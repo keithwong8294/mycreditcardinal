@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Outfit } from "next/font/google";
+import { Outfit, Instrument_Serif, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/AuthProvider";
 import { PostHogProvider } from "@/components/PostHogProvider";
@@ -13,18 +13,31 @@ const outfit = Outfit({
   variable: "--font-sans",
 });
 
+const serif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+  variable: "--font-instrument-serif",
+});
+
+const mono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-jetbrains-mono",
+});
+
 export const metadata: Metadata = {
   title: "MyCreditCardinal",
   description: "Stop leaving rewards on the table.",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
     title: "Cardinal",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0f1219",
+  themeColor: "#f6f3ee",
 };
 
 export default function RootLayout({
@@ -33,7 +46,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={outfit.variable}>
+    <html lang="en" className={`${outfit.variable} ${serif.variable} ${mono.variable}`}>
       <body className="min-h-screen antialiased font-sans">
         <AuthProvider>
           <PostHogProvider>

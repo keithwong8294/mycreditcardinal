@@ -10,7 +10,7 @@ export default function NotFound() {
       </p>
       <Link
         href="/browse"
-        className="mt-6 px-4 py-2 bg-green hover:bg-green/90 text-white text-[13px] font-medium rounded-lg transition-colors duration-150"
+        className="mt-6 px-4 py-2 bg-ink hover:bg-ink/85 text-paper text-[13px] font-medium rounded-lg transition-colors duration-150"
       >
         Go to Browse Cards
       </Link>

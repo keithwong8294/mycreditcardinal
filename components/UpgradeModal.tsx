@@ -79,7 +79,7 @@ export function UpgradeModal({ open, onClose, reason }: UpgradeModalProps) {
           <DialogTitle className="text-[15px] font-semibold text-primary">{copy.title}</DialogTitle>
         </DialogHeader>
 
-        <p className="text-[13px] text-secondary">{copy.body}</p>
+        <p className="text-[14px] text-secondary">{copy.body}</p>
 
         {/* Feature highlights */}
         <ul className="space-y-1.5">
@@ -89,7 +89,7 @@ export function UpgradeModal({ open, onClose, reason }: UpgradeModalProps) {
             "Monthly Wallet Health Report",
             "Export & shareable wallet links",
           ].map((feat) => (
-            <li key={feat} className="flex items-center gap-2 text-[12px] text-secondary">
+            <li key={feat} className="flex items-center gap-2 text-[13px] text-secondary">
               <span className="text-green font-semibold">✓</span>
               {feat}
             </li>
@@ -100,23 +100,23 @@ export function UpgradeModal({ open, onClose, reason }: UpgradeModalProps) {
           <button
             onClick={() => handleCheckout("annual")}
             disabled={loading !== null}
-            className="flex flex-col items-center px-4 py-2.5 bg-green hover:bg-green/90 text-white rounded-md transition-colors duration-150 disabled:opacity-50"
+            className="flex flex-col items-center px-4 py-2.5 bg-ink hover:bg-ink/85 text-paper rounded-md transition-colors duration-150 disabled:opacity-50"
           >
-            <span className="text-[13px] font-semibold">
+            <span className="text-[14px] font-semibold">
               {loading === "annual" ? "Redirecting…" : "Annual — $59.99/yr"}
             </span>
-            <span className="text-[11px] text-white/70">Save 37% vs monthly</span>
+            <span className="text-[12px] text-white/70">Save 37% vs monthly</span>
           </button>
           <button
             onClick={() => handleCheckout("monthly")}
             disabled={loading !== null}
-            className="px-4 py-2 border border-subtle text-primary hover:border-medium rounded-md text-[13px] font-medium transition-colors duration-150 disabled:opacity-50"
+            className="px-4 py-2 border border-subtle text-primary hover:border-medium rounded-md text-[14px] font-medium transition-colors duration-150 disabled:opacity-50"
           >
             {loading === "monthly" ? "Redirecting…" : "Monthly — $7.99/mo"}
           </button>
           <button
             onClick={onClose}
-            className="text-[12px] text-tertiary hover:text-secondary text-center transition-colors"
+            className="text-[13px] text-tertiary hover:text-secondary text-center transition-colors"
           >
             Maybe later
           </button>

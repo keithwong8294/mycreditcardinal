@@ -1,5 +1,6 @@
 "use client";
 
+import { PageHeader } from "@/components/PageHeader";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
@@ -101,15 +102,12 @@ function SettingsContent() {
   }
 
   return (
-    <div className="p-6 space-y-5 max-w-xl">
-      {/* Page header */}
-      <div>
-        <h1 className="text-[14px] font-semibold text-secondary uppercase tracking-wider">Settings</h1>
-      </div>
+    <div className="px-4 sm:px-8 lg:px-10 pt-6 sm:pt-8 pb-14 mx-auto max-w-[720px] space-y-6">
+      <PageHeader title="Settings" />
 
       {/* Upgraded confirmation */}
       {upgraded && (
-        <div className="bg-green/10 border border-green/30 rounded-lg px-4 py-3 text-[13px] text-green font-medium">
+        <div className="bg-green/10 border border-green/30 rounded-lg px-4 py-3 text-[14px] text-green font-medium">
           You&apos;re now on Pro. Welcome to the full experience!
         </div>
       )}
@@ -117,14 +115,14 @@ function SettingsContent() {
       {/* Account */}
       <div className="bg-white border border-subtle rounded-lg">
         <div className="px-4 py-3 border-b border-subtle">
-          <div className="text-[10px] font-semibold text-tertiary uppercase tracking-wider">Account</div>
+          <div className="text-[13px] font-medium text-tertiary">Account</div>
         </div>
         <div className="px-4 py-3 space-y-2">
-          <div className="flex justify-between text-[13px]">
+          <div className="flex justify-between text-[14px]">
             <span className="text-secondary">Name</span>
             <span className="text-primary font-medium">{displayName}</span>
           </div>
-          <div className="flex justify-between text-[13px]">
+          <div className="flex justify-between text-[14px]">
             <span className="text-secondary">Email</span>
             <span className="text-primary">{dbUser?.email ?? user?.email ?? "—"}</span>
           </div>
@@ -132,7 +130,7 @@ function SettingsContent() {
             <form action={signOut}>
               <button
                 type="submit"
-                className="text-[12px] text-red hover:text-red/80 transition-colors duration-150"
+                className="text-[13px] text-red hover:text-red/80 transition-colors duration-150"
               >
                 Sign out
               </button>
@@ -144,10 +142,10 @@ function SettingsContent() {
       {/* Plan */}
       <div className="bg-white border border-subtle rounded-lg">
         <div className="px-4 py-3 border-b border-subtle flex items-center justify-between">
-          <div className="text-[10px] font-semibold text-tertiary uppercase tracking-wider">Plan</div>
+          <div className="text-[13px] font-medium text-tertiary">Plan</div>
           {!loading && (
             <span
-              className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+              className={`text-[12px] font-semibold px-2 py-0.5 rounded-full ${
                 isPro
                   ? "bg-green/10 text-green"
                   : isTrial
@@ -161,17 +159,17 @@ function SettingsContent() {
         </div>
         <div className="px-4 py-3 space-y-3">
           {loading ? (
-            <div className="text-[13px] text-tertiary">Loading…</div>
+            <div className="text-[14px] text-tertiary">Loading…</div>
           ) : isPro ? (
             <>
-              <p className="text-[13px] text-secondary">
+              <p className="text-[14px] text-secondary">
                 You&apos;re on Pro. Enjoy unlimited cards, household members, and full optimizer access.
               </p>
               {dbUser?.stripe_customer_id && (
                 <button
                   onClick={handlePortal}
                   disabled={portalLoading}
-                  className="text-[12px] font-medium px-3 py-1.5 rounded-md border border-subtle text-secondary hover:text-primary hover:border-medium transition-colors duration-150 disabled:opacity-50"
+                  className="text-[13px] font-medium px-3 py-1.5 rounded-md border border-subtle text-secondary hover:text-primary hover:border-medium transition-colors duration-150 disabled:opacity-50"
                 >
                   {portalLoading ? "Opening…" : "Manage billing →"}
                 </button>
@@ -179,13 +177,13 @@ function SettingsContent() {
             </>
           ) : isTrial ? (
             <>
-              <p className="text-[13px] text-secondary">
+              <p className="text-[14px] text-secondary">
                 You&apos;re on a free trial with full Pro access.
                 {trialDays !== null && trialDays > 0
                   ? ` ${trialDays} day${trialDays !== 1 ? "s" : ""} remaining.`
                   : " Your trial has ended."}
               </p>
-              <p className="text-[12px] text-tertiary">Subscribe to keep Pro features after your trial.</p>
+              <p className="text-[13px] text-tertiary">Subscribe to keep Pro features after your trial.</p>
               <UpgradeButtons
                 checkoutLoading={checkoutLoading}
                 onCheckout={handleCheckout}
@@ -193,7 +191,7 @@ function SettingsContent() {
             </>
           ) : (
             <>
-              <p className="text-[13px] text-secondary">
+              <p className="text-[14px] text-secondary">
                 You&apos;re on the free tier. Upgrade to unlock unlimited cards, household members, and full optimizer access.
               </p>
               <UpgradeButtons
@@ -209,7 +207,7 @@ function SettingsContent() {
       {!isPro && (
         <div className="bg-white border border-subtle rounded-lg">
           <div className="px-4 py-3 border-b border-subtle">
-            <div className="text-[10px] font-semibold text-tertiary uppercase tracking-wider">Free vs Pro</div>
+            <div className="text-[13px] font-medium text-tertiary">Free vs Pro</div>
           </div>
           <div className="divide-y divide-subtle">
             {[
@@ -222,7 +220,7 @@ function SettingsContent() {
               { feature: "Wallet Health Report", free: "Preview only", pro: "Full monthly report" },
               { feature: "Export & sharing", free: "—", pro: "✓" },
             ].map(({ feature, free, pro }) => (
-              <div key={feature} className="grid grid-cols-3 px-4 py-2 text-[12px]">
+              <div key={feature} className="grid grid-cols-3 px-4 py-2 text-[13px]">
                 <span className="text-secondary">{feature}</span>
                 <span className="text-center text-tertiary">
                   {free === true ? "✓" : free === false ? "—" : free}
@@ -232,7 +230,7 @@ function SettingsContent() {
                 </span>
               </div>
             ))}
-            <div className="grid grid-cols-3 px-4 py-2 text-[10px] font-semibold text-tertiary uppercase tracking-wider">
+            <div className="grid grid-cols-3 px-4 py-2 text-[13px] font-medium text-tertiary">
               <span />
               <span className="text-center">Free</span>
               <span className="text-center text-green">Pro</span>
@@ -256,17 +254,17 @@ function UpgradeButtons({
       <button
         onClick={() => onCheckout("annual")}
         disabled={checkoutLoading !== null}
-        className="flex-1 flex flex-col items-center px-4 py-2.5 bg-green hover:bg-green/90 text-white rounded-md transition-colors duration-150 disabled:opacity-50"
+        className="flex-1 flex flex-col items-center px-4 py-2.5 bg-ink hover:bg-ink/85 text-paper rounded-md transition-colors duration-150 disabled:opacity-50"
       >
-        <span className="text-[13px] font-semibold">
+        <span className="text-[14px] font-semibold">
           {checkoutLoading === "annual" ? "Redirecting…" : "Annual — $59.99/yr"}
         </span>
-        <span className="text-[11px] text-white/70">Save 37% vs monthly</span>
+        <span className="text-[12px] text-white/70">Save 37% vs monthly</span>
       </button>
       <button
         onClick={() => onCheckout("monthly")}
         disabled={checkoutLoading !== null}
-        className="flex-1 px-4 py-2.5 border border-subtle text-primary hover:border-medium rounded-md text-[13px] font-medium transition-colors duration-150 disabled:opacity-50"
+        className="flex-1 px-4 py-2.5 border border-subtle text-primary hover:border-medium rounded-md text-[14px] font-medium transition-colors duration-150 disabled:opacity-50"
       >
         {checkoutLoading === "monthly" ? "Redirecting…" : "Monthly — $7.99/mo"}
       </button>
