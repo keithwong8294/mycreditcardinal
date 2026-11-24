@@ -3,7 +3,6 @@
 import { PageHeader } from "@/components/PageHeader";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
-import { createClient } from "@/lib/supabase/client";
 import { CATEGORIES } from "@/lib/categories";
 
 interface ReportContent {
@@ -138,16 +137,18 @@ export default function ReportsPage() {
 
   useEffect(() => {
     if (!user) return;
-    const supabase = createClient();
-    supabase
-      .from("health_reports")
-      .select("id, month, content_json, created_at")
-      .eq("user_id", user.id)
-      .order("month", { ascending: false })
-      .then(({ data }) => {
-        setReports((data as HealthReport[]) ?? []);
-        setLoading(false);
-      });
+    // Loaded on demand so guests never download the Supabase client.
+    import("@/lib/supabase/client").then(({ createClient }) =>
+      createClient()
+        .from("health_reports")
+        .select("id, month, content_json, created_at")
+        .eq("user_id", user.id)
+        .order("month", { ascending: false })
+        .then(({ data }) => {
+          setReports((data as HealthReport[]) ?? []);
+          setLoading(false);
+        })
+    );
   }, [user]);
 
   return (

@@ -13,20 +13,26 @@ const ERROR_MESSAGES: Record<string, string> = {
   no_user: "Could not retrieve your account. Please try again.",
 };
 
-export default function LoginPage() {
-  // useSearchParams needs a Suspense boundary so the page can prerender.
-  return (
-    <Suspense fallback={null}>
-      <LoginForm />
-    </Suspense>
-  );
-}
-
-function LoginForm() {
-  const router = useRouter();
+/**
+ * Sign-in error passed back from /auth/callback. It is the only part of the
+ * page that reads the URL, so only it sits in a Suspense boundary and the rest
+ * of the page is prerendered to HTML (no blank screen while JS loads).
+ */
+function CallbackError() {
   const searchParams = useSearchParams();
   const errorParam = searchParams.get("error");
   const errorDetail = searchParams.get("detail");
+  if (!errorParam) return null;
+  return (
+    <div className="text-red text-[12px] space-y-0.5">
+      <p>{ERROR_MESSAGES[errorParam] ?? ERROR_MESSAGES.auth_failed}</p>
+      {errorDetail && <p className="text-tertiary text-[11px]">{errorDetail}</p>}
+    </div>
+  );
+}
+
+export default function LoginPage() {
+  const router = useRouter();
   const [googleError, setGoogleError] = useState("");
 
   const [email, setEmail] = useState("");
@@ -35,10 +41,12 @@ function LoginForm() {
   const [isPending, startTransition] = useTransition();
   const [googlePending, setGooglePending] = useState(false);
 
-  // Capture fingerprint once on mount
+  // Capture the device fingerprint once the page is idle, so it never delays
+  // the first paint or the guest button on slow phones.
   const fingerprintRef = useRef<string | null>(null);
   useEffect(() => {
-    (async () => {
+    router.prefetch("/browse");
+    const run = async () => {
       try {
         const FingerprintJS = (await import("@fingerprintjs/fingerprintjs")).default;
         const fp = await FingerprintJS.load();
@@ -47,8 +55,14 @@ function LoginForm() {
       } catch {
         // Non-fatal — fingerprint is best-effort
       }
-    })();
-  }, []);
+    };
+    if ("requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(run, { timeout: 5000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = setTimeout(run, 2000);
+    return () => clearTimeout(id);
+  }, [router]);
 
   async function handleGoogle() {
     setGooglePending(true);
@@ -130,12 +144,9 @@ function LoginForm() {
           </div>
 
           {/* Auth error from callback */}
-          {errorParam && (
-            <div className="text-red text-[12px] space-y-0.5">
-              <p>{ERROR_MESSAGES[errorParam] ?? ERROR_MESSAGES.auth_failed}</p>
-              {errorDetail && <p className="text-tertiary text-[11px]">{errorDetail}</p>}
-            </div>
-          )}
+          <Suspense fallback={null}>
+            <CallbackError />
+          </Suspense>
           {googleError && <p className="text-red text-[12px]">{googleError}</p>}
 
           {sent ? (

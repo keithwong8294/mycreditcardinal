@@ -1,11 +1,32 @@
-import posthog from "posthog-js";
+import type { PostHog } from "posthog-js";
 
-// Typed wrappers for every custom event in the spec.
-// All functions are no-ops when PostHog is not initialised (e.g. SSR, no key).
+// PostHog is ~170 KB of JavaScript, so it is never part of the page bundle.
+// It loads on demand, after the page is idle, and only when a key is set.
+// Typed wrappers for every custom event in the spec are below; all of them
+// are no-ops when PostHog is not configured (e.g. SSR, no key).
 
-function capture(event: string, props?: Record<string, unknown>) {
-  if (typeof window === "undefined") return;
-  posthog.capture(event, props);
+const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY;
+let posthogPromise: Promise<PostHog | null> | null = null;
+
+export function loadPosthog(): Promise<PostHog | null> {
+  if (typeof window === "undefined" || !POSTHOG_KEY) return Promise.resolve(null);
+  posthogPromise ??= import("posthog-js")
+    .then(({ default: posthog }) => {
+      posthog.init(POSTHOG_KEY, {
+        api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com",
+        capture_pageview: false, // fired manually to get correct SPA paths
+        capture_pageleave: true,
+        person_profiles: "identified_only",
+      });
+      return posthog;
+    })
+    .catch(() => null);
+  return posthogPromise;
+}
+
+export function capture(event: string, props?: Record<string, unknown>) {
+  if (typeof window === "undefined" || !POSTHOG_KEY) return;
+  loadPosthog().then((ph) => ph?.capture(event, props));
 }
 
 // ── Wallet events ─────────────────────────────────────────────────────────────

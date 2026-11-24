@@ -1,20 +1,20 @@
 "use client";
 
-import posthog from "posthog-js";
-import { PostHogProvider as PHProvider, usePostHog } from "posthog-js/react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, Suspense, type ReactNode } from "react";
 import { useAuth } from "./AuthProvider";
+import { capture, loadPosthog } from "@/lib/analytics";
 
-// ── Init ──────────────────────────────────────────────────────────────────────
+const ENABLED = Boolean(process.env.NEXT_PUBLIC_POSTHOG_KEY);
 
-if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_POSTHOG_KEY) {
-  posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
-    api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com",
-    capture_pageview: false,   // we fire manually to get correct SPA paths
-    capture_pageleave: true,
-    person_profiles: "identified_only",
-  });
+/** Run once the browser is idle, so analytics never competes with first paint. */
+function whenIdle(fn: () => void) {
+  if ("requestIdleCallback" in window) {
+    const id = window.requestIdleCallback(fn, { timeout: 4000 });
+    return () => window.cancelIdleCallback(id);
+  }
+  const id = setTimeout(fn, 2000);
+  return () => clearTimeout(id);
 }
 
 // ── Page view tracker (needs Suspense for useSearchParams) ───────────────────
@@ -22,11 +22,11 @@ if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_POSTHOG_KEY) {
 function PageViewTracker() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const ph = usePostHog();
 
-  useEffect(() => {
-    ph?.capture("$pageview", { $current_url: window.location.href });
-  }, [pathname, searchParams, ph]);
+  useEffect(
+    () => whenIdle(() => capture("$pageview", { $current_url: window.location.href })),
+    [pathname, searchParams]
+  );
 
   return null;
 }
@@ -34,20 +34,25 @@ function PageViewTracker() {
 // ── User identity sync ────────────────────────────────────────────────────────
 
 function UserIdentifier() {
-  const { user } = useAuth();
-  const ph = usePostHog();
+  const { user, loading } = useAuth();
 
   useEffect(() => {
-    if (!ph) return;
-    if (user) {
-      ph.identify(user.id, {
-        email: user.email,
-        name: user.user_metadata?.full_name ?? user.user_metadata?.name,
+    if (loading) return;
+    return whenIdle(() => {
+      loadPosthog().then((ph) => {
+        if (!ph) return;
+        if (user) {
+          ph.identify(user.id, {
+            email: user.email,
+            name: user.user_metadata?.full_name ?? user.user_metadata?.name,
+          });
+        } else if (ph._isIdentified()) {
+          // Only after a sign-out; resetting a guest would churn anonymous ids.
+          ph.reset();
+        }
       });
-    } else {
-      ph.reset();
-    }
-  }, [user, ph]);
+    });
+  }, [user, loading]);
 
   return null;
 }
@@ -56,12 +61,16 @@ function UserIdentifier() {
 
 export function PostHogProvider({ children }: { children: ReactNode }) {
   return (
-    <PHProvider client={posthog}>
-      <Suspense fallback={null}>
-        <PageViewTracker />
-      </Suspense>
-      <UserIdentifier />
+    <>
+      {ENABLED && (
+        <>
+          <Suspense fallback={null}>
+            <PageViewTracker />
+          </Suspense>
+          <UserIdentifier />
+        </>
+      )}
       {children}
-    </PHProvider>
+    </>
   );
 }

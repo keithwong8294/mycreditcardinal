@@ -4,7 +4,6 @@ import { PageHeader } from "@/components/PageHeader";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
-import { createClient } from "@/lib/supabase/client";
 import { signOut } from "@/lib/supabase/actions";
 
 interface UserRecord {
@@ -61,16 +60,18 @@ function SettingsContent() {
 
   useEffect(() => {
     if (!user) return;
-    const supabase = createClient();
-    supabase
-      .from("users")
-      .select("plan, trial_ends_at, name, email, stripe_customer_id")
-      .eq("id", user.id)
-      .single()
-      .then(({ data }) => {
-        setDbUser(data as UserRecord | null);
-        setLoading(false);
-      });
+    // Loaded on demand so guests never download the Supabase client.
+    import("@/lib/supabase/client").then(({ createClient }) =>
+      createClient()
+        .from("users")
+        .select("plan, trial_ends_at, name, email, stripe_customer_id")
+        .eq("id", user.id)
+        .single()
+        .then(({ data }) => {
+          setDbUser(data as UserRecord | null);
+          setLoading(false);
+        })
+    );
   }, [user]);
 
   const displayName =

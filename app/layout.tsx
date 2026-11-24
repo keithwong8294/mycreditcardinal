@@ -24,6 +24,9 @@ const mono = JetBrains_Mono({
   subsets: ["latin"],
   weight: ["400", "500"],
   variable: "--font-jetbrains-mono",
+  // Only used for a few numbers; load it when needed instead of competing
+  // with the main fonts on first paint.
+  preload: false,
 });
 
 export const metadata: Metadata = {

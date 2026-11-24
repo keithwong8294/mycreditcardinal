@@ -24,6 +24,17 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        // Card art rarely changes. Without this, Vercel serves public files
+        // with max-age=0, so phones re-check every image on every visit.
+        source: "/cards/:file*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=604800, stale-while-revalidate=2592000",
+          },
+        ],
+      },
+      {
         // Service worker must never be cached so users always get the latest
         source: "/sw.js",
         headers: [
