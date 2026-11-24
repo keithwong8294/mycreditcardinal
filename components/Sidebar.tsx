@@ -9,10 +9,10 @@ import { useStore } from "@/lib/store";
 import { CardinalMark } from "@/lib/brand";
 
 const primaryNav = [
-  { label: "Simulator", href: "/simulate" },
-  { label: "Wallet", href: "/wallet" },
-  { label: "Find a better card", href: "/optimize" },
   { label: "Browse cards", href: "/browse" },
+  { label: "Wallet", href: "/wallet" },
+  { label: "Simulator", href: "/simulate" },
+  { label: "Find a better card", href: "/optimize" },
 ];
 
 const secondaryNav = [
@@ -47,7 +47,7 @@ export default function Sidebar() {
 
   const sidebarContent = (
     <div className="flex flex-col h-full bg-[#fbfaf7] border-r border-subtle px-4 py-6 gap-7 overflow-y-auto">
-      <Link href="/simulate" className="flex items-center gap-2.5 px-2 text-ink">
+      <Link href="/browse" className="flex items-center gap-2.5 px-2 text-ink">
         <CardinalMark size={30} />
         <span className="text-[16px] font-semibold tracking-tight">MyCreditCardinal</span>
       </Link>
