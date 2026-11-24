@@ -1,5 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { getEarnRate, routeMonth, routeAnnual, calculateFees, calculateSubValue, getRecommendations } from "./engine";
+import {
+  getEarnRate,
+  routeMonth,
+  routeAnnual,
+  calculateFees,
+  calculateSubValue,
+  getRecommendations,
+  getRecommendationSummary,
+  DEFAULT_OPTIMIZER_PREFERENCES,
+} from "./engine";
+import type { OptimizerPreferences } from "./engine";
 import { CARDS } from "./cards";
 import type { WalletCard, CardConfig } from "@/types";
 
@@ -292,6 +302,76 @@ describe("getRecommendations", () => {
     const amexGold = recs.find((r) => r.card.id === "amex_gold");
     expect(amexGold).toBeDefined();
     expect(amexGold!.improvements.some((i) => i.categoryId === "dining" || i.categoryId === "groceries")).toBe(true);
+  });
+});
+
+// ─── Optimizer questionnaire ──────────────────────────────────────────────────
+
+describe("getRecommendations — questionnaire answers", () => {
+  const prefs = (p: Partial<OptimizerPreferences> = {}): OptimizerPreferences => ({
+    ...DEFAULT_OPTIMIZER_PREFERENCES,
+    ...p,
+  });
+
+  it("hides business cards unless the user has a business", () => {
+    const hidden = getRecommendationSummary([], defaultSpend, prefs(), CARDS);
+    expect(hidden.recommendations.some((r) => r.card.business)).toBe(false);
+    expect(hidden.hiddenBusinessCount).toBeGreaterThan(0);
+
+    const shown = getRecommendations([], defaultSpend, prefs({ openToBusinessCards: true }), CARDS);
+    expect(shown.some((r) => r.card.business)).toBe(true);
+  });
+
+  it("hides Chase cards for applicants over 5/24", () => {
+    const recs = getRecommendations([], defaultSpend, prefs({ over524: true }), CARDS);
+    expect(recs.some((r) => r.card.issuer === "Chase")).toBe(false);
+  });
+
+  it("doesn't count a bonus the user's spend can't reach", () => {
+    const lowSpend = { ...defaultSpend, dining: 100, groceries: 100, other: 0, travel: 0, hotels: 0 };
+    const recs = getRecommendations([], lowSpend, prefs({ goal: "bonuses" }), CARDS);
+    const csr = recs.find((r) => r.card.id === "csr");
+    expect(csr).toBeUndefined();
+    for (const r of recs) {
+      if (r.card.sub_json && !r.subReachable) expect(r.subValue).toBe(0);
+    }
+  });
+
+  it("everyday goal skips cards that lose money every year", () => {
+    const recs = getRecommendations([makeWalletCard("csp")], defaultSpend, prefs(), CARDS);
+    expect(recs.every((r) => r.ongoingValue >= 0)).toBe(true);
+  });
+
+  it("build-credit goal only recommends no-fee, easy-approval cards", () => {
+    const recs = getRecommendations([], defaultSpend, prefs({ goal: "credit" }), CARDS);
+    expect(recs.length).toBeGreaterThan(0);
+    expect(recs.every((r) => r.card.fee === 0 && (r.card.fico_min ?? 0) <= 670)).toBe(true);
+  });
+
+  it("staying in your ecosystem favors programs already in the wallet", () => {
+    const wallet = [makeWalletCard("csp")];
+    const open = getRecommendations(wallet, defaultSpend, prefs(), CARDS);
+    const stay = getRecommendations(wallet, defaultSpend, prefs({ ecosystem: "stay" }), CARDS);
+    expect(stay[0].card.currency).toBe("chase_ur");
+    // Points in programs the user doesn't have are valued at cash-out, never higher
+    for (const r of stay) {
+      const before = open.find((o) => o.card.id === r.card.id);
+      if (before && r.card.currency !== "chase_ur") {
+        expect(r.netValue).toBeLessThanOrEqual(before.netValue + 0.01);
+      }
+    }
+  });
+
+  it("counts caps instead of assuming unlimited bonus spend", () => {
+    // Custom Cash: 5x on one category, capped at $500/month
+    const bigDining = { ...defaultSpend, dining: 2000 };
+    const recs = getRecommendationSummary([], bigDining, prefs({ goal: "cashback" }), CARDS, "composite");
+    const cc = recs.recommendations.find((r) => r.card.id === "citi_custom_cash");
+    if (cc) {
+      const dining = cc.improvements.find((i) => i.categoryId === "dining");
+      // Uncapped 5x on $2,000 would be $1,200/yr; with the cap it must be far less.
+      expect(dining?.annualGain ?? 0).toBeLessThan(1200);
+    }
   });
 });
 

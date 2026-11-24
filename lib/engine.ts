@@ -15,8 +15,12 @@ import { CATEGORIES } from "./categories";
 
 export type ValuationTier = "floor" | "composite" | "ceiling";
 
+/** Custom per-currency valuation (cents-per-point × 100), used by the optimizer. */
+export type Valuation = ValuationTier | ((currencyId: string) => number);
+
 /** Returns cents-per-point for a given currency at the given tier (e.g. 200 = 2.00¢). */
-function getCpp(currencyId: string, tier: ValuationTier): number {
+function getCpp(currencyId: string, tier: Valuation): number {
+  if (typeof tier === "function") return tier(currencyId);
   const currency = CURRENCY_MAP[currencyId];
   if (!currency) return 100; // fallback: 1¢
   if (tier === "floor") return currency.floor;
@@ -105,11 +109,124 @@ function getMonthlyCap(
 
 // ─── routeMonth ───────────────────────────────────────────────────────────────
 
+/**
+ * What the user wants from their next card. Drives how sign-up bonuses are
+ * weighted, how points are valued, and which cards are eligible.
+ */
+export type CardGoal = "everyday" | "bonuses" | "cashback" | "travel" | "credit";
+/** How much of a card's statement credits the user expects to actually use. */
+export type CreditUsage = "none" | "some" | "all";
+/** How the user plans to spend points. */
+export type Redemption = "flexible" | "flights" | "hotels" | "cash";
+/** Whether the user wants to stay with the rewards programs they already have. */
+export type Ecosystem = "open" | "stay";
+
 export interface OptimizerPreferences {
   maxFee: number | null;
   minCreditScore: number | null;
   preferredIssuers: string[];
   preferredCurrencies: string[];
+  /** Goal for the next card. Default "everyday". */
+  goal?: CardGoal;
+  /** Has a business or side income and is willing to open a business card. Default false. */
+  openToBusinessCards?: boolean;
+  /** Share of statement credits counted as real value. Default "none". */
+  creditUsage?: CreditUsage;
+  /** How points will be redeemed; mismatched programs are valued at cash-out. Default "flexible". */
+  redemption?: Redemption;
+  /** "stay" values new programs' points at cash-out, favoring ones already in the wallet. Default "open". */
+  ecosystem?: Ecosystem;
+  /** Opened 5+ personal cards in the last 24 months (Chase 5/24 rule). Default false. */
+  over524?: boolean;
+}
+
+interface GoalRules {
+  /** Share of the sign-up bonus counted in the ranking score. */
+  bonusWeight: number;
+  /** Allow cards that lose money every year after the bonus. */
+  allowNegativeOngoing?: boolean;
+  /** Value every currency at its cash-out floor. */
+  cashValue: boolean;
+  /** Extra eligibility filter for this goal. */
+  allows?: (card: Card) => boolean;
+}
+
+const CASH_CURRENCIES = new Set(["cash", "discover"]);
+
+export const GOAL_RULES: Record<CardGoal, GoalRules> = {
+  // Best long-run earning; the bonus is spread over a typical ~4-year hold.
+  everyday: { bonusWeight: 0.25, cashValue: false },
+  // Churning: the welcome bonus counts in full, even on cards you'd cancel later.
+  bonuses: { bonusWeight: 1, cashValue: false, allowNegativeOngoing: true },
+  // Simple cash back: points are worth what they cash out for.
+  cashback: { bonusWeight: 0.25, cashValue: true },
+  // Travel: transferable points and co-brands only.
+  travel: { bonusWeight: 0.5, cashValue: false, allows: (c) => !CASH_CURRENCIES.has(c.currency) },
+  // Building credit: no annual fee, approachable approval odds, bonus ignored.
+  credit: {
+    bonusWeight: 0,
+    cashValue: true,
+    allows: (c) => c.fee === 0 && (c.fico_min == null || c.fico_min <= 670),
+  },
+};
+
+export const DEFAULT_OPTIMIZER_PREFERENCES: OptimizerPreferences = {
+  maxFee: null,
+  minCreditScore: null,
+  preferredIssuers: [],
+  preferredCurrencies: [],
+  goal: "everyday",
+  openToBusinessCards: false,
+  creditUsage: "none",
+  redemption: "flexible",
+  ecosystem: "open",
+  over524: false,
+};
+
+type CurrencyKind = "transferable" | "airline" | "hotel" | "cash";
+
+const CURRENCY_KIND: Record<string, CurrencyKind> = {
+  chase_ur: "transferable",
+  amex_mr: "transferable",
+  cap1: "transferable",
+  citi_typ: "transferable",
+  bilt: "transferable",
+  wf: "transferable",
+  united: "airline",
+  delta: "airline",
+  hyatt: "hotel",
+  marriott: "hotel",
+  hilton: "hotel",
+  cash: "cash",
+  discover: "cash",
+};
+
+/**
+ * Builds the per-currency valuation the optimizer ranks with. Points only get
+ * their travel value when the user will actually redeem them that way:
+ *  - cash-focused goals or redemptions value everything at cash-out (floor)
+ *  - flyers get floor value for hotel points, hotel fans for airline miles
+ *  - "stay in my ecosystem" values programs not already in the wallet at floor,
+ *    since a lone card in a new program rarely builds a useful transfer balance
+ */
+export function rankingValuation(
+  preferences: Partial<OptimizerPreferences>,
+  walletCards: WalletCard[],
+  tier: ValuationTier = "composite"
+): Valuation {
+  const prefs = { ...DEFAULT_OPTIMIZER_PREFERENCES, ...preferences };
+  const rules = GOAL_RULES[prefs.goal ?? "everyday"] ?? GOAL_RULES.everyday;
+  if (rules.cashValue || prefs.redemption === "cash") return "floor";
+  const owned = new Set(walletCards.map((wc) => wc.card.currency));
+  return (currencyId: string) => {
+    const kind = CURRENCY_KIND[currencyId] ?? "transferable";
+    const floor = getCpp(currencyId, "floor");
+    if (kind === "cash") return floor;
+    if (prefs.redemption === "flights" && kind === "hotel") return floor;
+    if (prefs.redemption === "hotels" && kind === "airline") return floor;
+    if (prefs.ecosystem === "stay" && owned.size > 0 && !owned.has(currencyId)) return floor;
+    return getCpp(currencyId, tier);
+  };
 }
 
 /**
@@ -127,7 +244,7 @@ export function routeMonth(
   spend: Record<string, number>,
   overrides: Record<string, string | null>,
   quarter: 1 | 2 | 3 | 4,
-  tier: ValuationTier = "composite",
+  tier: Valuation = "composite",
   preferredCurrency?: string
 ): RoutingResult {
   // Track how much of each card's custom cap has been consumed this month.
@@ -290,7 +407,7 @@ export function routeAnnual(
   spend: Record<string, number>,
   overrides: Record<string, string | null>,
   quarterConfigs: Partial<Record<1 | 2 | 3 | 4, WalletCard["config"][]>>,
-  tier: ValuationTier = "composite",
+  tier: Valuation = "composite",
   preferredCurrency?: string
 ): RoutingResult {
   const combined: RoutingResult = { rows: [], currencyTotals: [], totalDollarValue: 0 };
@@ -376,7 +493,7 @@ export function calculateFees(walletCards: WalletCard[]): FeeResult {
 export function calculateSubValue(
   walletCards: WalletCard[],
   earnedSubIds: Set<string>,
-  tier: ValuationTier = "composite"
+  tier: Valuation = "composite"
 ): number {
   let total = 0;
   for (const wc of walletCards) {
@@ -391,10 +508,204 @@ export function calculateSubValue(
 
 // ─── getRecommendations ───────────────────────────────────────────────────────
 
+const CREDIT_WEIGHT: Record<CreditUsage, number> = { none: 0, some: 0.5, all: 1 };
+
+/** Picks the user's highest-spend category from a list of options. */
+function topSpendCategory(options: string[], spend: Record<string, number>): string | null {
+  let best: string | null = null;
+  let bestSpend = -1;
+  for (const id of options) {
+    const s = spend[id] ?? 0;
+    if (s > bestSpend) {
+      best = id;
+      bestSpend = s;
+    }
+  }
+  return best;
+}
+
 /**
- * Optimizer engine: scores every card not in the wallet and returns the top 8
- * ranked by net annual value (earn gain + SUB value − annual fee).
+ * Builds a realistic config for a candidate card: rotating cards use this
+ * year's announced schedule (falling back to the user's top-spend option) and
+ * custom-select cards pick the user's highest-spend eligible categories.
  */
+export function candidateConfig(card: Card, spend: Record<string, number>): WalletCard["config"] {
+  const rotQ: WalletCard["config"]["rotQ"] = [null, null, null, null];
+  if (card.rotating) {
+    const schedule = card.rotation_schedule?.[String(new Date().getFullYear())];
+    for (let q = 0; q < 4; q++) {
+      const announced = schedule?.[`Q${q + 1}`];
+      rotQ[q] = announced?.length
+        ? topSpendCategory(announced, spend)
+        : topSpendCategory(card.rot_opts ?? [], spend);
+    }
+  }
+  const custom =
+    card.custom_select && card.custom_opts
+      ? [...card.custom_opts]
+          .sort((a, b) => (spend[b] ?? 0) - (spend[a] ?? 0))
+          .slice(0, card.custom_max ?? 0)
+      : [];
+  return { rotQ, custom };
+}
+
+/** Annual dollar value earned per category (primary + overflow rows). */
+function valueByCategory(result: RoutingResult): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const row of result.rows) {
+    let v = row.dollarValue;
+    for (const ov of row.overflow) v += ov.dollarValue;
+    out[row.categoryId] = (out[row.categoryId] ?? 0) + v;
+  }
+  return out;
+}
+
+/** Why a card was left out of the recommendations, for UI hints. */
+export interface RecommendationSummary {
+  recommendations: Recommendation[];
+  /** Business cards that would otherwise have made the list. */
+  hiddenBusinessCount: number;
+  /** Chase cards hidden because of the 5/24 rule. */
+  hidden524Count: number;
+}
+
+/**
+ * Optimizer engine.
+ *
+ * Each candidate is simulated in the user's wallet with the real router (so
+ * caps, overflow and rotating quarters are respected), then scored as:
+ *
+ *   ongoing  = earn gain + statement credits the user will use − annual fee
+ *   score    = ongoing + sign-up bonus × bonus weight
+ *
+ * Sign-up bonuses only count when the user's normal spend can reach the
+ * minimum in time, and are weighted by the user's goal (see GOAL_RULES), so
+ * a big one-time bonus can't drown out a card's everyday value. Business cards
+ * and Chase cards (5/24) are excluded unless the user's answers allow them.
+ */
+export function getRecommendationSummary(
+  walletCards: WalletCard[],
+  spend: Record<string, number>,
+  preferences: OptimizerPreferences,
+  allCards: Card[],
+  tier: ValuationTier = "composite"
+): RecommendationSummary {
+  const prefs = { ...DEFAULT_OPTIMIZER_PREFERENCES, ...preferences };
+  const rules = GOAL_RULES[prefs.goal ?? "everyday"] ?? GOAL_RULES.everyday;
+  const rankTier = rankingValuation(prefs, walletCards, tier);
+  const bonusWeight = rules.bonusWeight;
+  const creditWeight = CREDIT_WEIGHT[prefs.creditUsage ?? "none"];
+  const walletCardIds = new Set(walletCards.map((wc) => wc.card.id));
+  const monthlyTotal = Object.values(spend).reduce((s, v) => s + (v > 0 ? v : 0), 0);
+
+  const baseline = valueByCategory(routeAnnual(walletCards, spend, {}, {}, rankTier));
+
+  // Current best earn rate per category (for display)
+  const currentBestRate: Record<string, number> = {};
+  for (const cat of CATEGORIES) {
+    let best = 0;
+    for (const wc of walletCards) {
+      for (const q of [1, 2, 3, 4] as const) {
+        best = Math.max(best, getEarnRate(wc.card, cat.id, wc.config, q));
+      }
+    }
+    currentBestRate[cat.id] = best;
+  }
+
+  const results: Recommendation[] = [];
+  let hiddenBusinessCount = 0;
+  let hidden524Count = 0;
+
+  for (const card of allCards) {
+    if (card.status !== "active") continue;
+    if (walletCardIds.has(card.id)) continue;
+
+    // Explicit filters
+    if (prefs.maxFee != null && card.fee > prefs.maxFee) continue;
+    if (prefs.minCreditScore != null && card.fico_min != null && card.fico_min > prefs.minCreditScore) continue;
+    if (prefs.preferredIssuers.length > 0 && !prefs.preferredIssuers.includes(card.issuer)) continue;
+    if (prefs.preferredCurrencies.length > 0 && !prefs.preferredCurrencies.includes(card.currency)) continue;
+    if (rules.allows && !rules.allows(card)) continue;
+
+    const rec = scoreCandidate(card);
+
+    // Eligibility from the questionnaire (counted so the UI can say what was hidden)
+    if (card.business && !prefs.openToBusinessCards) {
+      if (rec.netValue > 0) hiddenBusinessCount++;
+      continue;
+    }
+    if (prefs.over524 && card.issuer === "Chase") {
+      if (rec.netValue > 0) hidden524Count++;
+      continue;
+    }
+
+    if (rec.netValue <= 0) continue;
+    // Outside of bonus hunting, skip cards that cost more each year than they return.
+    if (!rules.allowNegativeOngoing && rec.ongoingValue < 0) continue;
+    results.push(rec);
+  }
+
+  results.sort(
+    (a, b) =>
+      b.netValue - a.netValue ||
+      a.card.fee - b.card.fee ||
+      b.card.score - a.card.score
+  );
+  return { recommendations: results.slice(0, 8), hiddenBusinessCount, hidden524Count };
+
+  function scoreCandidate(card: Card): Recommendation {
+    const config = candidateConfig(card, spend);
+    const withCard = valueByCategory(
+      routeAnnual([...walletCards, { id: "__candidate__", card, config }], spend, {}, {}, rankTier)
+    );
+
+    const improvements: CategoryImprovement[] = [];
+    let earnGain = 0;
+    for (const cat of CATEGORIES) {
+      // Clamp at zero: the user would keep using their current card wherever
+      // the new one is worse (e.g. a 2% cash card vs 1.5x transferable points).
+      const gain = (withCard[cat.id] ?? 0) - (baseline[cat.id] ?? 0);
+      if (gain <= 0.005) continue;
+      earnGain += gain;
+      let candidateRate = 0;
+      for (const q of [1, 2, 3, 4] as const) {
+        candidateRate = Math.max(candidateRate, getEarnRate(card, cat.id, config, q));
+      }
+      improvements.push({
+        categoryId: cat.id,
+        currentRate: currentBestRate[cat.id],
+        candidateRate,
+        annualGain: gain,
+      });
+    }
+    improvements.sort((a, b) => b.annualGain - a.annualGain);
+
+    const totalCredits = card.perks_json.reduce((s, p) => s + (p.annual_credit ?? 0), 0);
+    const creditValue = totalCredits * creditWeight;
+
+    const sub = card.sub_json;
+    const subReachable = sub != null && monthlyTotal * sub.timeframe_months >= sub.spend_requirement;
+    const subValue = sub && subReachable ? (sub.points * getCpp(card.currency, rankTier)) / 10000 : 0;
+
+    const ongoingValue = earnGain + creditValue - card.fee;
+    const firstYearValue = ongoingValue + subValue;
+    const netValue = ongoingValue + subValue * bonusWeight;
+
+    return {
+      card,
+      earnGain,
+      creditValue,
+      subValue,
+      subReachable,
+      ongoingValue,
+      firstYearValue,
+      improvements,
+      netValue,
+    };
+  }
+}
+
+/** Top recommendations (see getRecommendationSummary for the scoring rules). */
 export function getRecommendations(
   walletCards: WalletCard[],
   spend: Record<string, number>,
@@ -402,75 +713,5 @@ export function getRecommendations(
   allCards: Card[],
   tier: ValuationTier = "composite"
 ): Recommendation[] {
-  const walletCardIds = new Set(walletCards.map((wc) => wc.card.id));
-
-  // Current best earn rate per category across all wallet cards
-  const currentBestRate: Record<string, number> = {};
-  for (const cat of CATEGORIES) {
-    currentBestRate[cat.id] = 0;
-    for (const wc of walletCards) {
-      // Use Q1 as a baseline for optimizer comparisons
-      const rate = getEarnRate(wc.card, cat.id, wc.config, 1);
-      if (rate > currentBestRate[cat.id]) currentBestRate[cat.id] = rate;
-    }
-  }
-
-  const results: Recommendation[] = [];
-
-  for (const card of allCards) {
-    if (card.status !== "active") continue;
-    if (walletCardIds.has(card.id)) continue;
-
-    // Apply preference filters
-    if (preferences.maxFee != null && card.fee > preferences.maxFee) continue;
-    if (preferences.minCreditScore != null && card.fico_min != null && card.fico_min > preferences.minCreditScore) continue;
-    if (preferences.preferredIssuers.length > 0 && !preferences.preferredIssuers.includes(card.issuer)) continue;
-    if (preferences.preferredCurrencies.length > 0 && !preferences.preferredCurrencies.includes(card.currency)) continue;
-
-    const cpp = getCpp(card.currency, tier);
-
-    // For custom-select / rotating cards, use a synthetic "best-case" config
-    const syntheticConfig: WalletCard["config"] = {
-      rotQ: [
-        card.rot_opts?.[0] ?? null,
-        card.rot_opts?.[0] ?? null,
-        card.rot_opts?.[0] ?? null,
-        card.rot_opts?.[0] ?? null,
-      ],
-      custom: card.custom_opts?.slice(0, card.custom_max ?? 0) ?? [],
-    };
-
-    const improvements: CategoryImprovement[] = [];
-    let earnGain = 0;
-
-    for (const cat of CATEGORIES) {
-      const monthly = spend[cat.id] ?? 0;
-      if (monthly === 0) continue;
-
-      const candidateRate = getEarnRate(card, cat.id, syntheticConfig, 1);
-      const current = currentBestRate[cat.id];
-
-      if (candidateRate > current) {
-        const annualGain = ((candidateRate - current) * monthly * 12 * cpp) / 10000;
-        earnGain += annualGain;
-        improvements.push({
-          categoryId: cat.id,
-          currentRate: current,
-          candidateRate,
-          annualGain,
-        });
-      }
-    }
-
-    // SUB value
-    const subValue = card.sub_json ? (card.sub_json.points * cpp) / 10000 : 0;
-
-    const netValue = earnGain + subValue - card.fee;
-
-    results.push({ card, earnGain, subValue, improvements, netValue });
-  }
-
-  // Rank by net value descending, return top 8
-  results.sort((a, b) => b.netValue - a.netValue);
-  return results.slice(0, 8);
+  return getRecommendationSummary(walletCards, spend, preferences, allCards, tier).recommendations;
 }

@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { Card, HouseholdMember, WalletCard, CardConfig } from "@/types";
-import type { ValuationTier } from "./engine";
+import type { ValuationTier, CardGoal, CreditUsage, Redemption, Ecosystem } from "./engine";
 import { CARDS } from "./cards";
 import { CATEGORIES } from "./categories";
 
@@ -75,6 +75,18 @@ export interface AppState {
   viewQuarter: 1 | 2 | 3 | 4;
   valuationTier: ValuationTier;
   activeTab: "browse" | "wallet" | "simulate" | "optimize";
+
+  // Optimizer questionnaire answers
+  optimizerAnswers: OptimizerAnswers;
+}
+
+export interface OptimizerAnswers {
+  goal: CardGoal;
+  openToBusinessCards: boolean;
+  creditUsage: CreditUsage;
+  redemption: Redemption;
+  ecosystem: Ecosystem;
+  over524: boolean;
 }
 
 export interface AppActions {
@@ -124,6 +136,7 @@ export interface AppActions {
   setViewQuarter: (q: 1 | 2 | 3 | 4) => void;
   setValuation: (tier: ValuationTier) => void;
   setActiveTab: (tab: AppState["activeTab"]) => void;
+  setOptimizerAnswers: (answers: Partial<OptimizerAnswers>) => void;
 
   // Derived helpers (not persisted, just convenient)
   getActivePerson: () => HouseholdMember | undefined;
@@ -157,6 +170,14 @@ const initialState: AppState = {
   viewQuarter: 1,
   valuationTier: "composite",
   activeTab: "browse",
+  optimizerAnswers: {
+    goal: "everyday",
+    openToBusinessCards: false,
+    creditUsage: "none",
+    redemption: "flexible",
+    ecosystem: "open",
+    over524: false,
+  },
 };
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -488,6 +509,10 @@ export const useStore = create<Store>()(
         set({ activeTab: tab });
       },
 
+      setOptimizerAnswers(answers) {
+        set((s) => ({ optimizerAnswers: { ...s.optimizerAnswers, ...answers } }));
+      },
+
       // ── Derived helpers ──────────────────────────────────────────────────────
 
       getActivePerson() {
@@ -520,7 +545,17 @@ export const useStore = create<Store>()(
         viewQuarter: s.viewQuarter,
         valuationTier: s.valuationTier,
         activeTab: s.activeTab,
+        optimizerAnswers: s.optimizerAnswers,
       }),
+      // Deep-merge questionnaire answers so newly added questions get defaults
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<AppState>;
+        return {
+          ...current,
+          ...p,
+          optimizerAnswers: { ...current.optimizerAnswers, ...p.optimizerAnswers },
+        };
+      },
       version: 3,
       migrate(persistedState, version) {
         const state = persistedState as Partial<AppState>;

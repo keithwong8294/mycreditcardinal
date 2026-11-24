@@ -59,6 +59,7 @@ interface CardInput {
   fico_min: number | null;
   rotating?: { cap: number; opts: string[]; schedule?: Card["rotation_schedule"] };
   custom?: { max: number; rate: number; opts: string[] };
+  business?: boolean;
   status?: Card["status"];
 }
 
@@ -85,6 +86,7 @@ function card(c: CardInput): Card {
     custom_max: c.custom?.max ?? null,
     custom_rate: c.custom?.rate ?? null,
     custom_opts: c.custom?.opts ?? null,
+    ...(c.business ? { business: true } : {}),
     fico_min: c.fico_min,
     status: c.status ?? "active",
   };
@@ -236,6 +238,7 @@ export const CARDS: Card[] = [
     ],
     color_json: ["#14213d", "#2b4c7e"],
     fico_min: 690,
+    business: true,
   }),
 
   card({
@@ -257,6 +260,7 @@ export const CARDS: Card[] = [
     ],
     color_json: ["#0b3d2e", "#1f7a5c"],
     fico_min: 690,
+    business: true,
   }),
 
   card({
@@ -277,6 +281,7 @@ export const CARDS: Card[] = [
     ],
     color_json: ["#111827", "#374151"],
     fico_min: 700,
+    business: true,
   }),
 
   card({
@@ -475,6 +480,7 @@ export const CARDS: Card[] = [
     ],
     color_json: ["#0b2a5b", "#2563eb"],
     fico_min: 680,
+    business: true,
   }),
 
   card({

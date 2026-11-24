@@ -5,8 +5,15 @@ import { CARDS } from "@/lib/cards";
 import { useStore } from "@/lib/store";
 import { CURRENCIES, CURRENCY_MAP } from "@/lib/currencies";
 import { CATEGORIES } from "@/lib/categories";
-import { getRecommendations, routeAnnual, calculateFees, calculateSubValue } from "@/lib/engine";
-import type { OptimizerPreferences } from "@/lib/engine";
+import {
+  getRecommendationSummary,
+  routeAnnual,
+  calculateFees,
+  calculateSubValue,
+  candidateConfig,
+  rankingValuation,
+} from "@/lib/engine";
+import type { OptimizerPreferences, CardGoal, CreditUsage, Redemption, Ecosystem } from "@/lib/engine";
 import type { Recommendation } from "@/types";
 import type { Card } from "@/types";
 import { cardGradient, isLightBackground } from "@/lib/utils";
@@ -44,6 +51,74 @@ const FEE_OPTIONS = [
   { label: "Under $500", value: "500" },
   { label: "Any amount", value: "any" },
 ];
+
+const GOAL_OPTIONS: { value: CardGoal; label: string; hint: string }[] = [
+  { value: "everyday", label: "Earn more on everyday spending", hint: "Ranks by value every year; welcome bonuses are spread over a few years." },
+  { value: "bonuses", label: "Collect sign-up bonuses", hint: "Welcome bonuses count in full, as long as your spend can hit the minimum." },
+  { value: "cashback", label: "Simple cash back", hint: "Points are valued at what they cash out for, not transfer value." },
+  { value: "travel", label: "Travel rewards", hint: "Only transferable points and airline or hotel cards." },
+  { value: "credit", label: "Build my credit", hint: "No-fee cards with easier approval; bonuses are ignored." },
+];
+
+const REDEMPTION_OPTIONS: { value: Redemption; label: string }[] = [
+  { value: "flexible", label: "Not sure yet" },
+  { value: "flights", label: "Flights" },
+  { value: "hotels", label: "Hotels" },
+  { value: "cash", label: "Cash or statement credit" },
+];
+
+const ECOSYSTEM_OPTIONS: { value: Ecosystem; label: string }[] = [
+  { value: "open", label: "Open to a new bank" },
+  { value: "stay", label: "Stick with my current programs" },
+];
+
+const CREDIT_USAGE_OPTIONS: { value: CreditUsage; label: string }[] = [
+  { value: "none", label: "Rarely" },
+  { value: "some", label: "About half" },
+  { value: "all", label: "All of them" },
+];
+
+function ChoiceChips<T extends string | boolean>({
+  options,
+  value,
+  onChange,
+}: {
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {options.map((o) => {
+        const active = o.value === value;
+        return (
+          <button
+            key={String(o.value)}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(o.value)}
+            className={`text-[12px] px-3 py-1.5 rounded-full border transition-colors duration-150 ${
+              active
+                ? "bg-green text-white border-green"
+                : "bg-white text-secondary border-subtle hover:border-medium hover:text-primary"
+            }`}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function Question({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-[12px] font-medium text-primary mb-1.5">{label}</div>
+      {children}
+    </div>
+  );
+}
 
 const SCORE_OPTIONS = [
   { label: "Any credit score", value: "any" },
@@ -83,10 +158,10 @@ function WhatIfModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const { getActiveWalletCards, getActivePersonSpend, overrides, valuationTier, subEarned } = useStore();
+  const { getActiveWalletCards, getActivePersonSpend, overrides, valuationTier, subEarned, optimizerAnswers } = useStore();
   const spend = getActivePersonSpend();
   const walletCards = getActiveWalletCards();
-  const tier = valuationTier;
+  const tier = rankingValuation(optimizerAnswers, walletCards, valuationTier);
   const subEarnedSet = new Set(subEarned);
 
   const quarterConfigs: Partial<Record<1 | 2 | 3 | 4, typeof walletCards[number]["config"][]>> = {};
@@ -96,16 +171,7 @@ function WhatIfModal({
   const currentSubValue = calculateSubValue(walletCards, subEarnedSet, tier);
 
   // Build a synthetic wallet card for the candidate
-  const syntheticConfig = {
-    rotQ: [
-      rec.card.rot_opts?.[0] ?? null,
-      rec.card.rot_opts?.[0] ?? null,
-      rec.card.rot_opts?.[0] ?? null,
-      rec.card.rot_opts?.[0] ?? null,
-    ] as [string | null, string | null, string | null, string | null],
-    custom: rec.card.custom_opts?.slice(0, rec.card.custom_max ?? 0) ?? [],
-  };
-  const syntheticWc = { id: "__whatif__", card: rec.card, config: syntheticConfig };
+  const syntheticWc = { id: "__whatif__", card: rec.card, config: candidateConfig(rec.card, spend) };
   const withCard = [...walletCards, syntheticWc];
 
   const withAnnual = routeAnnual(withCard, spend, overrides, quarterConfigs, tier);
@@ -208,58 +274,41 @@ function WhatIfModal({
 
 // ─── Explanation generator ────────────────────────────────────────────────────
 
-function generateExplanation(
-  rec: Recommendation,
-  spend: Record<string, number>,
-  tier: "floor" | "composite" | "ceiling"
-): string {
-  const currency = CURRENCY_MAP[rec.card.currency];
-  const cpp = currency
-    ? tier === "floor"
-      ? currency.floor
-      : tier === "ceiling"
-      ? currency.ceiling
-      : currency.composite
-    : 100;
-  const currencyName = currency?.name ?? "points";
-
+function generateExplanation(rec: Recommendation, spend: Record<string, number>): string {
   const parts: string[] = [];
 
-  // Best earning improvement
-  const topImp = [...rec.improvements].sort((a, b) => b.annualGain - a.annualGain)[0];
+  const topImp = rec.improvements[0];
   if (topImp) {
-    const cat = CATEGORIES.find((c) => c.id === topImp.categoryId);
-    const catLabel = cat?.label ?? topImp.categoryId;
+    const catLabel = CATEGORIES.find((c) => c.id === topImp.categoryId)?.label ?? topImp.categoryId;
     const monthly = spend[topImp.categoryId] ?? 0;
-    const extraAnnual = topImp.annualGain;
-
     parts.push(
-      `This card earns ${topImp.candidateRate}x on ${catLabel} vs your current best of ${topImp.currentRate}x.`
-    );
-    if (monthly > 0) {
-      parts.push(
-        `At $${monthly.toLocaleString()}/month in ${catLabel}, that's an extra ${fmtDollar(extraAnnual)}/year in ${currencyName}.`
-      );
-    }
-  } else if (rec.subValue > 0 && rec.improvements.length === 0) {
-    parts.push(`This card doesn't improve your earn rates but carries a valuable welcome bonus.`);
-  }
-
-  // SUB
-  if (rec.card.sub_json && rec.subValue > 0) {
-    const pts = rec.card.sub_json.points.toLocaleString();
-    parts.push(
-      `Combined with the ${pts} point welcome bonus (~${fmtDollar(rec.subValue)}), ` +
-      `this card adds ${fmtDollar(rec.netValue + rec.card.fee)} in first-year value` +
-      (rec.card.fee > 0 ? ` after subtracting the ${fmtDollar(rec.card.fee)} annual fee.` : `.`)
-    );
-  } else if (rec.card.fee > 0) {
-    parts.push(
-      `After the ${fmtDollar(rec.card.fee)} annual fee, the net annual value is ${fmtDollar(rec.netValue)}.`
+      `Earns ${topImp.candidateRate}x on ${catLabel} vs your current best of ${topImp.currentRate}x` +
+        (monthly > 0
+          ? `, about ${fmtDollar(topImp.annualGain)} more a year at $${monthly.toLocaleString()}/month.`
+          : ".")
     );
   } else {
+    parts.push("Doesn't raise your earn rates on its own.");
+  }
+
+  if (rec.creditValue > 0) {
+    parts.push(`Includes ${fmtDollar(rec.creditValue)} of statement credits you said you'd use.`);
+  }
+
+  parts.push(
+    rec.ongoingValue >= 0
+      ? `After the fee it adds about ${fmtDollar(rec.ongoingValue)} every year.`
+      : `Without the bonus it costs about ${fmtDollar(rec.ongoingValue)} a year more than it earns, so it's mainly a bonus play.`
+  );
+
+  const sub = rec.card.sub_json;
+  if (sub && rec.subValue > 0) {
     parts.push(
-      `With no annual fee, the net first-year value is ${fmtDollar(rec.netValue)}.`
+      `The ${sub.points.toLocaleString()}-point bonus (~${fmtDollar(rec.subValue)}) needs $${sub.spend_requirement.toLocaleString()} spent in ${sub.timeframe_months} months.`
+    );
+  } else if (sub && !rec.subReachable) {
+    parts.push(
+      `Your spend won't reach the $${sub.spend_requirement.toLocaleString()} bonus minimum in ${sub.timeframe_months} months, so the bonus isn't counted.`
     );
   }
 
@@ -280,7 +329,6 @@ function RecommendationCard({
   inWallet: boolean;
 }) {
   const [whatIfOpen, setWhatIfOpen] = useState(false);
-  const { valuationTier } = useStore();
   const currency = CURRENCY_MAP[rec.card.currency];
 
   return (
@@ -293,14 +341,27 @@ function RecommendationCard({
             <div className="text-[13px] font-medium text-primary truncate">{rec.card.name}</div>
             <div className="text-[11px] text-secondary">
               {rec.card.issuer} · {rec.card.fee === 0 ? "No annual fee" : `$${rec.card.fee}/yr`}
+              {rec.card.business && (
+                <span className="ml-1.5 inline-flex items-center px-1.5 py-px rounded bg-surface border border-subtle text-[10px] text-secondary">
+                  Business
+                </span>
+              )}
             </div>
           </div>
-          {/* Net value */}
+          {/* Ongoing value, with first year underneath */}
           <div className="text-right flex-shrink-0">
-            <div className={`text-[22px] font-semibold leading-none ${rec.netValue >= 0 ? "text-green" : "text-red"}`}>
-              {rec.netValue >= 0 ? "+" : "−"}{fmtDollar(rec.netValue)}
+            <div className={`text-[22px] font-semibold leading-none ${rec.ongoingValue >= 0 ? "text-green" : "text-red"}`}>
+              {rec.ongoingValue >= 0 ? "+" : "−"}{fmtDollar(rec.ongoingValue)}
             </div>
-            <div className="text-[10px] text-tertiary mt-0.5">net / year</div>
+            <div className="text-[10px] text-tertiary mt-0.5">per year</div>
+            {rec.subValue > 0 && (
+              <div className="text-[11px] text-secondary mt-1">
+                <span className="font-medium text-primary">
+                  {rec.firstYearValue >= 0 ? "+" : "−"}{fmtDollar(rec.firstYearValue)}
+                </span>{" "}
+                first year
+              </div>
+            )}
           </div>
         </div>
 
@@ -327,10 +388,15 @@ function RecommendationCard({
         )}
 
         {/* Value breakdown */}
-        <div className="flex items-center gap-4 text-[11px] text-secondary">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-secondary">
           {rec.earnGain > 0 && (
             <span>
               <span className="font-medium text-primary">+{fmtDollar(rec.earnGain)}</span> earn/yr
+            </span>
+          )}
+          {rec.creditValue > 0 && (
+            <span>
+              <span className="font-medium text-primary">+{fmtDollar(rec.creditValue)}</span> credits
             </span>
           )}
           {rec.subValue > 0 && (
@@ -352,7 +418,7 @@ function RecommendationCard({
 
         {/* Plain-English explanation */}
         <p className="text-[12px] text-secondary leading-relaxed border-t border-subtle pt-2">
-          {generateExplanation(rec, spend, valuationTier)}
+          {generateExplanation(rec, spend)}
         </p>
 
         {/* Actions */}
@@ -384,7 +450,15 @@ function RecommendationCard({
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function OptimizePage() {
-  const { getActiveWalletCards, getActivePersonSpend, valuationTier, toggleCard, customCards } = useStore();
+  const {
+    getActiveWalletCards,
+    getActivePersonSpend,
+    valuationTier,
+    toggleCard,
+    customCards,
+    optimizerAnswers,
+    setOptimizerAnswers,
+  } = useStore();
   const spend = getActivePersonSpend();
   const walletCards = getActiveWalletCards();
 
@@ -411,14 +485,16 @@ export default function OptimizePage() {
     minCreditScore: minScoreStr === "any" ? null : Number(minScoreStr),
     preferredIssuers: issuerFilter === "any" ? [] : [issuerFilter],
     preferredCurrencies: currencyFilter === "any" ? [] : [currencyFilter],
-  }), [maxFeeStr, minScoreStr, issuerFilter, currencyFilter]);
+    ...optimizerAnswers,
+  }), [maxFeeStr, minScoreStr, issuerFilter, currencyFilter, optimizerAnswers]);
 
   const allCards = useMemo(() => [...baseCards, ...customCards], [baseCards, customCards]);
 
-  const recommendations = useMemo(
-    () => getRecommendations(walletCards, spend, preferences, allCards, valuationTier),
+  const { recommendations, hiddenBusinessCount, hidden524Count } = useMemo(
+    () => getRecommendationSummary(walletCards, spend, preferences, allCards, valuationTier),
     [walletCards, spend, preferences, allCards, valuationTier]
   );
+  const goalHint = GOAL_OPTIONS.find((g) => g.value === optimizerAnswers.goal)?.hint;
 
   const walletCardIds = useMemo(
     () => new Set(walletCards.map((wc) => wc.card.id)),
@@ -433,8 +509,66 @@ export default function OptimizePage() {
       <div>
         <h1 className="text-[14px] font-semibold text-secondary uppercase tracking-wider">Optimizer</h1>
         <p className="text-[12px] text-tertiary mt-0.5">
-          Cards ranked by net annual value added to your wallet
+          Cards ranked by what they add to your wallet, based on your answers below
         </p>
+      </div>
+
+      {/* Questionnaire */}
+      <div className="bg-white border border-subtle rounded-lg p-4 space-y-4">
+        <div className="text-[10px] font-semibold text-tertiary uppercase tracking-wider">About your next card</div>
+
+        <Question label="What's your goal with your next card?">
+          <ChoiceChips
+            options={GOAL_OPTIONS}
+            value={optimizerAnswers.goal}
+            onChange={(goal) => setOptimizerAnswers({ goal })}
+          />
+          {goalHint && <div className="text-[11px] text-tertiary mt-1.5">{goalHint}</div>}
+        </Question>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Question label="How do you want to use your points?">
+            <ChoiceChips
+              options={REDEMPTION_OPTIONS}
+              value={optimizerAnswers.redemption}
+              onChange={(redemption) => setOptimizerAnswers({ redemption })}
+            />
+          </Question>
+          <Question label="New bank, or stay with the programs you have?">
+            <ChoiceChips
+              options={ECOSYSTEM_OPTIONS}
+              value={optimizerAnswers.ecosystem}
+              onChange={(ecosystem) => setOptimizerAnswers({ ecosystem })}
+            />
+          </Question>
+          <Question label="Do you have a business or side income?">
+            <ChoiceChips
+              options={[
+                { value: false, label: "No" },
+                { value: true, label: "Yes, show business cards" },
+              ]}
+              value={optimizerAnswers.openToBusinessCards}
+              onChange={(openToBusinessCards) => setOptimizerAnswers({ openToBusinessCards })}
+            />
+          </Question>
+          <Question label="Personal cards opened in the last 24 months?">
+            <ChoiceChips
+              options={[
+                { value: false, label: "0 to 4" },
+                { value: true, label: "5 or more" },
+              ]}
+              value={optimizerAnswers.over524}
+              onChange={(over524) => setOptimizerAnswers({ over524 })}
+            />
+          </Question>
+          <Question label="How many statement credits would you actually use?">
+            <ChoiceChips
+              options={CREDIT_USAGE_OPTIONS}
+              value={optimizerAnswers.creditUsage}
+              onChange={(creditUsage) => setOptimizerAnswers({ creditUsage })}
+            />
+          </Question>
+        </div>
       </div>
 
       {/* Preference filters */}
@@ -524,7 +658,7 @@ export default function OptimizePage() {
       )}
 
       {/* No wallet state */}
-      {baseCards.length > 0 && walletCards.length === 0 && (
+      {baseCards.length > 0 && walletCards.length === 0 && recommendations.length === 0 && (
         <div className="bg-white border border-subtle rounded-lg p-8 text-center">
           <div className="text-[13px] text-secondary">Add cards to your wallet to see recommendations.</div>
           <div className="text-[11px] text-tertiary mt-1">The optimizer compares candidates against your current earn rates.</div>
@@ -535,7 +669,17 @@ export default function OptimizePage() {
       {baseCards.length > 0 && walletCards.length > 0 && recommendations.length === 0 && (
         <div className="bg-white border border-subtle rounded-lg p-8 text-center">
           <div className="text-[13px] text-secondary">No recommendations match your current filters.</div>
-          <div className="text-[11px] text-tertiary mt-1">Try relaxing the fee or credit score filters.</div>
+          <div className="text-[11px] text-tertiary mt-1">Try a different goal or relax the fee and credit score filters.</div>
+        </div>
+      )}
+
+      {/* What the answers hid */}
+      {walletCards.length > 0 && (hiddenBusinessCount > 0 || hidden524Count > 0) && (
+        <div className="text-[11px] text-tertiary">
+          {hiddenBusinessCount > 0 &&
+            `${hiddenBusinessCount} business card${hiddenBusinessCount !== 1 ? "s" : ""} hidden since you don't have a business. `}
+          {hidden524Count > 0 &&
+            `${hidden524Count} Chase card${hidden524Count !== 1 ? "s" : ""} hidden since Chase usually declines applicants with 5+ new cards in 24 months.`}
         </div>
       )}
 

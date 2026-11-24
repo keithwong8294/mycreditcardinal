@@ -56,6 +56,13 @@ export interface Card {
   /** Available options for custom category selection */
   custom_opts: string[] | null;
 
+  /**
+   * True for small-business cards (Chase Ink, Amex Blue Business, etc.).
+   * These need a business or side income to apply, so the optimizer hides
+   * them unless the user says they're open to one.
+   */
+  business?: boolean;
+
   /** Required FICO score range */
   fico_min: number | null;
 
