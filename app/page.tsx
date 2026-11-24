@@ -4,6 +4,7 @@ import { CARDS, CARD_MAP } from "@/lib/cards";
 import { CATEGORIES } from "@/lib/categories";
 import { routeMonth } from "@/lib/engine";
 import type { WalletCard } from "@/types";
+import { CardinalMark } from "@/lib/brand";
 
 const serif = Instrument_Serif({ subsets: ["latin"], weight: "400", style: ["normal", "italic"] });
 const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500"] });
@@ -98,7 +99,7 @@ export default function Home() {
       <header className="border-b border-[#1c1917]/10">
         <div className="max-w-6xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5">
-            <span aria-hidden className="block w-3 h-3 rounded-full bg-[#b3261e]" />
+            <CardinalMark size={30} />
             <span className="text-[16px] font-semibold tracking-tight">MyCreditCardinal</span>
           </Link>
           <nav className="flex items-center gap-1 sm:gap-6 text-[14px]">

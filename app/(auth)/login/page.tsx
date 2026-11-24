@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signInWithGoogle, signInWithEmail } from "@/lib/supabase/actions";
+import { CardinalMark } from "@/lib/brand";
 
 const ERROR_MESSAGES: Record<string, string> = {
   auth_failed: "Sign-in failed. Please try again.",
@@ -95,13 +96,16 @@ function LoginForm() {
         {/* Card */}
         <div className="bg-white border border-subtle rounded-lg p-8 space-y-6">
           {/* Logo */}
-          <div>
-            <h1 className="text-[20px] font-semibold text-primary leading-tight">
-              MyCreditCardinal
-            </h1>
-            <p className="text-secondary text-[13px] mt-0.5">
-              Stop leaving rewards on the table.
-            </p>
+          <div className="flex items-center gap-3">
+            <CardinalMark size={44} title="MyCreditCardinal" />
+            <div>
+              <h1 className="text-[20px] font-semibold text-primary leading-tight">
+                MyCreditCardinal
+              </h1>
+              <p className="text-secondary text-[13px] mt-0.5">
+                Use the right card, every time.
+              </p>
+            </div>
           </div>
 
           {/* Continue as guest — the primary demo path */}

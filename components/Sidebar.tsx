@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "./AuthProvider";
 import { signOut } from "@/lib/supabase/actions";
 import { useStore } from "@/lib/store";
+import { CardinalMark } from "@/lib/brand";
 
 const SIDEBAR_BG = "#0f1219";
 
@@ -46,14 +47,14 @@ export default function Sidebar() {
   const sidebarContent = (
     <div className="flex flex-col h-full" style={{ background: SIDEBAR_BG }}>
       {/* Logo */}
-      <div className="px-4 py-5 border-b border-white/5">
-        <div className="text-white font-semibold text-[17px] leading-tight">
-          MyCreditCardinal
+      <Link href="/browse" className="px-4 py-5 border-b border-white/5 flex items-center gap-2.5">
+        <CardinalMark size={34} variant="on-dark" />
+        <div>
+          <div className="text-white font-semibold text-[16px] leading-tight">
+            MyCreditCardinal
+          </div>
         </div>
-        <div className="text-white/35 text-[11px] mt-0.5">
-          Stop leaving rewards on the table.
-        </div>
-      </div>
+      </Link>
 
       {/* Nav */}
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
@@ -171,7 +172,8 @@ export default function Sidebar() {
         >
           ☰
         </button>
-        <span className="text-white font-semibold text-[16px]">
+        <span className="flex items-center gap-2 text-white font-semibold text-[16px]">
+          <CardinalMark size={26} variant="on-dark" />
           MyCreditCardinal
         </span>
       </header>

@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
+import { BRAND, CardinalMark } from "@/lib/brand";
 
-export const runtime = "edge";
-export const alt = "MyCreditCardinal – Stop leaving rewards on the table.";
+export const alt = "MyCreditCardinal: use the right card, every time.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -14,103 +14,25 @@ export default function OGImage() {
           height: "100%",
           display: "flex",
           flexDirection: "column",
-          alignItems: "flex-start",
-          justifyContent: "center",
-          background: "#0f1219",
-          padding: "80px",
-          fontFamily: "sans-serif",
+          justifyContent: "space-between",
+          background: BRAND.paper,
+          padding: "72px 80px",
+          fontFamily: "serif",
+          color: BRAND.ink,
         }}
       >
-        {/* Logo mark */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "16px",
-            marginBottom: "48px",
-          }}
-        >
-          <div
-            style={{
-              width: "52px",
-              height: "52px",
-              borderRadius: "14px",
-              background: "#059669",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "28px",
-              fontWeight: "700",
-              color: "#ffffff",
-            }}
-          >
-            M
-          </div>
-          <span
-            style={{
-              fontSize: "26px",
-              fontWeight: "600",
-              color: "#ffffff",
-              letterSpacing: "-0.5px",
-            }}
-          >
+        <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+          <CardinalMark size={72} />
+          <span style={{ fontSize: 34, fontFamily: "sans-serif", fontWeight: 600 }}>
             MyCreditCardinal
           </span>
         </div>
-
-        {/* Headline */}
-        <div
-          style={{
-            fontSize: "64px",
-            fontWeight: "700",
-            color: "#ffffff",
-            lineHeight: "1.1",
-            letterSpacing: "-1.5px",
-            marginBottom: "24px",
-            maxWidth: "900px",
-          }}
-        >
-          Stop leaving rewards{" "}
-          <span style={{ color: "#059669" }}>on the table.</span>
+        <div style={{ display: "flex", flexDirection: "column", fontSize: 92, lineHeight: 1.02 }}>
+          <span>Use the right card.</span>
+          <span style={{ color: BRAND.red, fontStyle: "italic" }}>Every time.</span>
         </div>
-
-        {/* Subheadline */}
-        <div
-          style={{
-            fontSize: "24px",
-            color: "rgba(255,255,255,0.5)",
-            fontWeight: "400",
-            maxWidth: "700px",
-            lineHeight: "1.5",
-          }}
-        >
-          Find the best credit card for every purchase. Simulate your household
-          spend and maximize every dollar.
-        </div>
-
-        {/* Bottom tags */}
-        <div
-          style={{
-            display: "flex",
-            gap: "12px",
-            marginTop: "56px",
-          }}
-        >
-          {["Card Explorer", "Spend Simulator", "AI Optimizer"].map((tag) => (
-            <div
-              key={tag}
-              style={{
-                padding: "8px 18px",
-                borderRadius: "100px",
-                border: "1px solid rgba(255,255,255,0.12)",
-                color: "rgba(255,255,255,0.6)",
-                fontSize: "16px",
-                fontWeight: "500",
-              }}
-            >
-              {tag}
-            </div>
-          ))}
+        <div style={{ fontSize: 26, fontFamily: "sans-serif", color: "#57534e" }}>
+          See which card to use for every purchase, and what a better wallet would earn.
         </div>
       </div>
     ),
