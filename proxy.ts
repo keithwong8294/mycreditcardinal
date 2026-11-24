@@ -1,7 +1,53 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+// Routes anyone can open without an account (guest / demo mode).
+const OPEN_PREFIXES = [
+  "/login",
+  "/auth",
+  "/privacy",
+  "/terms",
+  "/offline",
+  "/browse",
+  "/wallet",
+  "/simulate",
+  "/optimize",
+  "/reports",
+  "/settings",
+  "/api",
+  "/pwa",
+];
+
+function isOpenRoute(pathname: string) {
+  return pathname === "/" || OPEN_PREFIXES.some((p) => pathname.startsWith(p));
+}
+
 export async function proxy(request: NextRequest) {
+  const { pathname, searchParams } = request.nextUrl;
+
+  // If Supabase falls back to the Site URL (redirect URL not allow-listed),
+  // the OAuth code lands on "/" or another page. Forward it to the callback
+  // so Google sign-in still completes.
+  if (searchParams.has("code") && !pathname.startsWith("/auth")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/callback";
+    return NextResponse.redirect(url);
+  }
+
+  // No Supabase session cookie → nothing to refresh. Skip the auth round-trip
+  // entirely for guests (the common demo path).
+  const hasSessionCookie = request.cookies
+    .getAll()
+    .some((c) => c.name.startsWith("sb-") && c.name.includes("-auth-token"));
+
+  if (!hasSessionCookie) {
+    if (isOpenRoute(pathname)) return NextResponse.next({ request });
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -13,9 +59,7 @@ export async function proxy(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           supabaseResponse = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
@@ -25,34 +69,23 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  // Refresh the session — MUST happen before any code that reads the session.
-  // Do not use getSession() here; getUser() validates the token server-side.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Refreshes the session if expired. getClaims() verifies the JWT locally
+  // when the project uses asymmetric signing keys (no network round-trip),
+  // otherwise it falls back to the Auth server like getUser().
+  const { data } = await supabase.auth.getClaims();
+  const signedIn = Boolean(data?.claims?.sub);
 
-  // Redirect unauthenticated users to /login (except the login page itself,
-  // public routes, guest-accessible app routes, and static/api routes).
-  // Admin stays gated so it still forces a real sign-in.
-  const { pathname } = request.nextUrl;
-  const isAuthRoute =
-    pathname.startsWith("/login") || pathname.startsWith("/auth");
-  const isPublicRoute = pathname === "/" || pathname.startsWith("/privacy") || pathname.startsWith("/terms");
-  const isGuestRoute =
-    pathname.startsWith("/browse") ||
-    pathname.startsWith("/wallet") ||
-    pathname.startsWith("/simulate") ||
-    pathname.startsWith("/optimize") ||
-    pathname.startsWith("/reports") ||
-    pathname.startsWith("/settings");
-  const isStatic =
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/api") ||
-    pathname.match(/\.(ico|png|svg|jpg|jpeg|webp|woff2?)$/);
+  // Signed-in users skip the marketing page.
+  if (signedIn && pathname === "/") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/browse";
+    return NextResponse.redirect(url);
+  }
 
-  if (!user && !isAuthRoute && !isPublicRoute && !isGuestRoute && !isStatic) {
+  if (!signedIn && !isOpenRoute(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    url.search = "";
     return NextResponse.redirect(url);
   }
 
@@ -61,6 +94,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sw.js|manifest.webmanifest|icon|opengraph-image|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?)$).*)",
   ],
 };

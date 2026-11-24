@@ -13,6 +13,8 @@ export default function OfflinePage() {
           MyCreditCardinal couldn&apos;t load. Check your internet connection and
           try again.
         </p>
+        {/* Full page load on purpose: retries the network instead of client nav. */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
         <a
           href="/"
           className="inline-block px-6 py-2.5 bg-[#059669] hover:bg-[#059669]/90 text-white text-[13px] font-medium rounded-lg transition-colors duration-150"

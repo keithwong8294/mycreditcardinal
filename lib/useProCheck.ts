@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
-import { createClient } from "@/lib/supabase/client";
 
 export interface ProCheckResult {
-  /** True if on an active Pro subscription */
+  /** True if Pro features should be unlocked */
   isPro: boolean;
   /** True if on the 30-day trial (may also be expired) */
   isTrial: boolean;
@@ -15,49 +13,49 @@ export interface ProCheckResult {
   daysLeft: number | null;
   /** True while fetching plan data */
   loading: boolean;
+  /** True when browsing without an account (demo mode) */
+  isGuest: boolean;
 }
 
 function computeDaysLeft(trialEndsAt: string | null): number | null {
   if (!trialEndsAt) return null;
   const diff = new Date(trialEndsAt).getTime() - Date.now();
-  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+  return Math.max(0, Math.ceil(diff / 86_400_000));
 }
 
+/**
+ * Plan gate. Reads the plan that AuthProvider fetched once, instead of every
+ * caller issuing its own Supabase query.
+ *
+ * Guests (continue without signing in) get full access so the app demos well;
+ * their data never leaves the device anyway.
+ */
 export function useProCheck(): ProCheckResult {
-  const { user } = useAuth();
-  const [plan, setPlan] = useState<"trial" | "free" | "pro" | null>(null);
-  const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, loading: authLoading, plan, trialEndsAt, planLoading } = useAuth();
 
-  useEffect(() => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-    const supabase = createClient();
-    supabase
-      .from("users")
-      .select("plan, trial_ends_at")
-      .eq("id", user.id)
-      .single()
-      .then(({ data }) => {
-        if (data) {
-          setPlan(data.plan as "trial" | "free" | "pro");
-          setTrialEndsAt(data.trial_ends_at ?? null);
-        }
-        setLoading(false);
-      });
-  }, [user]);
+  if (authLoading) {
+    return { isPro: true, isTrial: false, isExpired: false, daysLeft: null, loading: true, isGuest: false };
+  }
 
-  const isPro = plan === "pro";
+  if (!user) {
+    return { isPro: true, isTrial: false, isExpired: false, daysLeft: null, loading: false, isGuest: true };
+  }
+
+  // During loading, assume full access so UI doesn't flash locked
+  if (planLoading) {
+    return { isPro: true, isTrial: true, isExpired: false, daysLeft: null, loading: true, isGuest: false };
+  }
+
   const isTrial = plan === "trial";
   const daysLeft = isTrial ? computeDaysLeft(trialEndsAt) : null;
   const isExpired = isTrial && daysLeft !== null && daysLeft <= 0;
 
-  // During loading, assume trial (full access) so UI doesn't flash locked
-  if (loading) {
-    return { isPro: true, isTrial: true, isExpired: false, daysLeft: null, loading: true };
-  }
-
-  return { isPro: isPro || isTrial, isTrial, isExpired, daysLeft, loading: false };
+  return {
+    isPro: plan === "pro" || (isTrial && !isExpired),
+    isTrial,
+    isExpired,
+    daysLeft,
+    loading: false,
+    isGuest: false,
+  };
 }

@@ -1,6 +1,4 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import FAQAccordion from "@/components/FAQAccordion";
 
 export const metadata = {
@@ -15,7 +13,7 @@ const BG_ALT = "#111827";
 // ─── Free vs Pro feature table ─────────────────────────────────────────────────
 
 const FREE_FEATURES = [
-  "Full card browser (24+ cards)",
+  "Full card browser (40+ cards)",
   "Up to 5 cards, 1 person",
   "Full spend simulator (12 categories)",
   "All 3 valuation tiers",
@@ -35,13 +33,9 @@ const PRO_FEATURES = [
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
-export default async function Home() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (user) redirect("/browse");
-
+// Fully static: signed-in visitors are redirected to /browse by proxy.ts,
+// so the landing page no longer hits Supabase on every request.
+export default function Home() {
   return (
     <div className="min-h-screen text-white" style={{ background: BG }}>
       {/* ── Navigation ── */}
@@ -61,10 +55,10 @@ export default async function Home() {
               Sign in
             </Link>
             <Link
-              href="/login"
+              href="/browse"
               className="text-[13px] font-medium px-4 py-1.5 rounded-lg bg-[#059669] hover:bg-[#059669]/90 text-white transition-colors duration-150"
             >
-              Get started free
+              Try it free
             </Link>
           </div>
         </div>
@@ -90,12 +84,25 @@ export default async function Home() {
             and shows you exactly what you&apos;re missing.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          {/* Primary demo CTA — no account required */}
+          <Link
+            href="/browse"
+            className="inline-flex flex-col items-center justify-center w-full sm:w-auto sm:min-w-[380px] px-10 py-5 rounded-xl bg-[#059669] hover:bg-[#047857] text-white shadow-xl shadow-[#059669]/25 transition-colors duration-150"
+          >
+            <span className="text-[20px] font-semibold leading-tight">
+              Continue without signing in →
+            </span>
+            <span className="text-[13px] text-white/75 mt-1">
+              Try everything instantly · no account needed
+            </span>
+          </Link>
+
+          <div className="mt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
               href="/login"
-              className="w-full sm:w-auto px-7 py-3 rounded-lg bg-[#059669] hover:bg-[#059669]/90 text-white font-medium text-[14px] transition-colors duration-150 text-center"
+              className="w-full sm:w-auto px-7 py-3 rounded-lg border border-white/15 text-white/80 hover:text-white hover:border-white/30 font-medium text-[14px] transition-colors duration-150 text-center"
             >
-              Get started free
+              Sign in / create account
             </Link>
             <a
               href="#how-it-works"
@@ -105,17 +112,10 @@ export default async function Home() {
             </a>
           </div>
 
-          <Link
-            href="/browse"
-            className="inline-block mt-5 text-[13px] text-white/40 hover:text-white/70 transition-colors duration-150 underline underline-offset-2"
-          >
-            Or continue without signing in
-          </Link>
-
           {/* Stats row */}
           <div className="mt-16 flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
             {[
-              { n: "24+", label: "cards at launch" },
+              { n: "40+", label: "cards tracked" },
               { n: "12", label: "spending categories" },
               { n: "3", label: "valuation tiers" },
               { n: "$0", label: "to get started" },

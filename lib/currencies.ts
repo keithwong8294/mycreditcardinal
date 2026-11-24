@@ -58,6 +58,41 @@ export const CURRENCIES: Currency[] = [
     composite: 100,
     ceiling: 100,
   },
+  {
+    id: "hyatt",
+    name: "World of Hyatt Points",
+    floor: 130,
+    composite: 170,
+    ceiling: 250,
+  },
+  {
+    id: "united",
+    name: "United MileagePlus Miles",
+    floor: 100,
+    composite: 120,
+    ceiling: 200,
+  },
+  {
+    id: "delta",
+    name: "Delta SkyMiles",
+    floor: 100,
+    composite: 110,
+    ceiling: 150,
+  },
+  {
+    id: "marriott",
+    name: "Marriott Bonvoy Points",
+    floor: 60,
+    composite: 75,
+    ceiling: 100,
+  },
+  {
+    id: "hilton",
+    name: "Hilton Honors Points",
+    floor: 40,
+    composite: 50,
+    ceiling: 70,
+  },
 ];
 
 export const CURRENCY_MAP = Object.fromEntries(

@@ -264,7 +264,7 @@ function SubSection({
         })}
       </div>
       <p className="text-[10px] text-tertiary mt-1.5">
-        Check off SUBs you've earned to track their value.
+        Check off SUBs you&apos;ve earned to track their value.
       </p>
     </section>
   );

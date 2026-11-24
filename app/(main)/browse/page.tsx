@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
+import { CARDS } from "@/lib/cards";
 import { useStore } from "@/lib/store";
 import { CATEGORIES } from "@/lib/categories";
 import { CURRENCIES } from "@/lib/currencies";
@@ -13,7 +14,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -323,13 +323,9 @@ export default function BrowsePage() {
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
   const [detailCard, setDetailCard] = useState<Card | null>(null);
 
-  // Lazy-load the card database so it splits into its own chunk.
-  // Use baseCards.length === 0 as the skeleton condition — stable on both server
-  // and client initial render, avoiding hydration mismatches.
-  const [baseCards, setBaseCards] = useState<Card[]>([]);
-  useEffect(() => {
-    import("@/lib/cards").then((m) => setBaseCards(m.CARDS));
-  }, []);
+  // The card list is already in the client bundle (the store imports it),
+  // so read it directly instead of lazy-loading it behind a skeleton.
+  const baseCards = CARDS;
 
   // Debounce search 200ms
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);

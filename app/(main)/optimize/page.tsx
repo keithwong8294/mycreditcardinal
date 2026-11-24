@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { CARDS } from "@/lib/cards";
 import { useStore } from "@/lib/store";
 import { CURRENCIES, CURRENCY_MAP } from "@/lib/currencies";
 import { CATEGORIES } from "@/lib/categories";
@@ -390,11 +391,9 @@ export default function OptimizePage() {
   // Track page view once on mount
   useEffect(() => { trackOptimizerViewed(); }, []);
 
-  // Lazy-load the card database so it splits into its own chunk
-  const [baseCards, setBaseCards] = useState<Card[]>([]);
-  useEffect(() => {
-    import("@/lib/cards").then((m) => setBaseCards(m.CARDS));
-  }, []);
+  // The card list is already in the client bundle (the store imports it),
+  // so read it directly instead of lazy-loading it behind a skeleton.
+  const baseCards = CARDS;
 
   const allIssuers = useMemo(
     () => Array.from(new Set(baseCards.map((c) => c.issuer))).sort(),

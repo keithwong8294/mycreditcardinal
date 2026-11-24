@@ -1,18 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+
+const noopSubscribe = () => () => {};
 
 export function InstallPrompt() {
-  const [isIOS, setIsIOS] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(false);
+  const isIOS = useSyncExternalStore(
+    noopSubscribe,
+    () => /iPad|iPhone|iPod/.test(navigator.userAgent),
+    () => false
+  );
+  const isStandalone = useSyncExternalStore(
+    noopSubscribe,
+    () => window.matchMedia("(display-mode: standalone)").matches,
+    () => false
+  );
   const [dismissed, setDismissed] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
   useEffect(() => {
-    setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent));
-    setIsStandalone(window.matchMedia("(display-mode: standalone)").matches);
-
     // Chrome / Edge on Android: capture the install prompt
     const handler = (e: Event) => {
       e.preventDefault();

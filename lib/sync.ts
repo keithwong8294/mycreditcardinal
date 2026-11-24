@@ -2,7 +2,8 @@
 
 import { createClient } from "./supabase/client";
 import { useStore } from "./store";
-import { CARDS } from "./cards";
+import { CARD_MAP } from "./cards";
+import { CATEGORIES } from "./categories";
 import type { CardConfig, WalletCard } from "@/types";
 
 // ─── Debounce ─────────────────────────────────────────────────────────────────
@@ -40,19 +41,19 @@ export async function hydrateFromSupabase(userId: string): Promise<void> {
     .order("sort_order");
   if (!members?.length) return;
 
-  // 3. Wallet cards for all members
+  // 3–4. Wallet cards + spend profiles for all members (in parallel)
   const memberIds = members.map((m) => m.id);
-  const { data: dbWalletCards } = await supabase
-    .from("wallet_cards")
-    .select("id, member_id, card_id, config_json")
-    .in("member_id", memberIds);
-
-  // 4. Per-member spend profiles
-  const { data: profiles } = await supabase
-    .from("spend_profiles")
-    .select("id, member_id, spend_json")
-    .in("member_id", memberIds)
-    .eq("is_default", true);
+  const [{ data: dbWalletCards }, { data: profiles }] = await Promise.all([
+    supabase
+      .from("wallet_cards")
+      .select("id, member_id, card_id, config_json")
+      .in("member_id", memberIds),
+    supabase
+      .from("spend_profiles")
+      .select("id, member_id, spend_json")
+      .in("member_id", memberIds)
+      .eq("is_default", true),
+  ]);
 
   // Build spend map: memberId → spend record
   const spendByMember: Record<string, Record<string, number>> = {};
@@ -80,7 +81,7 @@ export async function hydrateFromSupabase(userId: string): Promise<void> {
     );
     const cards: WalletCard[] = memberDbCards
       .map((wc) => {
-        const card = CARDS.find((c) => c.id === wc.card_id);
+        const card = CARD_MAP[wc.card_id];
         if (!card) return null;
         const config: CardConfig = {
           rotQ: (wc.config_json as CardConfig)?.rotQ ?? [null, null, null, null],
@@ -115,7 +116,7 @@ export async function hydrateFromSupabase(userId: string): Promise<void> {
   for (const person of people) {
     if (!mergedSpend[person.id]) {
       mergedSpend[person.id] = Object.fromEntries(
-        (await import("@/lib/categories")).CATEGORIES.map((c) => [c.id, c.defaultAmount])
+        CATEGORIES.map((c) => [c.id, c.defaultAmount])
       );
     }
   }
@@ -196,37 +197,33 @@ export async function syncToSupabase(userId: string): Promise<void> {
     }
   }
 
-  // 5. Upsert per-member spend profiles
-  for (const person of state.people) {
-    const memberSpend = state.spend[person.id];
-    if (!memberSpend) continue;
-
-    // Try to find existing spend profile for this member
-    const { data: existing } = await supabase
+  // 5. Upsert per-member spend profiles — one read + at most two writes,
+  //    instead of a select/upsert round-trip per person.
+  const peopleWithSpend = state.people.filter((p) => state.spend[p.id]);
+  if (peopleWithSpend.length > 0) {
+    const { data: existingProfiles } = await supabase
       .from("spend_profiles")
-      .select("id")
-      .eq("member_id", person.id)
-      .eq("is_default", true)
-      .limit(1);
-
-    if (existing?.[0]) {
-      await supabase.from("spend_profiles").upsert({
-        id: existing[0].id,
-        user_id: userId,
-        member_id: person.id,
-        name: "Default",
-        spend_json: memberSpend,
-        is_default: true,
-      });
-    } else {
-      await supabase.from("spend_profiles").insert({
-        user_id: userId,
-        member_id: person.id,
-        name: "Default",
-        spend_json: memberSpend,
-        is_default: true,
-      });
-    }
+      .select("id, member_id")
+      .in("member_id", peopleWithSpend.map((p) => p.id))
+      .eq("is_default", true);
+    const profileIdByMember = new Map(
+      (existingProfiles ?? []).map((r: { id: string; member_id: string }) => [r.member_id, r.id])
+    );
+    const rows = peopleWithSpend.map((person) => ({
+      user_id: userId,
+      member_id: person.id,
+      name: "Default",
+      spend_json: state.spend[person.id],
+      is_default: true,
+    }));
+    const updates = rows
+      .filter((r) => profileIdByMember.has(r.member_id))
+      .map((r) => ({ ...r, id: profileIdByMember.get(r.member_id)! }));
+    const inserts = rows.filter((r) => !profileIdByMember.has(r.member_id));
+    await Promise.all([
+      updates.length ? supabase.from("spend_profiles").upsert(updates) : null,
+      inserts.length ? supabase.from("spend_profiles").insert(inserts) : null,
+    ]);
   }
 
   // 6. Reconcile sub_earned (delete all, re-insert current)
@@ -244,11 +241,30 @@ export async function syncToSupabase(userId: string): Promise<void> {
 // ─── Offline queue ────────────────────────────────────────────────────────────
 
 let pendingSync = false;
+let inFlight: Promise<void> | null = null;
+let rerunRequested = false;
+
+/** Run a sync, coalescing calls that arrive while one is already running. */
+function runSync(userId: string) {
+  if (inFlight) {
+    rerunRequested = true;
+    return;
+  }
+  inFlight = syncToSupabase(userId)
+    .catch(console.error)
+    .finally(() => {
+      inFlight = null;
+      if (rerunRequested) {
+        rerunRequested = false;
+        runSync(userId);
+      }
+    });
+}
 
 function flushIfOnline(userId: string) {
   if (pendingSync && navigator.onLine) {
     pendingSync = false;
-    syncToSupabase(userId).catch(console.error);
+    runSync(userId);
   }
 }
 
@@ -264,7 +280,7 @@ export function createSyncer(userId: string): () => void {
       pendingSync = true;
       return;
     }
-    syncToSupabase(userId).catch(console.error);
+    runSync(userId);
   }, 1500);
 
   // Subscribe to store changes that warrant a DB write

@@ -219,7 +219,7 @@ export const useStore = create<Store>()(
           const exists = person.cards.find((wc) => wc.card.id === cardId);
 
           let updatedCards: WalletCard[];
-          let updatedConfigs = { ...s.cardConfigs };
+          const updatedConfigs = { ...s.cardConfigs };
 
           if (exists) {
             // Remove card

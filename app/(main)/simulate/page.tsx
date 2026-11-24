@@ -5,7 +5,7 @@ import { trackSpendUpdated } from "@/lib/analytics";
 import { useStore } from "@/lib/store";
 import { CATEGORIES } from "@/lib/categories";
 import { CURRENCY_MAP } from "@/lib/currencies";
-import { routeMonth, routeAnnual, calculateFees, calculateSubValue } from "@/lib/engine";
+import { routeMonth, calculateFees, calculateSubValue } from "@/lib/engine";
 import type { ValuationTier } from "@/lib/engine";
 import type { RoutingRow, WalletCard } from "@/types";
 import {
@@ -95,9 +95,11 @@ function SpendRow({
   const [inputVal, setInputVal] = useState(String(Math.round(spend)));
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const prevSpend = useRef(spend);
-  if (prevSpend.current !== spend) {
-    prevSpend.current = spend;
+  // Re-sync the text box when spend changes externally (React's
+  // "adjust state during render" pattern — no ref access during render).
+  const [prevSpend, setPrevSpend] = useState(spend);
+  if (prevSpend !== spend) {
+    setPrevSpend(spend);
     setInputVal(String(Math.round(spend)));
   }
 

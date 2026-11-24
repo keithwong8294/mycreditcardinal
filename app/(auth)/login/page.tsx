@@ -1,19 +1,32 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { Suspense, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signInWithGoogle, signInWithEmail } from "@/lib/supabase/actions";
 
 const ERROR_MESSAGES: Record<string, string> = {
-  auth_failed: "Authentication failed. Please try again.",
+  auth_failed: "Sign-in failed. Please try again.",
+  access_denied: "Google sign-in was cancelled.",
+  google_failed: "Couldn't start Google sign-in.",
   missing_code: "Invalid login link. Please try again.",
   no_user: "Could not retrieve your account. Please try again.",
 };
 
 export default function LoginPage() {
+  // useSearchParams needs a Suspense boundary so the page can prerender.
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const errorParam = searchParams.get("error");
+  const errorDetail = searchParams.get("detail");
+  const [googleError, setGoogleError] = useState("");
 
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
@@ -38,11 +51,25 @@ export default function LoginPage() {
 
   async function handleGoogle() {
     setGooglePending(true);
+    setGoogleError("");
     try {
-      await signInWithGoogle(fingerprintRef.current ?? undefined);
-    } catch {
+      // On success the server action redirects to Google, so this only
+      // returns when something went wrong.
+      const result = await signInWithGoogle(fingerprintRef.current ?? undefined);
+      if (result?.error) {
+        setGoogleError(result.error);
+        setGooglePending(false);
+      }
+    } catch (err) {
+      // Next's redirect() surfaces as a thrown NEXT_REDIRECT; let it navigate.
+      if (err instanceof Error && err.message.includes("NEXT_REDIRECT")) return;
+      setGoogleError(ERROR_MESSAGES.google_failed);
       setGooglePending(false);
     }
+  }
+
+  function continueAsGuest() {
+    router.push("/browse");
   }
 
   function handleEmail(e: React.FormEvent) {
@@ -64,7 +91,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface px-4">
-      <div className="w-full max-w-sm">
+      <div className="w-full max-w-md">
         {/* Card */}
         <div className="bg-white border border-subtle rounded-lg p-8 space-y-6">
           {/* Logo */}
@@ -77,10 +104,35 @@ export default function LoginPage() {
             </p>
           </div>
 
+          {/* Continue as guest — the primary demo path */}
+          <button
+            onClick={continueAsGuest}
+            autoFocus
+            className="group w-full flex flex-col items-center justify-center gap-1 px-6 py-5 rounded-xl bg-green hover:bg-green/90 active:scale-[0.99] text-white shadow-lg shadow-green/20 transition-all duration-150 focus:outline-none focus-visible:ring-4 focus-visible:ring-green/30"
+          >
+            <span className="text-[18px] font-semibold leading-tight">
+              Continue without signing in →
+            </span>
+            <span className="text-[12px] text-white/80">
+              Jump straight in · no account needed
+            </span>
+          </button>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px bg-subtle" />
+            <span className="text-tertiary text-[11px]">or sign in to sync across devices</span>
+            <div className="flex-1 h-px bg-subtle" />
+          </div>
+
           {/* Auth error from callback */}
-          {errorParam && ERROR_MESSAGES[errorParam] && (
-            <p className="text-red text-[12px]">{ERROR_MESSAGES[errorParam]}</p>
+          {errorParam && (
+            <div className="text-red text-[12px] space-y-0.5">
+              <p>{ERROR_MESSAGES[errorParam] ?? ERROR_MESSAGES.auth_failed}</p>
+              {errorDetail && <p className="text-tertiary text-[11px]">{errorDetail}</p>}
+            </div>
           )}
+          {googleError && <p className="text-red text-[12px]">{googleError}</p>}
 
           {sent ? (
             <div className="space-y-2">
@@ -158,21 +210,13 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={isPending}
-                  className="w-full py-2.5 bg-green hover:bg-green/90 text-white text-[13px] font-medium rounded-lg transition-colors duration-150 disabled:opacity-50"
+                  className="w-full py-2.5 border border-subtle text-primary hover:bg-hover text-[13px] font-medium rounded-lg transition-colors duration-150 disabled:opacity-50"
                 >
                   {isPending ? "Sending…" : "Send magic link"}
                 </button>
               </form>
             </>
           )}
-
-          {/* Continue as guest */}
-          <button
-            onClick={() => router.push("/browse")}
-            className="w-full py-2.5 border border-subtle rounded-lg text-[13px] font-medium text-secondary hover:bg-hover hover:text-primary transition-colors duration-150"
-          >
-            Continue without signing in
-          </button>
 
           {/* Fine print */}
           <p className="text-tertiary text-[11px] text-center">

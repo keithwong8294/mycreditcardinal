@@ -3,7 +3,6 @@ import { Outfit } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/AuthProvider";
 import { PostHogProvider } from "@/components/PostHogProvider";
-import { createClient } from "@/lib/supabase/server";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { InstallPrompt } from "@/components/InstallPrompt";
@@ -28,20 +27,15 @@ export const viewport: Viewport = {
   themeColor: "#0f1219",
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
   return (
     <html lang="en" className={outfit.variable}>
       <body className="min-h-screen antialiased font-sans">
-        <AuthProvider initialUser={user}>
+        <AuthProvider>
           <PostHogProvider>
             {children}
             <ServiceWorkerRegistration />

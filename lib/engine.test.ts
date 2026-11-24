@@ -226,15 +226,15 @@ describe("routeAnnual", () => {
 
 describe("calculateFees", () => {
   it("sums gross fees", () => {
-    const wallet = [makeWalletCard("csr"), makeWalletCard("csp")]; // $550 + $95
+    const wallet = [makeWalletCard("csr"), makeWalletCard("csp")]; // $795 + $95
     const { grossFees } = calculateFees(wallet);
-    expect(grossFees).toBe(645);
+    expect(grossFees).toBe(890);
   });
 
   it("subtracts annual credits to get net fees", () => {
-    const wallet = [makeWalletCard("csr")]; // $550 fee, $300 travel credit
+    const wallet = [makeWalletCard("csr")]; // $795 fee, $300 travel credit + more
     const { grossFees, estimatedCredits, netFees } = calculateFees(wallet);
-    expect(grossFees).toBe(550);
+    expect(grossFees).toBe(795);
     expect(estimatedCredits).toBeGreaterThanOrEqual(300);
     expect(netFees).toBe(grossFees - estimatedCredits);
   });
@@ -249,10 +249,10 @@ describe("calculateSubValue", () => {
   });
 
   it("calculates dollar value of earned SUB at composite cpp", () => {
-    // CSR SUB: 60,000 chase_ur at 2.00¢ = $1,200
+    // CSR SUB: 125,000 chase_ur at 2.00¢ = $2,500
     const wc = makeWalletCard("csr");
     const value = calculateSubValue([wc], new Set([wc.id]), "composite");
-    expect(value).toBeCloseTo(1200);
+    expect(value).toBeCloseTo(2500);
   });
 });
 
@@ -292,5 +292,36 @@ describe("getRecommendations", () => {
     const amexGold = recs.find((r) => r.card.id === "amex_gold");
     expect(amexGold).toBeDefined();
     expect(amexGold!.improvements.some((i) => i.categoryId === "dining" || i.categoryId === "groceries")).toBe(true);
+  });
+});
+
+// ─── Card database integrity ──────────────────────────────────────────────────
+
+import { CARD_MAP } from "./cards";
+import { CURRENCY_MAP } from "./currencies";
+import { CATEGORY_IDS } from "./categories";
+
+describe("card database", () => {
+  it("has unique ids and a lookup map entry for every card", () => {
+    const ids = CARDS.map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const c of CARDS) expect(CARD_MAP[c.id]).toBe(c);
+  });
+
+  it("uses known currencies and fills every category", () => {
+    for (const c of CARDS) {
+      expect(CURRENCY_MAP[c.currency], `${c.id} currency`).toBeDefined();
+      for (const cat of CATEGORY_IDS) {
+        expect(typeof c.earn_json[cat], `${c.id}.${cat}`).toBe("number");
+      }
+    }
+  });
+
+  it("only offers custom/rotating options that are real categories", () => {
+    for (const c of CARDS) {
+      for (const opt of [...(c.custom_opts ?? []), ...(c.rot_opts ?? [])]) {
+        expect(CATEGORY_IDS, `${c.id} option ${opt}`).toContain(opt);
+      }
+    }
   });
 });
