@@ -11,7 +11,6 @@ import {
   routeAnnual,
   calculateFees,
   calculateSubValue,
-  candidateConfig,
   rankingValuation,
 } from "@/lib/engine";
 import type { OptimizerPreferences, CardGoal, CreditUsage, Redemption, Ecosystem } from "@/lib/engine";
@@ -52,9 +51,9 @@ function fmtPct(n: number): string {
 }
 
 const GOAL_OPTIONS: { value: CardGoal; label: string; hint: string }[] = [
-  { value: "everyday", label: "Earn more on everyday spending", hint: "Ranks by value every year; welcome bonuses are spread over a few years." },
+  { value: "everyday", label: "Earn more on everyday spending", hint: "Ranked by what it adds to your earnings every year, after the fee. Welcome bonuses are shown but don't change the order." },
   { value: "bonuses", label: "Collect sign-up bonuses", hint: "Welcome bonuses count in full, as long as your spend can hit the minimum." },
-  { value: "cashback", label: "Simple cash back", hint: "Points are valued at what they cash out for, not transfer value." },
+  { value: "cashback", label: "Simple cash back", hint: "Points are valued at what they cash out for. Ranked by yearly value after the fee." },
   { value: "travel", label: "Travel rewards", hint: "Only transferable points and airline or hotel cards." },
   { value: "credit", label: "Build my credit", hint: "No-fee cards with easier approval; bonuses are ignored." },
 ];
@@ -174,7 +173,7 @@ function WhatIfModal({
   const currentSubValue = calculateSubValue(walletCards, subEarnedSet, tier);
 
   // Build a synthetic wallet card for the candidate
-  const syntheticWc = { id: "__whatif__", card: rec.card, config: candidateConfig(rec.card, spend) };
+  const syntheticWc = { id: "__whatif__", card: rec.card, config: rec.config };
   const withCard = [...walletCards, syntheticWc];
 
   const withAnnual = routeAnnual(withCard, spend, overrides, quarterConfigs, tier);
@@ -277,7 +276,7 @@ function WhatIfModal({
 
 // ─── Explanation generator ────────────────────────────────────────────────────
 
-function generateExplanation(rec: Recommendation, spend: Record<string, number>): string {
+function generateExplanation(rec: Recommendation, spend: Record<string, number>, creditsCapped: boolean): string {
   const parts: string[] = [];
 
   const topImp = rec.improvements[0];
@@ -295,7 +294,12 @@ function generateExplanation(rec: Recommendation, spend: Record<string, number>)
   }
 
   if (rec.creditValue > 0) {
-    parts.push(`Includes ${fmtDollar(rec.creditValue)} of statement credits you said you'd use.`);
+    const allCredits = rec.card.perks_json.reduce((s, p) => s + (p.annual_credit ?? 0), 0);
+    parts.push(
+      creditsCapped && rec.creditValue >= rec.card.fee && allCredits > rec.card.fee
+        ? `Statement credits you'd use cover the ${fmtDollar(rec.card.fee)} fee; for this goal, credits beyond the fee don't count.`
+        : `Includes ${fmtDollar(rec.creditValue)} of statement credits you said you'd use.`
+    );
   }
 
   parts.push(
@@ -325,11 +329,14 @@ function RecommendationCard({
   spend,
   onAddToWallet,
   inWallet,
+  creditsCapped = false,
 }: {
   rec: Recommendation;
   spend: Record<string, number>;
   onAddToWallet: () => void;
   inWallet: boolean;
+  /** Credits only offset the fee for the chosen goal. */
+  creditsCapped?: boolean;
 }) {
   const [whatIfOpen, setWhatIfOpen] = useState(false);
   const currency = CURRENCY_MAP[rec.card.currency];
@@ -421,7 +428,7 @@ function RecommendationCard({
 
         {/* Plain-English explanation */}
         <p className="text-[13px] text-secondary leading-relaxed border-t border-subtle pt-2">
-          {generateExplanation(rec, spend)}
+          {generateExplanation(rec, spend, creditsCapped)}
         </p>
 
         {/* Actions */}
@@ -501,10 +508,12 @@ export default function OptimizePage() {
 
   const allCards = useMemo(() => [...baseCards, ...customCards], [baseCards, customCards]);
 
-  const { recommendations, hiddenBusinessCount, hidden524Count, hiddenNewBankCount } = useMemo(
+  const { recommendations, hiddenBusinessCount, hidden524Count, hiddenNewBankCount, focusSpendAssumed } = useMemo(
     () => getRecommendationSummary(walletCards, spend, preferences, allCards, valuationTier),
     [walletCards, spend, preferences, allCards, valuationTier]
   );
+  const creditsCapped = optimizerAnswers.goal === "everyday" || optimizerAnswers.goal === "cashback";
+  const focusLabel = CATEGORIES.find((c) => c.id === optimizerAnswers.focusCategory)?.label;
   const goalHint = GOAL_OPTIONS.find((g) => g.value === optimizerAnswers.goal)?.hint;
 
   const walletCardIds = useMemo(
@@ -547,6 +556,8 @@ export default function OptimizePage() {
           {optimizerAnswers.focusCategory && (
             <div className="text-[12px] text-tertiary mt-1.5">
               Only cards that raise it are shown, ranked by how much more you&apos;d earn on it.
+              {focusSpendAssumed != null &&
+                ` You have no ${focusLabel?.toLowerCase()} spending in the simulator, so we assumed $${focusSpendAssumed}/month.`}
             </div>
           )}
         </Question>
@@ -731,6 +742,7 @@ export default function OptimizePage() {
                         spend={spend}
                         onAddToWallet={() => {}}
                         inWallet={walletCardIds.has(rec.card.id)}
+                        creditsCapped={creditsCapped}
                       />
                     </div>
                     {/* Upgrade overlay */}
@@ -753,10 +765,11 @@ export default function OptimizePage() {
                   rec={rec}
                   spend={spend}
                   onAddToWallet={() => {
-                    toggleCard(rec.card.id);
+                    toggleCard(rec.card.id, rec.config);
                     trackOptimizerCardAdded(rec.card.id, rec.card.name, rec.netValue);
                   }}
                   inWallet={walletCardIds.has(rec.card.id)}
+                  creditsCapped={creditsCapped}
                 />
               );
             })}

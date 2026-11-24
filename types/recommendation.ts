@@ -1,4 +1,5 @@
 import type { Card } from "./card";
+import type { CardConfig } from "./walletCard";
 
 export interface CategoryImprovement {
   categoryId: string;
@@ -11,9 +12,11 @@ export interface CategoryImprovement {
 
 export interface Recommendation {
   card: Card;
+  /** Rotating / chosen-category setup the card was scored with */
+  config: CardConfig;
   /** Annual dollar value gained from improved earn rates (caps respected) */
   earnGain: number;
-  /** Statement credits counted at the user's expected usage */
+  /** Statement credits counted at the user's expected usage (capped at the fee for earning goals) */
   creditValue: number;
   /** Dollar value of the sign-up bonus (0 when the user's spend can't reach it) */
   subValue: number;

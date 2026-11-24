@@ -115,7 +115,8 @@ export interface AppActions {
   setActivePerson: (personId: string) => void;
 
   // Cards
-  toggleCard: (cardId: string) => void;
+  /** Adds or removes a card for the active person; `config` sets its picks when adding. */
+  toggleCard: (cardId: string, config?: CardConfig) => void;
   toggleCardForPerson: (cardId: string, personId: string) => void;
   addCustomCard: (card: Omit<Card, "id" | "status">) => void;
   removeCustomCard: (cardId: string) => void;
@@ -252,7 +253,7 @@ export const useStore = create<Store>()(
 
       // ── Cards ────────────────────────────────────────────────────────────────
 
-      toggleCard(cardId) {
+      toggleCard(cardId, initialConfig) {
         const s0 = get();
         const card =
           CARDS.find((c) => c.id === cardId) ??
@@ -274,9 +275,9 @@ export const useStore = create<Store>()(
           } else {
             // Add card — auto-populate rotQ for rotating cards from rotation_schedule
             const walletCardId = uuid();
-            const config: CardConfig = card.rotating
-              ? { rotQ: rotQFromSchedule(card), custom: [] }
-              : defaultConfig();
+            const config: CardConfig =
+              initialConfig ??
+              (card.rotating ? { rotQ: rotQFromSchedule(card), custom: [] } : defaultConfig());
             updatedConfigs[walletCardId] = config;
             updatedCards = [
               ...person.cards,

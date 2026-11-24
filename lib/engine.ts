@@ -257,19 +257,25 @@ interface GoalRules {
   allows?: (card: Card) => boolean;
   /** The card must raise what the user earns on their spending. */
   needsEarnGain?: boolean;
+  /**
+   * Statement credits only offset the card's own fee: they can make a fee
+   * card worth holding, but don't make it better at earning on spending.
+   */
+  creditsOnlyOffsetFee?: boolean;
 }
 
 const CASH_CURRENCIES = new Set(["cash", "discover"]);
 
 export const GOAL_RULES: Record<CardGoal, GoalRules> = {
-  // Best long-run earning; the bonus is spread over a typical ~4-year hold.
+  // Best long-run earning: ranked by what the card adds every year, the same
+  // number the card shows; the welcome bonus is shown but doesn't set the order.
   // A card that doesn't lift any category's earnings doesn't fit this goal,
   // however big its credits or bonus.
-  everyday: { bonusWeight: 0.25, cashValue: false, needsEarnGain: true },
+  everyday: { bonusWeight: 0, cashValue: false, needsEarnGain: true, creditsOnlyOffsetFee: true },
   // Churning: the welcome bonus counts in full, even on cards you'd cancel later.
   bonuses: { bonusWeight: 1, cashValue: false, allowNegativeOngoing: true },
-  // Simple cash back: points are worth what they cash out for.
-  cashback: { bonusWeight: 0.25, cashValue: true, needsEarnGain: true },
+  // Simple cash back: points are worth what they cash out for; ranked by yearly value.
+  cashback: { bonusWeight: 0, cashValue: true, needsEarnGain: true, creditsOnlyOffsetFee: true },
   // Travel: transferable points and co-brands only.
   travel: { bonusWeight: 0.5, cashValue: false, allows: (c) => !CASH_CURRENCIES.has(c.currency) },
   // Building credit: no annual fee, approachable approval odds, bonus ignored.
@@ -697,6 +703,11 @@ export interface RecommendationSummary {
   hidden524Count: number;
   /** Cards from new banks/programs hidden because the user wants to stay put. */
   hiddenNewBankCount: number;
+  /**
+   * Monthly spend assumed for the focus category when the user's spend has
+   * none (so the focus still means something), else null.
+   */
+  focusSpendAssumed: number | null;
 }
 
 /**
@@ -733,10 +744,15 @@ export function getRecommendationSummary(
   const creditWeight = CREDIT_WEIGHT[prefs.creditUsage ?? "none"];
   const walletCardIds = new Set(walletCards.map((wc) => wc.card.id));
   const monthlyTotal = Object.values(spend).reduce((s, v) => s + (v > 0 ? v : 0), 0);
-  const focus = prefs.focusCategory && (spend[prefs.focusCategory] ?? 0) > 0 ? prefs.focusCategory : null;
+  const focus = prefs.focusCategory && CATEGORIES.some((c) => c.id === prefs.focusCategory) ? prefs.focusCategory : null;
+  // A focus category the user has no spend in would otherwise be silently
+  // ignored (nothing can improve $0); score it at a typical amount instead.
+  const focusSpendAssumed =
+    focus && !((spend[focus] ?? 0) > 0) ? CATEGORIES.find((c) => c.id === focus)!.defaultAmount || 100 : null;
+  const planSpend = focusSpendAssumed != null ? { ...spend, [focus!]: focusSpendAssumed } : spend;
   const stay = prefs.ecosystem === "stay" && walletCards.length > 0;
 
-  const baseline = byCategory(routeAnnual(walletCards, spend, {}, {}, rankTier));
+  const baseline = byCategory(routeAnnual(walletCards, planSpend, {}, {}, rankTier));
 
   const results: Recommendation[] = [];
   let hiddenBusinessCount = 0;
@@ -789,6 +805,7 @@ export function getRecommendationSummary(
     hiddenBusinessCount,
     hidden524Count,
     hiddenNewBankCount,
+    focusSpendAssumed,
   };
 
   function qualifies(rec: Recommendation): boolean {
@@ -800,11 +817,54 @@ export function getRecommendationSummary(
     return true;
   }
 
-  function scoreCandidate(card: Card): Recommendation {
-    const config = candidateConfig(card, spend);
-    const withCard = byCategory(
-      routeAnnual([...walletCards, { id: "__candidate__", card, config }], spend, {}, {}, rankTier)
+  /** Year of routing with the candidate added, under a given config. */
+  function simulate(card: Card, config: WalletCard["config"]) {
+    return byCategory(
+      routeAnnual([...walletCards, { id: "__candidate__", card, config }], planSpend, {}, {}, rankTier)
     );
+  }
+
+  /** How good a simulated year is: focus-category gain first, then total gain. */
+  function gainOf(withCard: ReturnType<typeof byCategory>): [number, number] {
+    let total = 0;
+    for (const cat of CATEGORIES) total += (withCard[cat.id]?.value ?? 0) - (baseline[cat.id]?.value ?? 0);
+    const f = focus ? (withCard[focus]?.value ?? 0) - (baseline[focus]?.value ?? 0) : 0;
+    return [Math.round(f), total];
+  }
+
+  /**
+   * Picks the card's choosable categories (Custom Cash, Cash+, …) that add
+   * the most to this wallet, rather than the biggest spend categories: a
+   * 5% pick on dining is worth little if dining already earns 5% elsewhere.
+   */
+  function bestConfig(card: Card): { config: WalletCard["config"]; withCard: ReturnType<typeof byCategory> } {
+    const start = candidateConfig(card, planSpend);
+    const opts = card.custom_select ? card.custom_opts ?? [] : [];
+    const k = Math.min(card.custom_max ?? 0, opts.length);
+    let best = { config: start, withCard: simulate(card, start) };
+    if (k === 0) return best;
+    let bestScore = gainOf(best.withCard);
+    const combos: string[][] = [];
+    const pick = (from: number, acc: string[]) => {
+      if (combos.length > 60) return;
+      if (acc.length === k) return void combos.push(acc);
+      for (let i = from; i < opts.length; i++) pick(i + 1, [...acc, opts[i]]);
+    };
+    pick(0, []);
+    for (const custom of combos) {
+      const config = { ...start, custom };
+      const withCard = simulate(card, config);
+      const score = gainOf(withCard);
+      if (score[0] > bestScore[0] || (score[0] === bestScore[0] && score[1] > bestScore[1] + 0.01)) {
+        best = { config, withCard };
+        bestScore = score;
+      }
+    }
+    return best;
+  }
+
+  function scoreCandidate(card: Card): Recommendation {
+    const { config, withCard } = bestConfig(card);
 
     const improvements: CategoryImprovement[] = [];
     let earnGain = 0;
@@ -828,7 +888,9 @@ export function getRecommendationSummary(
     );
 
     const totalCredits = card.perks_json.reduce((s, p) => s + (p.annual_credit ?? 0), 0);
-    const creditValue = totalCredits * creditWeight;
+    const creditValue = rules.creditsOnlyOffsetFee
+      ? Math.min(totalCredits * creditWeight, card.fee)
+      : totalCredits * creditWeight;
 
     const sub = card.sub_json;
     const subReachable = sub != null && monthlyTotal * sub.timeframe_months >= sub.spend_requirement;
@@ -840,6 +902,7 @@ export function getRecommendationSummary(
 
     return {
       card,
+      config,
       earnGain,
       creditValue,
       subValue,

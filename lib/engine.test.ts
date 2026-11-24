@@ -524,6 +524,30 @@ describe("routing and ranking use real value, not raw multipliers", () => {
       expect(recs.every((r) => r.earnGain >= 1)).toBe(true);
     });
 
+    it("a focus category with no spend is still honored, at an assumed amount", () => {
+      const noGas = { ...defaultSpend, gas: 0 };
+      const s = getRecommendationSummary(wallet(), noGas, prefs({ focusCategory: "gas", redemption: "cash" }), CARDS);
+      expect(s.focusSpendAssumed).toBeGreaterThan(0);
+      expect(s.recommendations.length).toBeGreaterThan(0);
+      for (const r of s.recommendations) expect(r.improvements[0].categoryId).toBe("gas");
+    });
+
+    it("picks a chosen-category card's category for what it adds, not the biggest spend", () => {
+      const s = getRecommendationSummary(wallet(), { ...defaultSpend, gas: 150 }, prefs({ focusCategory: "gas", redemption: "cash" }), CARDS);
+      const cc = s.recommendations.find((r) => r.card.id === "citi_custom_cash");
+      expect(cc).toBeDefined();
+      expect(cc!.config.custom).toEqual(["gas"]);
+    });
+
+    it("for earning goals, statement credits only offset the card's own fee", () => {
+      const recs = getRecommendations(wallet(), defaultSpend, prefs({ creditUsage: "all", redemption: "cash" }), CARDS);
+      for (const r of recs) {
+        expect(r.creditValue).toBeLessThanOrEqual(r.card.fee);
+        // so the yearly value is never more than what it adds in earnings
+        expect(r.ongoingValue).toBeLessThanOrEqual(r.earnGain + 0.01);
+      }
+    });
+
     it("a focus category only shows cards that raise it, listed first", () => {
       const recs = getRecommendations(wallet(), defaultSpend, prefs({ focusCategory: "gas" }), CARDS);
       expect(recs.length).toBeGreaterThan(0);
