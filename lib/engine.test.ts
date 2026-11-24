@@ -539,6 +539,19 @@ describe("routing and ranking use real value, not raw multipliers", () => {
       expect(cc!.config.custom).toEqual(["gas"]);
     });
 
+    it("always offers no-fee all-around picks, even when nothing beats the wallet", () => {
+      const tiny = { ...defaultSpend, dining: 0, groceries: 0, gas: 0, travel: 0, hotels: 0, streaming: 0, online: 0, entertainment: 0, transit: 0, drugstore: 0, other: 10 };
+      const s = getRecommendationSummary(wallet(), tiny, prefs(), CARDS);
+      expect(s.allAround.length).toBeGreaterThan(0);
+      for (const r of s.allAround) {
+        expect(r.card.fee).toBe(0);
+        expect(r.card.ftf).toBe(0);
+        expect(r.card.business).toBeFalsy();
+        expect(["cff", "cfu", "c1_venturex"]).not.toContain(r.card.id);
+        expect(r.card.id).not.toBe("bilt"); // 1x on everything isn't a good all-rounder
+      }
+    });
+
     it("for earning goals, statement credits only offset the card's own fee", () => {
       const recs = getRecommendations(wallet(), defaultSpend, prefs({ creditUsage: "all", redemption: "cash" }), CARDS);
       for (const r of recs) {

@@ -694,9 +694,17 @@ export function isInCurrentPrograms(card: Card, walletCards: WalletCard[]): bool
   );
 }
 
+/** No-fee cards that only pay off with a paid membership (Amazon Prime). */
+const NEEDS_MEMBERSHIP = new Set(["amazon_prime"]);
+
 /** Why a card was left out of the recommendations, for UI hints. */
 export interface RecommendationSummary {
   recommendations: Recommendation[];
+  /**
+   * Good all-around picks with no annual or foreign transaction fee, for
+   * people with no strong preference (or when nothing beats their wallet).
+   */
+  allAround: Recommendation[];
   /** Business cards that would otherwise have made the list. */
   hiddenBusinessCount: number;
   /** Chase cards hidden because of the 5/24 rule. */
@@ -759,18 +767,27 @@ export function getRecommendationSummary(
   let hidden524Count = 0;
   let hiddenNewBankCount = 0;
 
-  for (const card of allCards) {
-    if (card.status !== "active") continue;
-    if (walletCardIds.has(card.id)) continue;
+  /** Filters the user set explicitly (fee, score, issuer, currency). */
+  const passesFilters = (card: Card) =>
+    card.status === "active" &&
+    !walletCardIds.has(card.id) &&
+    (prefs.maxFee == null || card.fee <= prefs.maxFee) &&
+    (prefs.minCreditScore == null || card.fico_min == null || card.fico_min <= prefs.minCreditScore) &&
+    (prefs.preferredIssuers.length === 0 || prefs.preferredIssuers.includes(card.issuer)) &&
+    (prefs.preferredCurrencies.length === 0 || prefs.preferredCurrencies.includes(card.currency));
 
-    // Explicit filters
-    if (prefs.maxFee != null && card.fee > prefs.maxFee) continue;
-    if (prefs.minCreditScore != null && card.fico_min != null && card.fico_min > prefs.minCreditScore) continue;
-    if (prefs.preferredIssuers.length > 0 && !prefs.preferredIssuers.includes(card.issuer)) continue;
-    if (prefs.preferredCurrencies.length > 0 && !prefs.preferredCurrencies.includes(card.currency)) continue;
+  const scored = new Map<string, Recommendation>();
+  const score = (card: Card) => {
+    let r = scored.get(card.id);
+    if (!r) scored.set(card.id, (r = scoreCandidate(card)));
+    return r;
+  };
+
+  for (const card of allCards) {
+    if (!passesFilters(card)) continue;
     if (rules.allows && !rules.allows(card)) continue;
 
-    const rec = scoreCandidate(card);
+    const rec = score(card);
     if (!qualifies(rec)) continue;
 
     // Eligibility from the questionnaire (counted so the UI can say what was hidden)
@@ -800,8 +817,41 @@ export function getRecommendationSummary(
       a.card.fee - b.card.fee ||
       b.card.score - a.card.score
   );
+  const recommendations = results.slice(0, 8);
+
+  /**
+   * A card's yearly earnings on its own at typical spending, at cash-out
+   * value: an all-rounder should be good without learning transfer partners.
+   */
+  const typicalSpend = Object.fromEntries(CATEGORIES.map((c) => [c.id, c.defaultAmount]));
+  const soloValue = (card: Card) =>
+    routeAnnual([{ id: "__solo__", card, config: candidateConfig(card, typicalSpend) }], typicalSpend, {}, {}, "floor")
+      .totalDollarValue;
+
+  // Solid all-rounders: no annual fee, no foreign transaction fee, nothing
+  // to pay or join to use them. Shown whatever the answers, so there's
+  // always something sensible to look at, best fit for this wallet first.
+  const allAround = allCards
+    .filter(
+      (card) =>
+        passesFilters(card) &&
+        card.fee === 0 &&
+        card.ftf === 0 &&
+        !card.business &&
+        !NEEDS_MEMBERSHIP.has(card.id) &&
+        !(prefs.over524 && card.issuer === "Chase") &&
+        !(stay && !isInCurrentPrograms(card, walletCards))
+    )
+    .map((card) => ({ rec: score(card), solo: soloValue(card) }))
+    // Generally good = earns the most on its own for typical spending; what
+    // it adds to this wallet breaks near-ties.
+    .sort((a, b) => Math.round(b.solo / 10) - Math.round(a.solo / 10) || b.rec.earnGain - a.rec.earnGain)
+    .slice(0, 4)
+    .map((x) => x.rec);
+
   return {
-    recommendations: results.slice(0, 8),
+    recommendations,
+    allAround,
     hiddenBusinessCount,
     hidden524Count,
     hiddenNewBankCount,

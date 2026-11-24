@@ -18,6 +18,7 @@ import type { Recommendation } from "@/types";
 import type { Card } from "@/types";
 import { isLightBackground } from "@/lib/utils";
 import { CardArt } from "@/components/CardArt";
+import { earnLines } from "@/lib/cardDisplay";
 import {
   Select,
   SelectContent,
@@ -457,6 +458,55 @@ function RecommendationCard({
   );
 }
 
+// ─── All-around pick ──────────────────────────────────────────────────────────
+
+function AllAroundCard({
+  rec,
+  inWallet,
+  onAdd,
+}: {
+  rec: Recommendation;
+  inWallet: boolean;
+  onAdd: () => void;
+}) {
+  const lines = earnLines(rec.card, 3);
+  return (
+    <div className="bg-white border border-subtle rounded-lg p-4 flex flex-col gap-3">
+      <div className="flex items-start gap-3">
+        <MiniCardFace card={rec.card} />
+        <div className="flex-1 min-w-0">
+          <div className="text-[14px] font-medium text-primary truncate">{rec.card.name}</div>
+          <div className="text-[12px] text-secondary">{rec.card.issuer} · No annual fee</div>
+        </div>
+      </div>
+      <ul className="space-y-0.5 text-[12px] text-secondary">
+        {lines.map((l) => (
+          <li key={l.label}>
+            <span className="font-semibold text-primary tabular-nums">{l.rate}</span> {l.label}
+          </li>
+        ))}
+      </ul>
+      <div className="text-[12px] text-secondary mt-auto">
+        {rec.earnGain >= 1 ? (
+          <>
+            <span className="font-medium text-green">+{fmtDollar(rec.earnGain)}/yr</span> with your spending
+          </>
+        ) : (
+          "Your wallet already earns this much; a solid no-fee backup."
+        )}
+      </div>
+      <button
+        onClick={onAdd}
+        className={`text-[13px] font-medium px-3 py-1.5 rounded-md transition-colors duration-150 ${
+          inWallet ? "bg-green/10 text-green hover:bg-green/20" : "border border-subtle text-primary hover:border-medium"
+        }`}
+      >
+        {inWallet ? "In wallet ✓" : "Add to wallet"}
+      </button>
+    </div>
+  );
+}
+
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function OptimizePage() {
@@ -508,7 +558,7 @@ export default function OptimizePage() {
 
   const allCards = useMemo(() => [...baseCards, ...customCards], [baseCards, customCards]);
 
-  const { recommendations, hiddenBusinessCount, hidden524Count, hiddenNewBankCount, focusSpendAssumed } = useMemo(
+  const { recommendations, allAround, hiddenBusinessCount, hidden524Count, hiddenNewBankCount, focusSpendAssumed } = useMemo(
     () => getRecommendationSummary(walletCards, spend, preferences, allCards, valuationTier),
     [walletCards, spend, preferences, allCards, valuationTier]
   );
@@ -704,8 +754,14 @@ export default function OptimizePage() {
       {/* No results */}
       {baseCards.length > 0 && walletCards.length > 0 && recommendations.length === 0 && (
         <div className="bg-white border border-subtle rounded-lg p-8 text-center">
-          <div className="text-[14px] text-secondary">No recommendations match your current filters.</div>
-          <div className="text-[12px] text-tertiary mt-1">Try a different goal, category or bank preference, or relax the filters below.</div>
+          <div className="text-[14px] text-secondary">
+            Nothing beats your current wallet by enough for these answers.
+          </div>
+          <div className="text-[12px] text-tertiary mt-1">
+            {allAround.length > 0
+              ? "The no-fee cards below are still good all-around picks. Or try a different goal or category."
+              : "Try a different goal, category or bank preference, or relax the filters."}
+          </div>
         </div>
       )}
 
@@ -775,6 +831,31 @@ export default function OptimizePage() {
             })}
           </div>
         </div>
+      )}
+
+      {/* Good all-around picks */}
+      {allAround.length > 0 && (
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-[18px] font-semibold text-ink">Good all-around cards</h2>
+            <p className="text-[13px] text-secondary mt-0.5">
+              No annual fee, no foreign transaction fee, nothing to join. A safe pick if you don&apos;t have a strong preference.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {allAround.map((rec) => (
+              <AllAroundCard
+                key={rec.card.id}
+                rec={rec}
+                inWallet={walletCardIds.has(rec.card.id)}
+                onAdd={() => {
+                  toggleCard(rec.card.id, rec.config);
+                  trackOptimizerCardAdded(rec.card.id, rec.card.name, rec.netValue);
+                }}
+              />
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Disclaimer */}
