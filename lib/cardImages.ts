@@ -1,0 +1,50 @@
+// Card ids with issuer card art saved at public/cards/<id>.webp.
+// Cards not listed here (e.g. ones added from the admin page) fall back to
+// their color gradient.
+export const CARD_IMAGE_IDS: ReadonlySet<string> = new Set([
+  "amazon_prime",
+  "amex_bbp",
+  "amex_bce",
+  "amex_bcp",
+  "amex_delta_gold",
+  "amex_gold",
+  "amex_green",
+  "amex_hilton_surpass",
+  "amex_plat",
+  "bilt",
+  "bilt_obsidian",
+  "bilt_palladium",
+  "boa_ccr",
+  "boa_premium_rewards",
+  "c1_quicksilver",
+  "c1_savorone",
+  "c1_venture",
+  "c1_ventureone",
+  "c1_venturex",
+  "cff",
+  "cfu",
+  "chase_hyatt",
+  "chase_ink_cash",
+  "chase_ink_preferred",
+  "chase_ink_unlimited",
+  "chase_marriott_boundless",
+  "chase_united_explorer",
+  "citi_custom_cash",
+  "citi_double_cash",
+  "citi_strata",
+  "citi_strata_elite",
+  "citi_strata_premier",
+  "csp",
+  "csr",
+  "discover_it",
+  "robinhood_gold",
+  "usb_altitude_go",
+  "usb_cash_plus",
+  "wf_active_cash",
+  "wf_autograph",
+  "wf_autograph_journey",
+]);
+
+export function cardImageSrc(id: string): string | null {
+  return CARD_IMAGE_IDS.has(id) ? `/cards/${id}.webp` : null;
+}

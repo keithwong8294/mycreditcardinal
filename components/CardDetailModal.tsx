@@ -8,6 +8,8 @@ import type { Card } from "@/types";
 import { cardGradient, isLightBackground } from "@/lib/utils";
 import { useProCheck } from "@/lib/useProCheck";
 import { UpgradeModal } from "@/components/UpgradeModal";
+import { CardArt } from "@/components/CardArt";
+import { cardImageSrc } from "@/lib/cardImages";
 import { trackCardAdded, trackCardRemoved } from "@/lib/analytics";
 import {
   Dialog,
@@ -77,15 +79,23 @@ export function CardDetailModal({
     }
   }
 
+  const hasImage = cardImageSrc(card.id) !== null;
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto p-0">
           {/* Card face */}
           <div
-            className="h-28 flex flex-col justify-end p-4 relative"
+            className={`h-28 flex flex-col justify-end p-4 relative ${hasImage ? "pr-36" : ""}`}
             style={{ background: cardGradient(card.color_json) }}
           >
+            {hasImage && (
+              <CardArt
+                card={card}
+                className="absolute right-4 top-1/2 -translate-y-1/2 w-28 h-[70px] rounded-md shadow-[0_4px_12px_rgba(0,0,0,0.35)]"
+              />
+            )}
             {(() => {
               const light = isLightBackground(card.color_json);
               const shadow = "0 1px 2px rgba(0,0,0,0.3)";

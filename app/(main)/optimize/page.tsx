@@ -17,7 +17,8 @@ import {
 import type { OptimizerPreferences, CardGoal, CreditUsage, Redemption, Ecosystem } from "@/lib/engine";
 import type { Recommendation } from "@/types";
 import type { Card } from "@/types";
-import { cardGradient, isLightBackground } from "@/lib/utils";
+import { isLightBackground } from "@/lib/utils";
+import { CardArt } from "@/components/CardArt";
 import {
   Select,
   SelectContent,
@@ -130,21 +131,19 @@ const SCORE_OPTIONS = [
 
 // ─── Mini card face ────────────────────────────────────────────────────────────
 
-function MiniCardFace({ colorJson, name, issuer }: { colorJson: string[]; name: string; issuer: string }) {
-  const gradient = cardGradient(colorJson);
-  const lightBg = isLightBackground(colorJson);
+function MiniCardFace({ card }: { card: Card }) {
+  const lightBg = isLightBackground(card.color_json);
   return (
-    <div
-      className="w-14 h-9 rounded-md flex-shrink-0 flex flex-col justify-end p-1.5 overflow-hidden"
-      style={{ background: gradient }}
-    >
-      <div className={`text-[7px] font-medium leading-none truncate ${lightBg ? "text-black/60" : "text-white/60"}`}>
-        {issuer}
+    <CardArt card={card} className="w-16 h-10 rounded-md shadow-[0_1px_2px_rgba(0,0,0,0.12)]">
+      <div className="absolute inset-0 flex flex-col justify-end p-1.5">
+        <div className={`text-[7px] font-medium leading-none truncate ${lightBg ? "text-black/60" : "text-white/60"}`}>
+          {card.issuer}
+        </div>
+        <div className={`text-[8px] font-semibold leading-tight truncate ${lightBg ? "text-black/90" : "text-white/90"}`}>
+          {card.name}
+        </div>
       </div>
-      <div className={`text-[8px] font-semibold leading-tight truncate ${lightBg ? "text-black/90" : "text-white/90"}`}>
-        {name}
-      </div>
-    </div>
+    </CardArt>
   );
 }
 
@@ -192,7 +191,7 @@ function WhatIfModal({
 
         {/* Card identity */}
         <div className="flex items-center gap-3 pb-3 border-b border-subtle">
-          <MiniCardFace colorJson={rec.card.color_json} name={rec.card.name} issuer={rec.card.issuer} />
+          <MiniCardFace card={rec.card} />
           <div>
             <div className="text-[14px] font-medium text-primary">{rec.card.name}</div>
             <div className="text-[12px] text-secondary">
@@ -337,7 +336,7 @@ function RecommendationCard({
       <div className="bg-white border border-subtle rounded-lg p-4 flex flex-col gap-3">
         {/* Header row */}
         <div className="flex items-start gap-3">
-          <MiniCardFace colorJson={rec.card.color_json} name={rec.card.name} issuer={rec.card.issuer} />
+          <MiniCardFace card={rec.card} />
           <div className="flex-1 min-w-0">
             <div className="text-[14px] font-medium text-primary truncate">{rec.card.name}</div>
             <div className="text-[12px] text-secondary">

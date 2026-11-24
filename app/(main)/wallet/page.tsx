@@ -5,10 +5,10 @@ import Link from "next/link";
 import { useStore } from "@/lib/store";
 import { CATEGORIES } from "@/lib/categories";
 import { CURRENCY_MAP } from "@/lib/currencies";
-import { cardGradient } from "@/lib/utils";
 import type { WalletCard } from "@/types";
 import { Checkbox } from "@/components/ui/checkbox";
 import { UpgradeModal } from "@/components/UpgradeModal";
+import { CardArt } from "@/components/CardArt";
 import { useProCheck } from "@/lib/useProCheck";
 import {
   Select,
@@ -166,10 +166,7 @@ function WalletCardRow({ wc }: { wc: WalletCard }) {
     <div className="bg-white border border-subtle rounded-lg p-3">
       <div className="flex items-center gap-3">
         {/* Mini card face */}
-        <div
-          className="w-12 h-[30px] rounded shrink-0"
-          style={{ background: cardGradient(wc.card.color_json) }}
-        />
+        <CardArt card={wc.card} className="w-16 h-10 rounded shadow-[0_1px_2px_rgba(0,0,0,0.12)]" />
 
         {/* Info */}
         <div className="flex-1 min-w-0">

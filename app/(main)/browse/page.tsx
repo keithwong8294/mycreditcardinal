@@ -6,11 +6,11 @@ import { useStore } from "@/lib/store";
 import { CATEGORIES } from "@/lib/categories";
 import { CURRENCIES } from "@/lib/currencies";
 import type { Card } from "@/types";
-import { cardGradient } from "@/lib/utils";
 import { cardKind, earnLines, feeLabel } from "@/lib/cardDisplay";
 import { useProCheck } from "@/lib/useProCheck";
 import { trackCardAdded } from "@/lib/analytics";
 import { CardDetailModal } from "@/components/CardDetailModal";
+import { CardArt } from "@/components/CardArt";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import {
   Dialog,
@@ -70,11 +70,7 @@ function CardTile({
         onClick={onDetails}
         className="flex gap-3.5 items-center text-left rounded-lg -m-1 p-1 hover:bg-paper transition-colors"
       >
-        <div
-          aria-hidden="true"
-          className="w-16 h-10 rounded-[5px] shrink-0 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]"
-          style={{ background: cardGradient(card.color_json) }}
-        />
+        <CardArt card={card} className="w-20 h-[50px] rounded-[5px] shadow-[0_1px_2px_rgba(0,0,0,0.12)]" />
         <div className="min-w-0">
           <h2 className="text-[16px] font-semibold leading-snug text-ink">{card.name}</h2>
           <div className="text-[13px] text-secondary mt-0.5">
