@@ -102,22 +102,19 @@ MyCreditCardinal uses a proprietary "MCC Composite" valuation — a trimmed mean
 
 ## Routing engine rules
 
-1. Routing is **per-person**. Each household member has their own spend profile and wallet cards.
+1. Routing is **per-person** by default. Each household member has their own spend profile and wallet cards. With "count spending as one household" on, one combined spend profile can use every card in the household.
 2. For each spending category, get the month's spend amount (from monthly override if exists, otherwise from default average)
 3. Evaluate all cards in THAT PERSON's wallet for this category
 4. Calculate earn rate per card per category (handle rotating, custom-select, and base rates)
-5. Sort by **raw earn rate descending** (NOT by dollar value — valuations never affect routing order)
-6. Tiebreak: user-preferred currency > higher-valued currency
-7. Check if the best card has a cap for this category. If spend exceeds cap:
-   - Route up-to-cap amount to best card
-   - Route overflow to second-best card
-   - If second card also caps, route remaining to third-best
+5. Sort by **value per dollar** (earn rate × point value). Raw multipliers aren't comparable across programs (2% cash vs 1.5x Chase points). The simulator's Floor/MCC/Ceiling toggle always routes at MCC value, so it changes dollar figures but never routing; the optimizer routes with its personalised valuation.
+6. Tiebreak: higher raw rate > user-preferred currency > higher-valued currency
+7. Bonus caps are the issuer's real caps with their real period (`caps_json` + `cap_period`: month, quarter or year; rotating 5% is per quarter). Months are routed in order and cap usage carries across the months of the period (`routeYear`), so a $1,500 quarterly cap is shared by that quarter's three months. Past a cap the card still earns its regular rate there, and the spend goes to whichever card is then worth most (often the same card).
 8. Track per-card cap usage across all categories (caps are shared, not per-category)
 9. Allow manual override per category via dropdown
 10. **Annual summary**: runs routing for each of 12 months separately (using monthly override or default), applying the correct quarterly rotation per month. Sum all 12 months.
 
 ### Special card logic:
-- **Rotating cards** (Freedom Flex, Discover it): categories **auto-populate** from the `rotation_schedule` field in the card database. When a rotating card is added to a wallet, `config_json.rotQ` is automatically set to the current year's schedule. Announced quarters always use the issuer's schedule (a quarter can have several 5% categories, which share the quarterly cap); users only pick categories for quarters that haven't been announced. Earn rate = 5x total for the quarterly categories (1x base + 4x bonus, matching issuer terms), so Freedom Flex dining is 5x in a dining quarter, not 8x.
+- **Rotating cards** (Freedom Flex, Discover it): categories **auto-populate** from the `rotation_schedule` field in the card database. When a rotating card is added to a wallet, `config_json.rotQ` is automatically set to the current year's schedule. Announced quarters always use the issuer's schedule (a quarter can have several 5% categories, which share the quarterly cap); users only pick categories for quarters that haven't been announced. The quarterly bonus is +4x on top of what the card already earns in that category (issuer terms): Discover it and Freedom Flex's 1x categories become 5x, and Freedom Flex dining (3x) becomes 7x in a dining quarter. The +4x applies to the first $1,500 of combined bonus-category spend per quarter, then the card's regular rate applies.
 - **Custom-select cards** (Citi Custom Cash, US Bank Cash+, BoA CCR): earn rate = customRate for selected categories, default rate for everything else.
 
 ### Simulator view modes:

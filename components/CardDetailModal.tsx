@@ -7,6 +7,8 @@ import { CURRENCY_MAP } from "@/lib/currencies";
 import type { Card } from "@/types";
 import { cardGradient, isLightBackground } from "@/lib/utils";
 import { announcedRotation, currentQuarter } from "@/lib/engine";
+
+const PERIOD_WORD = { month: "mo", quarter: "quarter", year: "yr" } as const;
 import { useProCheck } from "@/lib/useProCheck";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { CardArt } from "@/components/CardArt";
@@ -193,7 +195,7 @@ export function CardDetailModal({
             <Section label="Earn rates">
               {card.rotating && (
                 <div className="mb-2 px-2.5 py-1.5 bg-purple/10 rounded-lg text-[12px] text-purple font-medium">
-                  5x rotating quarterly categories · ${card.rot_cap?.toLocaleString()}/quarter cap
+                  +4% on rotating quarterly categories (5% total, more where the card already earns extra) · first ${card.rot_cap?.toLocaleString()} a quarter
                   {(() => {
                     const q = currentQuarter();
                     const cats = announcedRotation(card, q);
@@ -212,7 +214,7 @@ export function CardDetailModal({
                   {card.custom_rate}x on up to {card.custom_max} chosen{" "}
                   {card.custom_max === 1 ? "category" : "categories"}
                   {"custom" in card.caps_json
-                    ? ` · $${card.caps_json["custom"]?.toLocaleString()}/mo cap`
+                    ? ` · $${card.caps_json["custom"]?.toLocaleString()}/${PERIOD_WORD[card.cap_period ?? "month"]} cap`
                     : ""}
                 </div>
               )}

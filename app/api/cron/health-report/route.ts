@@ -4,7 +4,7 @@ import { Resend } from "resend";
 import { CARDS } from "@/lib/cards";
 import { CATEGORIES } from "@/lib/categories";
 import { CURRENCY_MAP } from "@/lib/currencies";
-import { routeMonth, calculateFees, getRecommendations } from "@/lib/engine";
+import { routeMonth, calculateFees, getRecommendations, currentQuarter } from "@/lib/engine";
 import type { WalletCard, CardConfig } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -48,7 +48,7 @@ function generateReportContent(
   const month = getMonthLabel();
 
   // Monthly routing at composite valuation
-  const routing = routeMonth(walletCards, spend, {}, 1, "composite");
+  const routing = routeMonth(walletCards, spend, {}, currentQuarter(), "composite");
   const fees = calculateFees(walletCards);
 
   // Annual earn estimate (× 12)

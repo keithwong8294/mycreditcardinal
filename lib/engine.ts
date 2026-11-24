@@ -1,4 +1,5 @@
 import type {
+  CapPeriod,
   WalletCard,
   Card,
   RoutingResult,
@@ -81,11 +82,14 @@ export function getEarnRate(
 ): number {
   const baseRate = card.earn_json[categoryId] ?? 1;
 
-  // Rotating quarterly cards (Freedom Flex, Discover it)
-  // Rotating 5% is 5x total (the 1x base plus a 4x bonus), not on top of
-  // other category bonuses, so Freedom Flex dining stays 5x, not 8x.
+  // Rotating quarterly cards (Freedom Flex, Discover it): the 5% quarter is a
+  // 4% bonus added to whatever the card already earns there. Issuer terms
+  // (Chase, Q4 2026): "you can earn both the 3% dining offer and the 5%
+  // quarterly bonus ... the most you will earn on eligible dining purchases
+  // during that quarter is 7% total". Discover's base is 1%, so 5% total.
+  // The bonus part is capped per quarter (see bonusCap).
   if (rotatingCategories(card, config, quarter).includes(categoryId)) {
-    return Math.max(baseRate, 5);
+    return baseRate + ROTATING_BONUS;
   }
 
   // Custom-select cards (Citi Custom Cash, US Bank Cash+, BoA CCR)
@@ -98,46 +102,110 @@ export function getEarnRate(
   return baseRate;
 }
 
-// ─── Cap tracking ─────────────────────────────────────────────────────────────
+// ─── Bonus caps ───────────────────────────────────────────────────────────────
+
+/** Extra rate a rotating 5% quarter adds on top of the card's own category rate. */
+export const ROTATING_BONUS = 4;
+
+const PERIOD_LABEL_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** A card's spending cap on a bonus rate. */
+export interface CapInfo {
+  /** Spend sharing one cap: "rotating", "custom", "shared" or a category id. */
+  bucket: string;
+  /** Dollars of spend per period that earn the bonus. */
+  limit: number;
+  period: CapPeriod;
+}
+
+/** Where one cap stands (spend counted so far in its current period). */
+export interface CapStatus {
+  walletCardId: string;
+  cardName: string;
+  bucket: string;
+  /** e.g. "5% quarterly categories (Groceries, Dining)" */
+  label: string;
+  period: CapPeriod;
+  /** First month (0-11) of the period this status covers. */
+  periodStart: number;
+  limit: number;
+  used: number;
+}
+
+/** Running cap usage, carried from one month to the next by routeYear. */
+export interface CapLedger {
+  /** Month being routed, 0 (Jan) … 11 (Dec). */
+  month: number;
+  caps: Record<string, CapStatus>;
+}
+
+export function newLedger(month = 0): CapLedger {
+  return { month, caps: {} };
+}
+
+function periodStart(period: CapPeriod, month: number): number {
+  if (period === "year") return 0;
+  if (period === "quarter") return Math.floor(month / 3) * 3;
+  return month;
+}
+
+function capKey(walletCardId: string, cap: CapInfo, month: number): string {
+  return `${walletCardId}|${cap.bucket}|${periodStart(cap.period, month)}`;
+}
+
+/** "Oct–Dec", "this year", "Nov" for a cap period starting at `start`. */
+export function capPeriodLabel(period: CapPeriod, start: number): string {
+  if (period === "year") return "this year";
+  if (period === "quarter") return `${PERIOD_LABEL_MONTHS[start]}–${PERIOD_LABEL_MONTHS[start + 2]}`;
+  return PERIOD_LABEL_MONTHS[start];
+}
 
 /**
- * Returns the per-category monthly spend cap (in dollars) for a card in a category,
- * or null if there is no cap.
- *
- * For rotating cards the cap applies only to the bonus portion's projected quarterly
- * spend; we track this as a monthly cap = rot_cap / 3.
- * For custom-select cards the "custom" key in caps_json is a combined monthly cap
- * across all selected categories.
+ * The cap on a card's bonus rate in a category, if any. Caps in the card
+ * data are issuer caps for the card's `cap_period`; the rotating 5% cap is
+ * always per quarter and shared by all of the quarter's categories.
  */
-function getMonthlyCap(
+export function bonusCap(
   card: Card,
   categoryId: string,
   config: WalletCard["config"],
   quarter: 1 | 2 | 3 | 4,
-  earnRate: number
-): number | null {
-  // Rotating bonus cap
+  rate: number
+): CapInfo | null {
   if (
     card.rotating &&
     card.rot_cap != null &&
-    earnRate > (card.earn_json[categoryId] ?? 1) &&
+    rate > (card.earn_json[categoryId] ?? 1) &&
     rotatingCategories(card, config, quarter).includes(categoryId)
   ) {
-    // rot_cap is quarterly and shared by all bonus categories → monthly = /3
-    return card.rot_cap / 3;
+    return { bucket: "rotating", limit: card.rot_cap, period: "quarter" };
   }
-
-  // Custom-select combined cap (shared across all selected categories)
-  if (card.custom_select && config.custom.includes(categoryId) && "custom" in card.caps_json) {
-    return card.caps_json["custom"];
+  const period = card.cap_period ?? "month";
+  if (card.custom_select && config.custom.includes(categoryId) && card.caps_json.custom != null) {
+    return { bucket: card.cap_shared ? "shared" : "custom", limit: card.caps_json.custom, period };
   }
-
-  // Explicit per-category cap
   if (card.caps_json[categoryId] != null) {
-    return card.caps_json[categoryId];
+    return { bucket: card.cap_shared ? "shared" : categoryId, limit: card.caps_json[categoryId], period };
   }
-
   return null;
+}
+
+/**
+ * What the card earns in a category once the cap is used up: its regular
+ * category rate after a rotating or chosen-category bonus (Freedom Flex
+ * dining drops from 7x to 3x), otherwise 1x.
+ */
+function rateAfterCap(card: Card, categoryId: string, cap: CapInfo): number {
+  if (cap.bucket === "rotating" || cap.bucket === "custom") return card.earn_json[categoryId] ?? 1;
+  return 1;
+}
+
+function capLabel(card: Card, cap: CapInfo, config: WalletCard["config"], quarter: 1 | 2 | 3 | 4): string {
+  const names = (ids: string[]) => ids.map((id) => CATEGORIES.find((c) => c.id === id)?.label ?? id).join(", ");
+  if (cap.bucket === "rotating") return `5% quarterly categories (${names(rotatingCategories(card, config, quarter))})`;
+  if (cap.bucket === "custom") return `Chosen category (${names(config.custom)})`;
+  if (cap.bucket === "shared") return "Bonus categories (shared cap)";
+  return `${names([cap.bucket])} bonus`;
 }
 
 // ─── routeMonth ───────────────────────────────────────────────────────────────
@@ -171,6 +239,11 @@ export interface OptimizerPreferences {
   ecosystem?: Ecosystem;
   /** Opened 5+ personal cards in the last 24 months (Chase 5/24 rule). Default false. */
   over524?: boolean;
+  /**
+   * A spend category the user specifically wants to earn more on (e.g. gas).
+   * Only cards that raise it are shown, ranked by how much more it earns.
+   */
+  focusCategory?: string | null;
 }
 
 interface GoalRules {
@@ -182,17 +255,21 @@ interface GoalRules {
   cashValue: boolean;
   /** Extra eligibility filter for this goal. */
   allows?: (card: Card) => boolean;
+  /** The card must raise what the user earns on their spending. */
+  needsEarnGain?: boolean;
 }
 
 const CASH_CURRENCIES = new Set(["cash", "discover"]);
 
 export const GOAL_RULES: Record<CardGoal, GoalRules> = {
   // Best long-run earning; the bonus is spread over a typical ~4-year hold.
-  everyday: { bonusWeight: 0.25, cashValue: false },
+  // A card that doesn't lift any category's earnings doesn't fit this goal,
+  // however big its credits or bonus.
+  everyday: { bonusWeight: 0.25, cashValue: false, needsEarnGain: true },
   // Churning: the welcome bonus counts in full, even on cards you'd cancel later.
   bonuses: { bonusWeight: 1, cashValue: false, allowNegativeOngoing: true },
   // Simple cash back: points are worth what they cash out for.
-  cashback: { bonusWeight: 0.25, cashValue: true },
+  cashback: { bonusWeight: 0.25, cashValue: true, needsEarnGain: true },
   // Travel: transferable points and co-brands only.
   travel: { bonusWeight: 0.5, cashValue: false, allows: (c) => !CASH_CURRENCIES.has(c.currency) },
   // Building credit: no annual fee, approachable approval odds, bonus ignored.
@@ -214,6 +291,7 @@ export const DEFAULT_OPTIMIZER_PREFERENCES: OptimizerPreferences = {
   redemption: "flexible",
   ecosystem: "open",
   over524: false,
+  focusCategory: null,
 };
 
 type CurrencyKind = "transferable" | "airline" | "hotel" | "cash";
@@ -241,6 +319,7 @@ const CURRENCY_KIND: Record<string, CurrencyKind> = {
  *  - flyers get floor value for hotel points, hotel fans for airline miles
  *  - "stay in my ecosystem" values programs not already in the wallet at floor,
  *    since a lone card in a new program rarely builds a useful transfer balance
+ *    (cards from new banks are also filtered out; see isInCurrentPrograms)
  */
 export function rankingValuation(
   preferences: Partial<OptimizerPreferences>,
@@ -249,7 +328,9 @@ export function rankingValuation(
 ): Valuation {
   const prefs = { ...DEFAULT_OPTIMIZER_PREFERENCES, ...preferences };
   const rules = GOAL_RULES[prefs.goal ?? "everyday"] ?? GOAL_RULES.everyday;
-  if (rules.cashValue || prefs.redemption === "cash") return "floor";
+  // Always a function, so the router picks cards with the same values the
+  // ranking uses (a plain tier would route at MCC value).
+  if (rules.cashValue || prefs.redemption === "cash") return (c: string) => getCpp(c, "floor");
   const owned = new Set(walletCards.map((wc) => wc.card.currency));
   return (currencyId: string) => {
     const kind = CURRENCY_KIND[currencyId] ?? "transferable";
@@ -263,14 +344,22 @@ export function rankingValuation(
 }
 
 /**
- * Routes a single month of spending across wallet cards.
+ * Routes one month of spending across wallet cards.
  *
- * Rules (from INSTRUCTIONS.md):
- * 1. Sort eligible cards by raw earn rate descending (valuations never affect order).
- * 2. Tiebreak: preferred currency first (passed via `preferredCurrency`), then higher
- *    composite valuation.
- * 3. If best card's cap is exceeded, overflow to next-best, then next, etc.
- * 4. Cap usage is tracked per card across all categories (shared caps).
+ * Rules:
+ * 1. Each category goes to the card whose earn is worth the most per dollar
+ *    (earn rate × point value). Raw multipliers aren't comparable across
+ *    programs: 2% cash back beats 1.5x Chase points only if a point is worth
+ *    under 1.33¢. Plain tiers (floor / MCC / ceiling) all route at MCC value,
+ *    so switching the tier changes the dollar figures but never the routing;
+ *    a custom valuation (the optimizer's) routes at that valuation.
+ * 2. Tiebreak: higher raw rate, then preferred currency, then higher MCC value.
+ * 3. Bonus caps are real issuer caps (per month, quarter or year) and are
+ *    drawn down by every month of the period in order: pass the same `ledger`
+ *    to consecutive months (routeYear does this). Without a ledger the month
+ *    is treated as the first month of its quarter, with every cap unused.
+ * 4. Past a cap, the card keeps earning its regular rate there, and the spend
+ *    goes to whichever card is then worth the most (often the same card).
  */
 export function routeMonth(
   walletCards: WalletCard[],
@@ -278,171 +367,184 @@ export function routeMonth(
   overrides: Record<string, string | null>,
   quarter: 1 | 2 | 3 | 4,
   tier: Valuation = "composite",
-  preferredCurrency?: string
+  preferredCurrency?: string,
+  ledger?: CapLedger
 ): RoutingResult {
-  // Track how much of each card's custom cap has been consumed this month.
-  // Key: walletCard.id + "|custom"
-  const customCapUsed: Record<string, number> = {};
-  // Rotating 5x cap is combined across all of the quarter's bonus categories.
-  const rotCapUsed: Record<string, number> = {};
+  const month = ledger?.month ?? (quarter - 1) * 3;
+  const book = ledger ?? newLedger(month);
+  const routeTier: Valuation = typeof tier === "function" ? tier : "composite";
 
-  const rows: RoutingRow[] = [];
+  type Candidate = { wc: WalletCard; rate: number; worth: number; cap: CapInfo | null };
+  const plans: { cat: (typeof CATEGORIES)[number]; candidates: Candidate[]; overrideId: string | null; edge: number }[] = [];
 
   for (const cat of CATEGORIES) {
-    const monthly = spend[cat.id] ?? 0;
-    if (monthly === 0) {
-      // Still include the row so the UI can render it — just with zero values.
+    // Candidates, most valuable per dollar first. A capped bonus keeps
+    // earning on the same card after the cap at its regular rate, so that's
+    // a candidate of its own.
+    const candidates: Candidate[] = [];
+    for (const wc of walletCards) {
+      const cpp = getCpp(wc.card.currency, routeTier);
+      const rate = getEarnRate(wc.card, cat.id, wc.config, quarter);
+      const cap = bonusCap(wc.card, cat.id, wc.config, quarter, rate);
+      candidates.push({ wc, rate, worth: rate * cpp, cap });
+      if (cap) {
+        const after = rateAfterCap(wc.card, cat.id, cap);
+        if (after < rate) candidates.push({ wc, rate: after, worth: after * cpp, cap: null });
+      }
     }
+    candidates.sort((a, b) => {
+      if (Math.abs(b.worth - a.worth) > 1e-9) return b.worth - a.worth;
+      if (b.rate !== a.rate) return b.rate - a.rate;
+      const aPref = preferredCurrency && a.wc.card.currency === preferredCurrency ? 1 : 0;
+      const bPref = preferredCurrency && b.wc.card.currency === preferredCurrency ? 1 : 0;
+      if (bPref !== aPref) return bPref - aPref;
+      return getCpp(b.wc.card.currency, "composite") - getCpp(a.wc.card.currency, "composite");
+    });
 
-    // Build candidate list (sorted by earn rate desc, then by tiebreak)
-    const candidates = walletCards
-      .map((wc) => ({
-        wc,
-        rate: getEarnRate(wc.card, cat.id, wc.config, quarter),
-      }))
-      .sort((a, b) => {
-        if (b.rate !== a.rate) return b.rate - a.rate;
-        // Tiebreak 1: preferred currency
-        const aPref = preferredCurrency && a.wc.card.currency === preferredCurrency ? 1 : 0;
-        const bPref = preferredCurrency && b.wc.card.currency === preferredCurrency ? 1 : 0;
-        if (bPref !== aPref) return bPref - aPref;
-        // Tiebreak 2: higher composite cpp
-        const aCpp = getCpp(a.wc.card.currency, "composite");
-        const bCpp = getCpp(b.wc.card.currency, "composite");
-        return bCpp - aCpp;
-      });
-
-    // Apply manual override: move overridden card to front if present
+    // Manual override: the chosen card first (its bonus, then its after-cap rate)
     const overrideId = overrides[cat.id] ?? null;
     if (overrideId) {
-      const idx = candidates.findIndex((c) => c.wc.id === overrideId);
-      if (idx > 0) {
-        const [overridden] = candidates.splice(idx, 1);
-        candidates.unshift(overridden);
+      const mine = candidates.filter((c) => c.wc.id === overrideId);
+      if (mine.length) {
+        const rest = candidates.filter((c) => c.wc.id !== overrideId);
+        candidates.splice(0, candidates.length, ...mine, ...rest);
       }
     }
 
-    if (candidates.length === 0) {
-      // No cards in wallet — skip row
-      continue;
-    }
+    if (candidates.length === 0) continue;
 
-    // Distribute spend across candidates respecting caps
-    let remainingSpend = monthly;
+    // How much the top (capped) choice beats the best uncapped fallback
+    const top = candidates[0];
+    const fallback = candidates.find((c) => c.cap == null)?.worth ?? 0;
+    plans.push({ cat, candidates, overrideId, edge: top.cap ? top.worth - fallback : 0 });
+  }
+
+  // When categories share a cap (Freedom Flex's groceries + dining, a combined
+  // $6,000 yearly cap…), give the cap to the categories that gain the most
+  // from it first, not to whichever comes first in the list.
+  const order = [...plans].sort((a, b) => b.edge - a.edge);
+  const byCat: Record<string, RoutingRow> = {};
+
+  for (const { cat, candidates, overrideId } of order) {
+    let remaining = spend[cat.id] ?? 0;
     let primaryRow: RoutingRow | null = null;
     const overflowRows: OverflowRow[] = [];
 
-    for (const { wc, rate } of candidates) {
-      if (remainingSpend <= 0) break;
+    for (const { wc, rate, cap } of candidates) {
+      if (remaining <= 0) break;
 
-      const capKey = `${wc.id}|custom`;
-      const usedCustom = customCapUsed[capKey] ?? 0;
-
-      // Calculate effective cap for this card + category
-      let cap = getMonthlyCap(wc.card, cat.id, wc.config, quarter, rate);
-
-      // Reduce custom cap by already-consumed amount this month
-      if (
-        wc.card.custom_select &&
-        wc.config.custom.includes(cat.id) &&
-        "custom" in wc.card.caps_json
-      ) {
-        const totalCustomCap = wc.card.caps_json["custom"];
-        cap = Math.max(0, totalCustomCap - usedCustom);
+      let room = Infinity;
+      let key = "";
+      if (cap) {
+        key = capKey(wc.id, cap, book.month);
+        book.caps[key] ??= {
+          walletCardId: wc.id,
+          cardName: wc.card.name,
+          bucket: cap.bucket,
+          label: capLabel(wc.card, cap, wc.config, quarter),
+          period: cap.period,
+          periodStart: periodStart(cap.period, book.month),
+          limit: cap.limit,
+          used: 0,
+        };
+        room = Math.max(0, cap.limit - book.caps[key].used);
       }
-      const isRotBonus =
-        wc.card.rotating &&
-        wc.card.rot_cap != null &&
-        rate > (wc.card.earn_json[cat.id] ?? 1) &&
-        rotatingCategories(wc.card, wc.config, quarter).includes(cat.id);
-      if (isRotBonus && cap != null) cap = Math.max(0, cap - (rotCapUsed[wc.id] ?? 0));
 
-      const allocatedSpend = cap != null ? Math.min(remainingSpend, cap) : remainingSpend;
-      if (allocatedSpend <= 0) continue;
+      const allocated = Math.min(remaining, room);
+      if (allocated <= 0) continue;
 
       const cpp = getCpp(wc.card.currency, tier);
-      const points = allocatedSpend * rate;
-      // cpp is stored as integer hundredths-of-cent (200 = 2.00¢ = $0.02/pt)
-      // dollarValue = points * (cpp / 100 cents) / 100 cents-per-dollar
+      const points = allocated * rate;
+      // cpp is stored as hundredths of a cent (200 = 2.00¢ = $0.02/pt)
       const dollarValue = (points * cpp) / 10000;
-      const capHit = cap != null && remainingSpend > cap;
-
-      // Track custom cap usage
-      if (
-        wc.card.custom_select &&
-        wc.config.custom.includes(cat.id) &&
-        "custom" in wc.card.caps_json
-      ) {
-        customCapUsed[capKey] = usedCustom + allocatedSpend;
-      }
-      if (isRotBonus) rotCapUsed[wc.id] = (rotCapUsed[wc.id] ?? 0) + allocatedSpend;
+      if (cap) book.caps[key].used += allocated;
 
       if (primaryRow === null) {
         primaryRow = {
           categoryId: cat.id,
           walletCard: wc,
           earnRate: rate,
-          spend: allocatedSpend,
+          spend: allocated,
           points,
           dollarValue,
-          capHit,
+          capHit: cap != null && remaining > room,
           overflow: overflowRows,
           override: overrideId,
         };
       } else {
-        overflowRows.push({
-          walletCard: wc,
-          earnRate: rate,
-          spend: allocatedSpend,
-          points,
-          dollarValue,
-        });
+        overflowRows.push({ walletCard: wc, earnRate: rate, spend: allocated, points, dollarValue });
       }
-
-      remainingSpend -= allocatedSpend;
+      remaining -= allocated;
     }
 
-    if (primaryRow) {
-      rows.push(primaryRow);
-    }
+    if (primaryRow) byCat[cat.id] = primaryRow;
   }
+  const rows = CATEGORIES.map((c) => byCat[c.id]).filter((r): r is RoutingRow => r != null);
 
-  // Aggregate currency totals
   const currencyMap: Record<string, CurrencyTotal> = {};
-
+  const add = (currencyId: string, pts: number, dv: number) => {
+    const c = (currencyMap[currencyId] ??= { currencyId, points: 0, dollarValue: 0 });
+    c.points += pts;
+    c.dollarValue += dv;
+  };
   for (const row of rows) {
-    const addCurrency = (currencyId: string, pts: number, dv: number) => {
-      if (!currencyMap[currencyId]) {
-        currencyMap[currencyId] = { currencyId, points: 0, dollarValue: 0 };
-      }
-      currencyMap[currencyId].points += pts;
-      currencyMap[currencyId].dollarValue += dv;
-    };
-
-    addCurrency(row.walletCard.card.currency, row.points, row.dollarValue);
-    for (const ov of row.overflow) {
-      addCurrency(ov.walletCard.card.currency, ov.points, ov.dollarValue);
-    }
+    add(row.walletCard.card.currency, row.points, row.dollarValue);
+    for (const ov of row.overflow) add(ov.walletCard.card.currency, ov.points, ov.dollarValue);
   }
-
   const currencyTotals = Object.values(currencyMap);
   const totalDollarValue = currencyTotals.reduce((sum, ct) => sum + ct.dollarValue, 0);
 
-  return { rows, currencyTotals, totalDollarValue };
+  // Caps whose period includes this month, as they stand at month end
+  const caps = Object.values(book.caps)
+    .filter((c) => periodStart(c.period, book.month) === c.periodStart)
+    .map((c) => ({ ...c }));
+
+  return { rows, currencyTotals, totalDollarValue, caps };
 }
 
-// ─── routeAnnual ──────────────────────────────────────────────────────────────
+// ─── routeYear / routeAnnual ──────────────────────────────────────────────────
 
-export interface QuarterConfig {
-  quarter: 1 | 2 | 3 | 4;
-  spend: Record<string, number>;
-  overrides: Record<string, string | null>;
+/**
+ * Routes all 12 months in order, carrying bonus-cap usage from month to
+ * month, so a $1,500 quarterly cap is shared by the quarter's three months
+ * and a yearly cap by the whole year.
+ *
+ * @param spendForMonth  Spend for month 0 (Jan) … 11 (Dec)
+ */
+export function routeYear(
+  walletCards: WalletCard[],
+  spendForMonth: (month: number) => Record<string, number>,
+  overrides: Record<string, string | null>,
+  tier: Valuation = "composite",
+  preferredCurrency?: string,
+  configsForQuarter?: (quarter: 1 | 2 | 3 | 4) => WalletCard[]
+): { months: RoutingResult[]; total: RoutingResult } {
+  const book = newLedger(0);
+  const months: RoutingResult[] = [];
+  const total: RoutingResult = { rows: [], currencyTotals: [], totalDollarValue: 0 };
+  const currencyMap: Record<string, CurrencyTotal> = {};
+
+  for (let m = 0; m < 12; m++) {
+    book.month = m;
+    const q = (Math.floor(m / 3) + 1) as 1 | 2 | 3 | 4;
+    const cards = configsForQuarter ? configsForQuarter(q) : walletCards;
+    const r = routeMonth(cards, spendForMonth(m), overrides, q, tier, preferredCurrency, book);
+    months.push(r);
+    total.rows.push(...r.rows);
+    for (const ct of r.currencyTotals) {
+      const c = (currencyMap[ct.currencyId] ??= { currencyId: ct.currencyId, points: 0, dollarValue: 0 });
+      c.points += ct.points;
+      c.dollarValue += ct.dollarValue;
+    }
+  }
+  total.currencyTotals = Object.values(currencyMap);
+  total.totalDollarValue = total.currencyTotals.reduce((s, ct) => s + ct.dollarValue, 0);
+  return { months, total };
 }
 
 /**
- * Runs routeMonth for each quarter (3 months each) and sums the results.
- * If quarterConfigs has fewer than 4 entries, the missing quarters use the
- * first config as a fallback.
+ * A full year at the same monthly spend (see routeYear). quarterConfigs can
+ * swap in per-quarter card configs; missing quarters use the wallet's own.
  */
 export function routeAnnual(
   walletCards: WalletCard[],
@@ -452,49 +554,17 @@ export function routeAnnual(
   tier: Valuation = "composite",
   preferredCurrency?: string
 ): RoutingResult {
-  const combined: RoutingResult = { rows: [], currencyTotals: [], totalDollarValue: 0 };
-  const currencyMap: Record<string, CurrencyTotal> = {};
-
-  for (const q of [1, 2, 3, 4] as const) {
-    // If per-quarter card configs are provided, apply them to wallet cards
-    const qCards = quarterConfigs[q]
-      ? walletCards.map((wc, i) => ({
-          ...wc,
-          config: quarterConfigs[q]![i] ?? wc.config,
-        }))
-      : walletCards;
-
-    const monthResult = routeMonth(qCards, spend, overrides, q, tier, preferredCurrency);
-
-    // Multiply by 3 months
-    for (const row of monthResult.rows) {
-      combined.rows.push({
-        ...row,
-        spend: row.spend * 3,
-        points: row.points * 3,
-        dollarValue: row.dollarValue * 3,
-        overflow: row.overflow.map((ov) => ({
-          ...ov,
-          spend: ov.spend * 3,
-          points: ov.points * 3,
-          dollarValue: ov.dollarValue * 3,
-        })),
-      });
-    }
-
-    for (const ct of monthResult.currencyTotals) {
-      if (!currencyMap[ct.currencyId]) {
-        currencyMap[ct.currencyId] = { currencyId: ct.currencyId, points: 0, dollarValue: 0 };
-      }
-      currencyMap[ct.currencyId].points += ct.points * 3;
-      currencyMap[ct.currencyId].dollarValue += ct.dollarValue * 3;
-    }
-  }
-
-  combined.currencyTotals = Object.values(currencyMap);
-  combined.totalDollarValue = combined.currencyTotals.reduce((s, ct) => s + ct.dollarValue, 0);
-
-  return combined;
+  return routeYear(
+    walletCards,
+    () => spend,
+    overrides,
+    tier,
+    preferredCurrency,
+    (q) =>
+      quarterConfigs[q]
+        ? walletCards.map((wc, i) => ({ ...wc, config: quarterConfigs[q]![i] ?? wc.config }))
+        : walletCards
+  ).total;
 }
 
 // ─── calculateFees ────────────────────────────────────────────────────────────
@@ -590,15 +660,32 @@ export function candidateConfig(card: Card, spend: Record<string, number>): Wall
   return { rotQ, custom };
 }
 
-/** Annual dollar value earned per category (primary + overflow rows). */
-function valueByCategory(result: RoutingResult): Record<string, number> {
-  const out: Record<string, number> = {};
+/** Annual dollar value and spend per category (primary + overflow rows). */
+function byCategory(result: RoutingResult): Record<string, { value: number; spend: number }> {
+  const out: Record<string, { value: number; spend: number }> = {};
   for (const row of result.rows) {
-    let v = row.dollarValue;
-    for (const ov of row.overflow) v += ov.dollarValue;
-    out[row.categoryId] = (out[row.categoryId] ?? 0) + v;
+    const o = (out[row.categoryId] ??= { value: 0, spend: 0 });
+    o.value += row.dollarValue;
+    o.spend += row.spend;
+    for (const ov of row.overflow) {
+      o.value += ov.dollarValue;
+      o.spend += ov.spend;
+    }
   }
   return out;
+}
+
+/**
+ * "Stay with my current programs": a card counts as part of the user's
+ * programs when it's from a bank they already bank with, or earns a points
+ * currency they already collect.
+ */
+export function isInCurrentPrograms(card: Card, walletCards: WalletCard[]): boolean {
+  return walletCards.some(
+    (wc) =>
+      wc.card.issuer === card.issuer ||
+      (wc.card.currency === card.currency && !CASH_CURRENCIES.has(card.currency))
+  );
 }
 
 /** Why a card was left out of the recommendations, for UI hints. */
@@ -608,6 +695,8 @@ export interface RecommendationSummary {
   hiddenBusinessCount: number;
   /** Chase cards hidden because of the 5/24 rule. */
   hidden524Count: number;
+  /** Cards from new banks/programs hidden because the user wants to stay put. */
+  hiddenNewBankCount: number;
 }
 
 /**
@@ -619,10 +708,16 @@ export interface RecommendationSummary {
  *   ongoing  = earn gain + statement credits the user will use − annual fee
  *   score    = ongoing + sign-up bonus × bonus weight
  *
+ * (With a focus category, cards are ranked by that category's gain first.)
+ *
+ * The earn gain is the change in the wallet's whole-year value with the card
+ * added, using the same valuation for routing and scoring, so it is never
+ * credited for a quarter or a cap it doesn't actually win.
+ *
  * Sign-up bonuses only count when the user's normal spend can reach the
- * minimum in time, and are weighted by the user's goal (see GOAL_RULES), so
- * a big one-time bonus can't drown out a card's everyday value. Business cards
- * and Chase cards (5/24) are excluded unless the user's answers allow them.
+ * minimum in time, and are weighted by the user's goal (see GOAL_RULES).
+ * Business cards, Chase cards (5/24) and cards outside the user's current
+ * programs are excluded unless the user's answers allow them.
  */
 export function getRecommendationSummary(
   walletCards: WalletCard[],
@@ -638,24 +733,15 @@ export function getRecommendationSummary(
   const creditWeight = CREDIT_WEIGHT[prefs.creditUsage ?? "none"];
   const walletCardIds = new Set(walletCards.map((wc) => wc.card.id));
   const monthlyTotal = Object.values(spend).reduce((s, v) => s + (v > 0 ? v : 0), 0);
+  const focus = prefs.focusCategory && (spend[prefs.focusCategory] ?? 0) > 0 ? prefs.focusCategory : null;
+  const stay = prefs.ecosystem === "stay" && walletCards.length > 0;
 
-  const baseline = valueByCategory(routeAnnual(walletCards, spend, {}, {}, rankTier));
-
-  // Current best earn rate per category (for display)
-  const currentBestRate: Record<string, number> = {};
-  for (const cat of CATEGORIES) {
-    let best = 0;
-    for (const wc of walletCards) {
-      for (const q of [1, 2, 3, 4] as const) {
-        best = Math.max(best, getEarnRate(wc.card, cat.id, wc.config, q));
-      }
-    }
-    currentBestRate[cat.id] = best;
-  }
+  const baseline = byCategory(routeAnnual(walletCards, spend, {}, {}, rankTier));
 
   const results: Recommendation[] = [];
   let hiddenBusinessCount = 0;
   let hidden524Count = 0;
+  let hiddenNewBankCount = 0;
 
   for (const card of allCards) {
     if (card.status !== "active") continue;
@@ -669,57 +755,77 @@ export function getRecommendationSummary(
     if (rules.allows && !rules.allows(card)) continue;
 
     const rec = scoreCandidate(card);
+    if (!qualifies(rec)) continue;
 
     // Eligibility from the questionnaire (counted so the UI can say what was hidden)
     if (card.business && !prefs.openToBusinessCards) {
-      if (rec.netValue > 0) hiddenBusinessCount++;
+      hiddenBusinessCount++;
       continue;
     }
     if (prefs.over524 && card.issuer === "Chase") {
-      if (rec.netValue > 0) hidden524Count++;
+      hidden524Count++;
       continue;
     }
-
-    if (rec.netValue <= 0) continue;
-    // Outside of bonus hunting, skip cards that cost more each year than they return.
-    if (!rules.allowNegativeOngoing && rec.ongoingValue < 0) continue;
+    if (stay && !isInCurrentPrograms(card, walletCards)) {
+      hiddenNewBankCount++;
+      continue;
+    }
     results.push(rec);
   }
 
+  // With a focus category, rank by how much more that category earns
+  // (rounded to the dollar so near-ties fall back to overall value).
+  const focusGain = (r: Recommendation) =>
+    focus ? Math.round(r.improvements.find((i) => i.categoryId === focus)?.annualGain ?? 0) : 0;
   results.sort(
     (a, b) =>
+      focusGain(b) - focusGain(a) ||
       b.netValue - a.netValue ||
       a.card.fee - b.card.fee ||
       b.card.score - a.card.score
   );
-  return { recommendations: results.slice(0, 8), hiddenBusinessCount, hidden524Count };
+  return {
+    recommendations: results.slice(0, 8),
+    hiddenBusinessCount,
+    hidden524Count,
+    hiddenNewBankCount,
+  };
+
+  function qualifies(rec: Recommendation): boolean {
+    if (rec.netValue <= 0) return false;
+    // Outside of bonus hunting, skip cards that cost more each year than they return.
+    if (!rules.allowNegativeOngoing && rec.ongoingValue < 0) return false;
+    if (rules.needsEarnGain && rec.earnGain < 1) return false;
+    if (focus && !rec.improvements.some((i) => i.categoryId === focus)) return false;
+    return true;
+  }
 
   function scoreCandidate(card: Card): Recommendation {
     const config = candidateConfig(card, spend);
-    const withCard = valueByCategory(
+    const withCard = byCategory(
       routeAnnual([...walletCards, { id: "__candidate__", card, config }], spend, {}, {}, rankTier)
     );
 
     const improvements: CategoryImprovement[] = [];
     let earnGain = 0;
     for (const cat of CATEGORIES) {
-      // Clamp at zero: the user would keep using their current card wherever
-      // the new one is worse (e.g. a 2% cash card vs 1.5x transferable points).
-      const gain = (withCard[cat.id] ?? 0) - (baseline[cat.id] ?? 0);
-      if (gain <= 0.005) continue;
+      const before = baseline[cat.id] ?? { value: 0, spend: 0 };
+      const after = withCard[cat.id] ?? { value: 0, spend: 0 };
+      const gain = after.value - before.value;
       earnGain += gain;
-      let candidateRate = 0;
-      for (const q of [1, 2, 3, 4] as const) {
-        candidateRate = Math.max(candidateRate, getEarnRate(card, cat.id, config, q));
-      }
+      if (gain <= 0.5 || after.spend <= 0) continue;
       improvements.push({
         categoryId: cat.id,
-        currentRate: currentBestRate[cat.id],
-        candidateRate,
+        // Whole-year average return in % (cents per dollar), so a 5% quarter
+        // or a capped bonus shows up as what it's really worth over a year.
+        currentReturn: before.spend > 0 ? (before.value / before.spend) * 100 : 0,
+        newReturn: (after.value / after.spend) * 100,
         annualGain: gain,
       });
     }
-    improvements.sort((a, b) => b.annualGain - a.annualGain);
+    improvements.sort((a, b) =>
+      a.categoryId === focus ? -1 : b.categoryId === focus ? 1 : b.annualGain - a.annualGain
+    );
 
     const totalCredits = card.perks_json.reduce((s, p) => s + (p.annual_credit ?? 0), 0);
     const creditValue = totalCredits * creditWeight;

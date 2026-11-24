@@ -34,6 +34,16 @@ function defaultSpend(): Record<string, number> {
   return Object.fromEntries(CATEGORIES.map((c) => [c.id, c.defaultAmount]));
 }
 
+/**
+ * Spend key for the shared household profile used when spending is merged.
+ * It lives in the same spend / monthlySpend maps as people (sync only
+ * uploads real members, so it stays local).
+ */
+export const HOUSEHOLD_ID = "household";
+
+/** How spending is counted when there's more than one person. */
+export type SpendMode = "individual" | "household";
+
 // ─── State shape ──────────────────────────────────────────────────────────────
 
 export interface SyncMeta {
@@ -71,8 +81,14 @@ export interface AppState {
   // Supabase IDs needed for upsert operations
   syncMeta: SyncMeta;
 
+  /**
+   * "household": one combined spend profile, and every card in the household
+   * can be used for it (shared accounts / authorized users).
+   * "individual": each person has their own spend and wallet.
+   */
+  spendMode: SpendMode;
+
   // View state
-  viewQuarter: 1 | 2 | 3 | 4;
   valuationTier: ValuationTier;
   activeTab: "browse" | "wallet" | "simulate" | "optimize";
 
@@ -87,6 +103,8 @@ export interface OptimizerAnswers {
   redemption: Redemption;
   ecosystem: Ecosystem;
   over524: boolean;
+  /** Category the user wants to earn more on, or null for no preference. */
+  focusCategory: string | null;
 }
 
 export interface AppActions {
@@ -132,8 +150,9 @@ export interface AppActions {
   // Reorder
   reorderPeople: (newOrder: string[]) => void;
 
+  setSpendMode: (mode: SpendMode) => void;
+
   // View state
-  setViewQuarter: (q: 1 | 2 | 3 | 4) => void;
   setValuation: (tier: ValuationTier) => void;
   setActiveTab: (tab: AppState["activeTab"]) => void;
   setOptimizerAnswers: (answers: Partial<OptimizerAnswers>) => void;
@@ -142,6 +161,12 @@ export interface AppActions {
   getActivePerson: () => HouseholdMember | undefined;
   getActiveWalletCards: () => WalletCard[];
   getWalletCardsForPerson: (personId: string) => WalletCard[];
+  /**
+   * The wallet and monthly spend the optimizer should plan for: the whole
+   * household's cards and combined spend in household mode, otherwise the
+   * active person's.
+   */
+  getPlanningContext: () => { walletCards: WalletCard[]; spend: Record<string, number> };
 }
 
 export type Store = AppState & AppActions;
@@ -167,7 +192,7 @@ const initialState: AppState = {
   cardConfigs: {},
   customCards: [],
   syncMeta: { householdId: null, spendProfileId: null },
-  viewQuarter: (Math.floor(new Date().getMonth() / 3) + 1) as 1 | 2 | 3 | 4,
+  spendMode: "individual",
   valuationTier: "composite",
   activeTab: "browse",
   optimizerAnswers: {
@@ -177,6 +202,7 @@ const initialState: AppState = {
     redemption: "flexible",
     ecosystem: "open",
     over524: false,
+    focusCategory: null,
   },
 };
 
@@ -497,8 +523,23 @@ export const useStore = create<Store>()(
 
       // ── View state ───────────────────────────────────────────────────────────
 
-      setViewQuarter(q) {
-        set({ viewQuarter: q });
+      setSpendMode(mode) {
+        set((s) => {
+          if (mode === "individual" || s.spend[HOUSEHOLD_ID]) return { spendMode: mode };
+          // First switch to household: start from everyone's spend added up.
+          const combined: Record<string, number> = {};
+          for (const cat of CATEGORIES) {
+            combined[cat.id] = s.people.reduce(
+              (sum, p) => sum + (s.spend[p.id]?.[cat.id] ?? cat.defaultAmount),
+              0
+            );
+          }
+          return {
+            spendMode: mode,
+            spend: { ...s.spend, [HOUSEHOLD_ID]: combined },
+            monthlySpend: { ...s.monthlySpend, [HOUSEHOLD_ID]: {} },
+          };
+        });
       },
 
       setValuation(tier) {
@@ -527,6 +568,20 @@ export const useStore = create<Store>()(
       getWalletCardsForPerson(personId) {
         return get().people.find((p) => p.id === personId)?.cards ?? [];
       },
+
+      getPlanningContext() {
+        const s = get();
+        if (s.spendMode === "household" && s.people.length > 1) {
+          return {
+            walletCards: s.people.flatMap((p) => p.cards),
+            spend: s.spend[HOUSEHOLD_ID] ?? defaultSpend(),
+          };
+        }
+        return {
+          walletCards: s.getActiveWalletCards(),
+          spend: s.spend[s.activePersonId] ?? defaultSpend(),
+        };
+      },
     }),
     {
       name: "mcc-store",
@@ -543,6 +598,7 @@ export const useStore = create<Store>()(
         customCards: s.customCards,
         syncMeta: s.syncMeta,
         valuationTier: s.valuationTier,
+        spendMode: s.spendMode,
         activeTab: s.activeTab,
         optimizerAnswers: s.optimizerAnswers,
       }),
@@ -552,8 +608,6 @@ export const useStore = create<Store>()(
         return {
           ...current,
           ...p,
-          // Always open on the real current quarter, not a stale saved one.
-          viewQuarter: current.viewQuarter,
           optimizerAnswers: { ...current.optimizerAnswers, ...p.optimizerAnswers },
         };
       },

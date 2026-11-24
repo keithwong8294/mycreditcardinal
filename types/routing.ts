@@ -35,4 +35,6 @@ export interface RoutingResult {
   /** Points and dollar value grouped by currency */
   currencyTotals: CurrencyTotal[];
   totalDollarValue: number;
+  /** Bonus caps in effect this month and how much of each is used (routeMonth only). */
+  caps?: import("@/lib/engine").CapStatus[];
 }

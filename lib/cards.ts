@@ -12,8 +12,9 @@ import type { Card, Perk, SubBonus } from "@/types/card";
  *
  * earn_json:  multiplier per category (1 = 1x / 1%). Every category is filled
  *             in via `earn()`; unspecified categories use the base rate.
- * caps_json:  MONTHLY dollar caps per category. "custom" = combined monthly cap
- *             for custom-select categories.
+ * caps_json:  issuer bonus caps in dollars per capPeriod (month / quarter /
+ *             year), as the issuer states them. "custom" = combined cap for
+ *             custom-select categories; capShared = one cap across all keys.
  * rot_cap:    QUARTERLY dollar cap on the rotating bonus portion.
  * sub_json:   points/miles (cash-back cards: cents, so 20000 = $200).
  * color_json: card-face gradient stops.
@@ -50,7 +51,11 @@ interface CardInput {
   currency: string;
   fee: number;
   earn_json: Record<string, number>;
+  /** Issuer caps in dollars per `capPeriod` (default "month"). */
   caps_json?: Record<string, number>;
+  capPeriod?: Card["cap_period"];
+  /** caps_json is one combined cap across its categories. */
+  capShared?: boolean;
   sub_json: SubBonus | null;
   sub_hi_json?: SubBonus | null;
   score: number;
@@ -75,6 +80,8 @@ function card(c: CardInput): Card {
     fee: c.fee,
     earn_json: c.earn_json,
     caps_json: c.caps_json ?? {},
+    ...(c.caps_json ? { cap_period: c.capPeriod ?? "month" } : {}),
+    ...(c.capShared ? { cap_shared: true } : {}),
     sub_json: c.sub_json,
     sub_hi_json: c.sub_hi_json ?? c.sub_json,
     score: c.score,
@@ -263,7 +270,9 @@ export const CARDS: Card[] = [
     currency: "chase_ur",
     fee: 0,
     earn_json: earn(1, { streaming: 5, dining: 2, gas: 2 }),
-    caps_json: { streaming: 2083, dining: 2083, gas: 2083 },
+    // $25k/yr at 5% (internet, cable, phone); $25k/yr at 2% (dining, gas)
+    caps_json: { streaming: 25000, dining: 25000, gas: 25000 },
+    capPeriod: "year",
     sub_json: sub(75000, 6000, 3),
     sub_hi_json: sub(100000, 8000, 4, 2026),
     score: 75,
@@ -356,7 +365,10 @@ export const CARDS: Card[] = [
     currency: "marriott",
     fee: 95,
     earn_json: earn(2, { hotels: 6, groceries: 3, gas: 3, dining: 3 }),
-    caps_json: { groceries: 500, gas: 500, dining: 500 },
+    // 3x on the first $6,000 a year across groceries, gas and dining
+    caps_json: { groceries: 6000, gas: 6000, dining: 6000 },
+    capPeriod: "year",
+    capShared: true,
     sub_json: sub(125000, 3000, 3),
     sub_hi_json: sub(200000, 3000, 3, 2026),
     score: 62,
@@ -410,7 +422,8 @@ export const CARDS: Card[] = [
     currency: "amex_mr",
     fee: 325,
     earn_json: earn(1, { dining: 4, groceries: 4, travel: 3 }),
-    caps_json: { dining: 4167, groceries: 2083 },
+    caps_json: { dining: 50000, groceries: 25000 },
+    capPeriod: "year",
     sub_json: sub(100000, 8000, 6),
     sub_hi_json: sub(100000, 6000, 6, 2025),
     score: 88,
@@ -457,7 +470,8 @@ export const CARDS: Card[] = [
     currency: "cash",
     fee: 95,
     earn_json: earn(1, { groceries: 6, streaming: 6, gas: 3, transit: 3 }),
-    caps_json: { groceries: 500 },
+    caps_json: { groceries: 6000 },
+    capPeriod: "year",
     sub_json: sub(30000, 3000, 6),
     sub_hi_json: sub(30000, 3000, 6, 2026),
     score: 78,
@@ -480,7 +494,8 @@ export const CARDS: Card[] = [
     currency: "cash",
     fee: 0,
     earn_json: earn(1, { groceries: 3, gas: 3, online: 3 }),
-    caps_json: { groceries: 500, gas: 500, online: 500 },
+    caps_json: { groceries: 6000, gas: 6000, online: 6000 },
+    capPeriod: "year",
     sub_json: sub(25000, 2000, 6),
     sub_hi_json: sub(25000, 2000, 6, 2026),
     score: 64,
@@ -502,7 +517,10 @@ export const CARDS: Card[] = [
     currency: "amex_mr",
     fee: 0,
     earn_json: earn(2),
-    caps_json: Object.fromEntries(ALL_CATEGORIES.map((c) => [c, 4167])),
+    // 2x on the first $50k a year of all purchases combined
+    caps_json: Object.fromEntries(ALL_CATEGORIES.map((c) => [c, 50000])),
+    capPeriod: "year",
+    capShared: true,
     sub_json: sub(50000, 5000, 3),
     sub_hi_json: sub(75000, 15000, 3, 2026),
     score: 74,
@@ -744,7 +762,7 @@ export const CARDS: Card[] = [
     currency: "citi_typ",
     fee: 0,
     earn_json: earn(1),
-    caps_json: { custom: 500 },
+    caps_json: { custom: 500 }, // per billing cycle
     sub_json: sub(20000, 1500, 6),
     score: 70,
     perks_json: [
@@ -824,7 +842,8 @@ export const CARDS: Card[] = [
     currency: "cash",
     fee: 0,
     earn_json: earn(1),
-    caps_json: { custom: 667 },
+    caps_json: { custom: 2000 },
+    capPeriod: "quarter",
     sub_json: sub(20000, 1000, 4),
     score: 66,
     perks_json: [
@@ -854,7 +873,8 @@ export const CARDS: Card[] = [
     ],
     color_json: ["#1b1b3a", "#4b3f72"],
     ftf: 0,
-    caps_json: { dining: 667 },
+    caps_json: { dining: 2000 },
+    capPeriod: "quarter",
     fico_min: 670,
   }),
 
@@ -929,7 +949,10 @@ export const CARDS: Card[] = [
     currency: "cash",
     fee: 0,
     earn_json: earn(1, { groceries: 2 }),
-    caps_json: { custom: 833, groceries: 833 },
+    // 3% choice + 2% grocery share $2,500 a quarter
+    caps_json: { custom: 2500, groceries: 2500 },
+    capPeriod: "quarter",
+    capShared: true,
     sub_json: sub(20000, 1000, 3),
     score: 60,
     perks_json: [
@@ -1018,7 +1041,8 @@ export const CARDS: Card[] = [
     currency: "bilt",
     fee: 95,
     earn_json: earn(1, { travel: 2, hotels: 2 }),
-    caps_json: { custom: 2083 },
+    caps_json: { custom: 25000 },
+    capPeriod: "year",
     sub_json: null,
     score: 70,
     perks_json: [

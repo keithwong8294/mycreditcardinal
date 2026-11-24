@@ -6,6 +6,8 @@ import { useStore } from "@/lib/store";
 import { CATEGORIES } from "@/lib/categories";
 import { CURRENCY_MAP } from "@/lib/currencies";
 import { announcedRotation, currentQuarter } from "@/lib/engine";
+
+const PERIOD_WORD = { month: "mo", quarter: "quarter", year: "yr" } as const;
 import type { WalletCard } from "@/types";
 import { Checkbox } from "@/components/ui/checkbox";
 import { UpgradeModal } from "@/components/UpgradeModal";
@@ -131,7 +133,7 @@ function CustomSelectConfig({ wc }: { wc: WalletCard }) {
       <div className="text-[11px] text-tertiary mt-1">
         {selected.length}/{max} selected
         {wc.card.caps_json["custom"] != null &&
-          ` · $${wc.card.caps_json["custom"].toLocaleString()}/mo cap`}
+          ` · $${wc.card.caps_json["custom"].toLocaleString()}/${PERIOD_WORD[wc.card.cap_period ?? "month"]} cap`}
       </div>
     </div>
   );

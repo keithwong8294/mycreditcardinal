@@ -2,8 +2,10 @@ import type { Card } from "./card";
 
 export interface CategoryImprovement {
   categoryId: string;
-  currentRate: number;
-  candidateRate: number;
+  /** Whole-year average return on this category today, in % (¢ per $1). */
+  currentReturn: number;
+  /** Whole-year average return with the new card added, in %. */
+  newReturn: number;
   annualGain: number;
 }
 

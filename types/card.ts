@@ -1,3 +1,6 @@
+/** How often a bonus cap resets. */
+export type CapPeriod = "month" | "quarter" | "year";
+
 export interface Card {
   id: string;
   name: string;
@@ -9,8 +12,17 @@ export interface Card {
   /** Per-category earn rates. Key = category ID, value = multiplier (e.g. 3 = 3x) */
   earn_json: Record<string, number>;
 
-  /** Per-category spend caps in dollars. Key = category ID, value = cap amount */
+  /**
+   * Bonus spend caps in dollars per `cap_period`. Key = category ID, or
+   * "custom" for a combined cap on the user's chosen categories.
+   */
   caps_json: Record<string, number>;
+
+  /** Period the caps_json caps reset on (issuer terms). Default "month". */
+  cap_period?: CapPeriod;
+
+  /** All of caps_json is one combined cap (e.g. $6,000/yr across three categories). */
+  cap_shared?: boolean;
 
   /** Current sign-up bonus */
   sub_json: SubBonus | null;

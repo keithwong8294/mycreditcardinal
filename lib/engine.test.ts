@@ -5,6 +5,7 @@ import {
   currentQuarter,
   routeMonth,
   routeAnnual,
+  routeYear,
   calculateFees,
   calculateSubValue,
   getRecommendations,
@@ -68,11 +69,13 @@ describe("getEarnRate", () => {
     expect(getEarnRate(csr, "other", config, 1)).toBe(1);
   });
 
-  it("returns 5x total for rotating card when quarterly category matches", () => {
+  it("stacks the rotating +4% on the card's own rate (Freedom Flex dining = 7x)", () => {
     const cff = CARDS.find((c) => c.id === "cff")!;
-    const config: CardConfig = { rotQ: ["dining", null, null, null], custom: [] };
-    // CFF dining base = 3, rotating 5% is total, not stacked → 5x
-    expect(getEarnRate(cff, "dining", config, 1)).toBe(5);
+    const config: CardConfig = { rotQ: ["dining", "gas", null, null], custom: [] };
+    // Chase: "the most you will earn on eligible dining purchases during that quarter is 7%"
+    expect(getEarnRate(cff, "dining", config, 1)).toBe(7);
+    // A 1x category becomes 5x
+    expect(getEarnRate(cff, "gas", config, 2)).toBe(5);
   });
 
   it("returns base rate for rotating card when quarterly category does not match", () => {
@@ -118,7 +121,7 @@ describe("routeMonth — basic routing", () => {
     expect(diningRow!.earnRate).toBe(3);
   });
 
-  it("routes dining to Freedom Flex at 5x when quarterly is set to dining (Q1)", () => {
+  it("routes dining to Freedom Flex at 7x when quarterly is set to dining (Q1)", () => {
     const wallet = [
       makeWalletCard("cff", { rotQ: ["dining", null, null, null], custom: [] }),
       makeWalletCard("csr"),
@@ -127,7 +130,7 @@ describe("routeMonth — basic routing", () => {
     const diningRow = result.rows.find((r) => r.categoryId === "dining");
     expect(diningRow).toBeDefined();
     expect(diningRow!.walletCard.card.id).toBe("cff");
-    expect(diningRow!.earnRate).toBe(5);
+    expect(diningRow!.earnRate).toBe(7);
   });
 
   it("calculates points and dollar value correctly", () => {
@@ -194,30 +197,78 @@ describe("routeMonth — cap overflow", () => {
     const fallback = makeWalletCard("csr");
     const wallet = [cc, fallback];
 
-    // dining=$400 uses $400 of $500 cap; groceries=$200 → only $100 can go to CC, rest overflows
+    // $600 of spend for a $500 cap. The cap goes where it gains most:
+    // groceries (else 1x on CSR) before dining (else 3x on CSR).
     const result = routeMonth(wallet, { dining: 400, groceries: 200 }, {}, 1);
-    const grocRow = result.rows.find((r) => r.categoryId === "groceries");
+    const grocRow = result.rows.find((r) => r.categoryId === "groceries")!;
+    const dinRow = result.rows.find((r) => r.categoryId === "dining")!;
 
-    expect(grocRow).toBeDefined();
-    // After $400 dining consumed cap, $100 left for groceries on CC
-    expect(grocRow!.spend).toBeCloseTo(100);
-    expect(grocRow!.overflow.length).toBeGreaterThan(0);
-    expect(grocRow!.overflow[0].spend).toBeCloseTo(100);
+    expect(grocRow.walletCard.card.id).toBe("citi_custom_cash");
+    expect(grocRow.spend).toBeCloseTo(200);
+    expect(dinRow.walletCard.card.id).toBe("citi_custom_cash");
+    expect(dinRow.spend).toBeCloseTo(300);
+    expect(dinRow.overflow[0].walletCard.card.id).toBe("csr");
+    expect(dinRow.overflow[0].spend).toBeCloseTo(100);
+    // Rows still come back in category order
+    expect(result.rows.map((r) => r.categoryId).indexOf("dining")).toBeLessThan(
+      result.rows.map((r) => r.categoryId).indexOf("groceries")
+    );
   });
 
-  it("Freedom Flex rotating cap is quarterly / 3 per month", () => {
-    // CFF rot_cap = 1500 quarterly → 500/mo
-    // Set dining spend = 700 → 500 to CFF at 5x, 200 overflow to next card
+  it("Freedom Flex's $1,500 cap is per quarter, drawn down month by month", () => {
+    // $700/mo dining in a dining quarter: Jan 700 + Feb 700 at 7x, then only
+    // $100 of March fits under the $1,500; the rest earns CFF's own 3x.
     const cff = makeWalletCard("cff", { rotQ: ["dining", null, null, null], custom: [] });
-    const csr = makeWalletCard("csr"); // 3x dining
-    const result = routeMonth([cff, csr], { dining: 700 }, {}, 1);
-    const diningRow = result.rows.find((r) => r.categoryId === "dining");
+    const { months } = routeYear([cff], () => ({ dining: 700 }), {});
+    const bonusSpend = (m: number) => {
+      const row = months[m].rows.find((r) => r.categoryId === "dining")!;
+      return [row, ...row.overflow].filter((r) => r.earnRate === 7).reduce((s, r) => s + r.spend, 0);
+    };
+    expect(bonusSpend(0)).toBeCloseTo(700);
+    expect(bonusSpend(1)).toBeCloseTo(700);
+    expect(bonusSpend(2)).toBeCloseTo(100);
+    const march = months[2].rows.find((r) => r.categoryId === "dining")!;
+    expect(march.capHit).toBe(true);
+    expect(march.overflow[0].earnRate).toBe(3);
+    expect(march.overflow[0].spend).toBeCloseTo(600);
+    // The cap resets in April (no dining bonus in Q2 → plain 3x)
+    expect(months[3].rows.find((r) => r.categoryId === "dining")!.earnRate).toBe(3);
+    // Where the cap stands is reported for the UI
+    const cap = months[2].caps!.find((c) => c.bucket === "rotating")!;
+    expect(cap.limit).toBe(1500);
+    expect(cap.used).toBeCloseTo(1500);
+    expect(months[1].caps!.find((c) => c.bucket === "rotating")!.used).toBeCloseTo(1400);
+  });
 
-    expect(diningRow!.walletCard.card.id).toBe("cff");
-    expect(diningRow!.spend).toBeCloseTo(500);
-    expect(diningRow!.capHit).toBe(true);
-    expect(diningRow!.overflow[0].walletCard.card.id).toBe("csr");
-    expect(diningRow!.overflow[0].spend).toBeCloseTo(200);
+  it("spend past a rotating cap keeps the card's own regular rate when that's best", () => {
+    // Past $1,500 at 7x, CFF still earns 3x Chase points on dining (~6%),
+    // which beats SavorOne's 3% cash back.
+    const cff = makeWalletCard("cff", { rotQ: ["dining", null, null, null], custom: [] });
+    const savor = makeWalletCard("c1_savorone");
+    const row = routeMonth([savor, cff], { dining: 2000 }, {}, 1).rows.find((r) => r.categoryId === "dining")!;
+    expect(row.walletCard.card.id).toBe("cff");
+    expect(row.earnRate).toBe(7);
+    expect(row.overflow).toHaveLength(1);
+    expect(row.overflow[0].walletCard.card.id).toBe("cff");
+    expect(row.overflow[0].earnRate).toBe(3);
+    expect(row.overflow[0].spend).toBeCloseTo(500);
+  });
+
+  it("a lone month gets the whole quarterly cap", () => {
+    const cff = makeWalletCard("cff", { rotQ: ["dining", null, null, null], custom: [] });
+    const row = routeMonth([cff], { dining: 1600 }, {}, 1).rows.find((r) => r.categoryId === "dining")!;
+    expect(row.spend).toBeCloseTo(1500);
+    expect(row.overflow[0].spend).toBeCloseTo(100);
+  });
+
+  it("yearly caps last the whole year (Blue Cash Preferred groceries $6,000/yr)", () => {
+    const bcp = makeWalletCard("amex_bcp");
+    const { months } = routeYear([bcp], () => ({ groceries: 1000 }), {});
+    const at6 = (m: number) => months[m].rows.find((r) => r.categoryId === "groceries")!;
+    expect(at6(0).earnRate).toBe(bcp.card.earn_json.groceries);
+    expect(at6(0).spend).toBeCloseTo(1000);
+    expect(at6(5).spend).toBeCloseTo(1000);
+    expect(at6(6).earnRate).toBe(1); // July: cap used up, 1% after
   });
 });
 
@@ -235,7 +286,7 @@ describe("announced rotating schedule", () => {
     const config: CardConfig = { rotQ: [null, null, null, "online"], custom: [] };
     expect(rotatingCategories(cff, config, 4).sort()).toEqual(["dining", "groceries"]);
     expect(getEarnRate(cff, "groceries", config, 4)).toBe(5);
-    expect(getEarnRate(cff, "dining", config, 4)).toBe(5);
+    expect(getEarnRate(cff, "dining", config, 4)).toBe(7);
     expect(getEarnRate(cff, "online", config, 4)).toBe(1);
   });
 
@@ -248,15 +299,15 @@ describe("announced rotating schedule", () => {
   });
 
   it("shares the quarterly cap across all bonus categories", () => {
-    // CFF Q4: groceries + dining share $1,500/qtr → $500/mo combined
+    // CFF Q4: groceries + dining share one $1,500 quarterly cap
     const cff = makeWalletCard("cff");
     const csr = makeWalletCard("csr");
-    const result = routeMonth([cff, csr], { dining: 400, groceries: 400 }, {}, 4);
-    const onCff = result.rows
+    const result = routeMonth([cff, csr], { dining: 1000, groceries: 1000 }, {}, 4);
+    const onBonus = result.rows
       .flatMap((r) => [r, ...r.overflow])
-      .filter((r) => r.walletCard.card.id === "cff" && r.earnRate === 5)
+      .filter((r) => r.walletCard.card.id === "cff" && r.earnRate >= 5)
       .reduce((sum, r) => sum + r.spend, 0);
-    expect(onCff).toBeCloseTo(500);
+    expect(onBonus).toBeCloseTo(1500);
   });
 });
 
@@ -423,6 +474,61 @@ describe("getRecommendations — questionnaire answers", () => {
       // Uncapped 5x on $2,000 would be $1,200/yr; with the cap it must be far less.
       expect(dining?.annualGain ?? 0).toBeLessThan(1200);
     }
+  });
+});
+
+// ─── Root-cause regressions (Nov 2026) ───────────────────────────────────────
+
+describe("routing and ranking use real value, not raw multipliers", () => {
+  const prefs = (p: Partial<OptimizerPreferences> = {}): OptimizerPreferences => ({
+    ...DEFAULT_OPTIMIZER_PREFERENCES,
+    ...p,
+  });
+
+  it("routes to the card worth more per dollar, not the bigger multiplier", () => {
+    // 1.5x Chase points (~2¢) = 3% vs 2% cash back
+    const wallet = [makeWalletCard("wf_active_cash"), makeWalletCard("cfu")];
+    const r = routeMonth(wallet, { other: 1000 }, {}, 1, "floor");
+    expect(r.rows.find((x) => x.categoryId === "other")!.walletCard.card.id).toBe("cfu");
+    // ...but someone cashing out points gets the 2% card
+    const cashOut = routeMonth(wallet, { other: 1000 }, {}, 1, () => 100);
+    expect(cashOut.rows.find((x) => x.categoryId === "other")!.walletCard.card.id).toBe("wf_active_cash");
+  });
+
+  describe("with a real 2026 rotating calendar", () => {
+    beforeAll(() => vi.setSystemTime(new Date("2026-11-24T12:00:00Z")));
+    afterAll(() => vi.setSystemTime(new Date("2030-02-01T12:00:00Z")));
+    const wallet = () => [makeWalletCard("cff"), makeWalletCard("cfu"), makeWalletCard("c1_venturex")];
+
+    it("reports whole-year returns, not the best single quarter", () => {
+      const { recommendations } = getRecommendationSummary(wallet(), defaultSpend, prefs(), CARDS);
+      for (const r of recommendations) {
+        for (const imp of r.improvements) {
+          expect(imp.newReturn).toBeGreaterThan(imp.currentReturn);
+          expect(imp.annualGain).toBeGreaterThan(0);
+        }
+      }
+    });
+
+    it("'stick with my programs' only shows banks or points already held", () => {
+      const s = getRecommendationSummary(wallet(), defaultSpend, prefs({ ecosystem: "stay", creditUsage: "some" }), CARDS);
+      expect(s.recommendations.length).toBeGreaterThan(0);
+      for (const r of s.recommendations) {
+        expect(["Chase", "Capital One"]).toContain(r.card.issuer);
+      }
+      expect(s.hiddenNewBankCount).toBeGreaterThan(0);
+    });
+
+    it("everyday-spending goal never ranks a card that earns nothing extra", () => {
+      const recs = getRecommendations(wallet(), defaultSpend, prefs({ creditUsage: "some" }), CARDS);
+      expect(recs.every((r) => r.earnGain >= 1)).toBe(true);
+    });
+
+    it("a focus category only shows cards that raise it, listed first", () => {
+      const recs = getRecommendations(wallet(), defaultSpend, prefs({ focusCategory: "gas" }), CARDS);
+      expect(recs.length).toBeGreaterThan(0);
+      for (const r of recs) expect(r.improvements[0].categoryId).toBe("gas");
+    });
   });
 });
 

@@ -1,103 +1,156 @@
 "use client";
 
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { trackSpendUpdated } from "@/lib/analytics";
-import { useStore } from "@/lib/store";
+import { useStore, HOUSEHOLD_ID } from "@/lib/store";
 import { CATEGORIES } from "@/lib/categories";
 import { CURRENCY_MAP } from "@/lib/currencies";
-import { routeMonth, calculateFees, calculateSubValue } from "@/lib/engine";
-import type { ValuationTier } from "@/lib/engine";
-import type { RoutingRow, WalletCard } from "@/types";
+import {
+  routeYear,
+  calculateFees,
+  calculateSubValue,
+  rotatingCategories,
+  capPeriodLabel,
+} from "@/lib/engine";
+import type { CapStatus } from "@/lib/engine";
+import type { RoutingResult, RoutingRow, WalletCard } from "@/types";
+import { PageHeader } from "@/components/PageHeader";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
 } from "@/components/ui/select";
-import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  KeyboardSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  useSortable,
-  horizontalListSortingStrategy,
-  arrayMove,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const EMPTY_SPEND: Record<string, number> = {};
+// ─── Calendar ─────────────────────────────────────────────────────────────────
 
 const MONTH_LABELS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
+const QUARTER_SPANS = ["Jan–Mar", "Apr–Jun", "Jul–Sep", "Oct–Dec"];
 
-const CURRENT_YEAR = 2026;
-
-const MONTHS_OF_YEAR = MONTH_LABELS.map((_, i) => {
-  const mm = String(i + 1).padStart(2, "0");
-  return `${CURRENT_YEAR}-${mm}`;
-});
+/** "YYYY-MM" keys for every month of the given year. */
+function monthsOf(year: number): string[] {
+  return MONTH_LABELS.map((_, i) => `${year}-${String(i + 1).padStart(2, "0")}`);
+}
 
 function monthToQuarter(yearMonth: string): 1 | 2 | 3 | 4 {
   const month = parseInt(yearMonth.split("-")[1], 10);
-  return (Math.ceil(month / 3)) as 1 | 2 | 3 | 4;
+  return Math.ceil(month / 3) as 1 | 2 | 3 | 4;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+const EMPTY_SPEND: Record<string, number> = {};
+const EMPTY_MONTHLY: Record<string, Record<string, number>> = {};
+
+/** Default spend with this month's overrides applied. */
+function resolveSpend(
+  defaults: Record<string, number>,
+  monthly: Record<string, Record<string, number>>,
+  yearMonth: string | null
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const cat of CATEGORIES) {
+    const ov = yearMonth ? monthly[cat.id]?.[yearMonth] : undefined;
+    out[cat.id] = ov !== undefined ? ov : (defaults[cat.id] ?? cat.defaultAmount);
+  }
+  return out;
+}
+
+// ─── Formatting ───────────────────────────────────────────────────────────────
 
 function fmt(n: number): string {
-  return n.toLocaleString();
+  return Math.round(n).toLocaleString();
 }
 function fmtDollar(n: number): string {
   const r = Math.round(n);
   return `${r < 0 ? "-" : ""}$${Math.abs(r).toLocaleString()}`;
 }
+function catLabel(id: string): string {
+  return CATEGORIES.find((c) => c.id === id)?.label ?? id;
+}
+
+// ─── Segmented control ────────────────────────────────────────────────────────
+
+function Segmented<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: { value: T; label: React.ReactNode; title?: string }[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  // On a narrow screen the strip scrolls; keep the chosen option in view.
+  const strip = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = strip.current;
+    const btn = el?.querySelector<HTMLElement>('[aria-pressed="true"]');
+    if (el && btn && el.scrollWidth > el.clientWidth) {
+      el.scrollLeft = btn.offsetLeft - (el.clientWidth - btn.offsetWidth) / 2;
+    }
+  }, [value]);
+  return (
+    <div className="min-w-0 max-w-full">
+      <div className="text-[12px] font-medium text-tertiary mb-1">{label}</div>
+      <div ref={strip} className="relative flex rounded-lg border border-subtle overflow-x-auto text-[13px] bg-white max-w-full">
+        {options.map((o, i) => (
+          <button
+            key={o.value}
+            type="button"
+            title={o.title}
+            aria-pressed={o.value === value}
+            onClick={() => onChange(o.value)}
+            className={`px-3 py-1.5 font-medium whitespace-nowrap shrink-0 transition-colors duration-150 ${
+              i > 0 ? "border-l border-subtle" : ""
+            } ${o.value === value ? "bg-ink text-paper" : "text-secondary hover:bg-surface"}`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // ─── Spend row ────────────────────────────────────────────────────────────────
+
+// Desktop: one line. Phone: category + value, then the slider, then card + rate.
+const ROW_GRID =
+  "grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[150px_minmax(0,1fr)_minmax(0,230px)_52px_92px] items-center gap-x-3 gap-y-2";
 
 function SpendRow({
   categoryId,
   spend,
   routingRow,
   walletCards,
-  overrides,
+  overrideId,
   onSpendChange,
   onOverrideChange,
   defaultAmount,
   isMonthlyOverride,
   onClearOverride,
-  sliderMax,
   selectedMonth,
 }: {
   categoryId: string;
   spend: number;
   routingRow?: RoutingRow;
   walletCards: WalletCard[];
-  overrides: Record<string, string | null>;
+  overrideId: string | null;
   onSpendChange: (catId: string, val: number) => void;
   onOverrideChange: (catId: string, walletCardId: string | null) => void;
   defaultAmount?: number;
   isMonthlyOverride?: boolean;
   onClearOverride?: () => void;
-  sliderMax?: number;
-  selectedMonth?: string | null;
+  selectedMonth: string | null;
 }) {
   const cat = CATEGORIES.find((c) => c.id === categoryId)!;
-  const effectiveMax = sliderMax ?? cat.sliderMax;
   const [inputVal, setInputVal] = useState(String(Math.round(spend)));
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Re-sync the text box when spend changes externally (React's
-  // "adjust state during render" pattern — no ref access during render).
+  // Re-sync the text box when spend changes externally.
   const [prevSpend, setPrevSpend] = useState(spend);
   if (prevSpend !== spend) {
     setPrevSpend(spend);
@@ -106,57 +159,70 @@ function SpendRow({
 
   function commitInput() {
     const n = parseInt(inputVal.replace(/[^0-9]/g, ""), 10);
-    const clamped = isNaN(n) ? 0 : Math.max(0, Math.min(n, effectiveMax));
+    const clamped = isNaN(n) ? 0 : Math.max(0, Math.min(n, 100000));
     onSpendChange(categoryId, clamped);
     setInputVal(String(clamped));
-    trackSpendUpdated(categoryId, clamped, selectedMonth ?? null);
+    trackSpendUpdated(categoryId, clamped, selectedMonth);
   }
 
-  const overrideId = overrides[categoryId] ?? null;
-  const hasCards = walletCards.length > 0;
+  const active = routingRow && spend > 0;
+  const autoLabel = routingRow ? `Auto: ${routingRow.walletCard.card.name} ${routingRow.earnRate}x` : "";
 
   return (
-    <div className="border-b border-subtle last:border-b-0">
-      <div className="grid grid-cols-[140px_minmax(170px,1fr)_minmax(150px,210px)_52px_92px] items-center gap-2 px-3 py-2">
+    <div className="border-b border-subtle last:border-b-0 px-3 py-2.5">
+      <div className={ROW_GRID}>
         {/* Category */}
-        <div className="flex items-center gap-1 min-w-0">
+        <div className="order-1 flex items-center gap-1 min-w-0">
           <span className="text-[13px] text-primary font-medium truncate">{cat.label}</span>
           {isMonthlyOverride && onClearOverride && (
             <button
               onClick={onClearOverride}
-              title="Reset to average"
-              className="shrink-0 text-[11px] text-blue hover:text-blue/70 transition-colors leading-none"
+              title="Reset to your typical month"
+              className="shrink-0 text-[12px] text-blue hover:text-blue/70 leading-none"
             >
               ↺
             </button>
           )}
         </div>
 
-        {/* Slider + text input */}
-        <div className="flex items-center gap-2 min-w-0">
+        {/* Points + dollar value */}
+        <div className="order-2 md:order-5 text-right">
+          {active ? (
+            <>
+              <div className="text-[13px] font-medium text-primary tabular-nums">{fmt(routingRow.points + routingRow.overflow.reduce((s, o) => s + o.points, 0))}</div>
+              <div className="text-[11px] text-tertiary tabular-nums">
+                {fmtDollar(routingRow.dollarValue + routingRow.overflow.reduce((s, o) => s + o.dollarValue, 0))}
+              </div>
+            </>
+          ) : (
+            <span className="text-[12px] text-tertiary">—</span>
+          )}
+        </div>
+
+        {/* Slider + amount */}
+        <div className="order-3 md:order-2 col-span-2 md:col-span-1 flex items-center gap-2 min-w-0">
           <input
             type="range"
             min={0}
-            max={effectiveMax}
+            max={Math.max(cat.sliderMax, Math.round(spend))}
             step={10}
             value={Math.round(spend)}
+            aria-label={`${cat.label} monthly spend`}
             onChange={(e) => {
               const v = parseInt(e.target.value, 10);
               onSpendChange(categoryId, v);
               setInputVal(String(v));
             }}
-            className="flex-1 cursor-pointer accent-[#b3261e]"
-            style={{ minWidth: 0 }}
+            className="flex-1 min-w-0 cursor-pointer accent-[#b3261e]"
           />
           <div className="relative shrink-0">
-            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[12px] text-tertiary pointer-events-none">
-              $
-            </span>
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[12px] text-tertiary pointer-events-none">$</span>
             <input
               ref={inputRef}
               type="text"
               inputMode="numeric"
               value={inputVal}
+              aria-label={`${cat.label} amount`}
               onFocus={(e) => e.target.select()}
               onChange={(e) => setInputVal(e.target.value)}
               onBlur={commitInput}
@@ -164,279 +230,200 @@ function SpendRow({
                 if (e.key === "Enter") { commitInput(); inputRef.current?.blur(); }
               }}
               className={`w-20 pl-5 pr-2 py-1 border rounded-md text-[13px] text-primary text-right focus:outline-none focus:border-medium ${
-                isMonthlyOverride
-                  ? "bg-blue/5 border-blue/30"
-                  : "bg-field border-subtle"
+                isMonthlyOverride ? "bg-blue/5 border-blue/30" : "bg-field border-subtle"
               }`}
             />
           </div>
           {isMonthlyOverride && defaultAmount !== undefined && (
-            <span className="text-[11px] text-blue/60 shrink-0 tabular-nums hidden sm:inline">
-              avg ${defaultAmount}
+            <span className="text-[11px] text-blue/60 shrink-0 tabular-nums hidden lg:inline">
+              usually ${defaultAmount}
             </span>
           )}
         </div>
 
-        {/* Card dropdown */}
-        {hasCards && routingRow ? (
-          <Select
-            value={overrideId ?? "__auto__"}
-            onValueChange={(v) =>
-              onOverrideChange(categoryId, v === "__auto__" ? null : v)
-            }
-          >
-            <SelectTrigger className="h-7 text-[12px] w-full px-2">
-              <span className="truncate flex-1 text-left">
-                {overrideId
-                  ? (walletCards.find((wc) => wc.id === overrideId)?.card.name ?? "Card")
-                  : `Auto: ${routingRow.walletCard.card.name} ${routingRow.earnRate}x`}
-              </span>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__auto__">
-                Auto: {routingRow.walletCard.card.name} {routingRow.earnRate}x
-              </SelectItem>
-              {walletCards.map((wc: WalletCard) => (
-                <SelectItem key={wc.id} value={wc.id}>
-                  {wc.card.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : (
-          <span className="text-[12px] text-tertiary px-2">—</span>
-        )}
+        {/* Card */}
+        <div className="order-4 md:order-3 min-w-0">
+          {walletCards.length > 0 && routingRow ? (
+            <Select
+              value={overrideId ?? "__auto__"}
+              onValueChange={(v) => onOverrideChange(categoryId, v === "__auto__" ? null : v)}
+            >
+              <SelectTrigger className="h-7 text-[12px] w-full px-2">
+                <span className="truncate flex-1 text-left">
+                  {overrideId
+                    ? (walletCards.find((wc) => wc.id === overrideId)?.card.name ?? "Card")
+                    : autoLabel}
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__auto__">{autoLabel}</SelectItem>
+                {walletCards.map((wc) => (
+                  <SelectItem key={wc.id} value={wc.id}>
+                    {wc.card.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <span className="text-[12px] text-tertiary">—</span>
+          )}
+        </div>
 
         {/* Rate */}
-        {routingRow && spend > 0 ? (
-          <span
-            className={`text-[13px] font-medium tabular-nums text-right ${
-              routingRow.earnRate >= 3
-                ? "text-green"
-                : routingRow.earnRate >= 2
-                ? "text-primary"
-                : "text-tertiary"
-            }`}
-          >
-            {routingRow.earnRate}x
-            {routingRow.capHit && (
-              <span className="ml-1 text-amber text-[11px]" title="Cap reached">⚠</span>
-            )}
-          </span>
-        ) : (
-          <span className="text-[12px] text-tertiary text-right">—</span>
-        )}
-
-        {/* Points + dollar */}
-        {routingRow && spend > 0 ? (
-          <div className="text-right">
-            <div className="text-[13px] font-medium text-primary tabular-nums">
-              {fmt(Math.round(routingRow.points))}
-            </div>
-            <div className="text-[11px] text-tertiary tabular-nums">
-              {fmtDollar(routingRow.dollarValue)}
-            </div>
-          </div>
-        ) : (
-          <span className="text-[12px] text-tertiary text-right">—</span>
-        )}
+        <div className="order-5 md:order-4 text-right">
+          {active ? (
+            <span
+              className={`text-[13px] font-medium tabular-nums ${
+                routingRow.earnRate >= 3 ? "text-green" : routingRow.earnRate >= 2 ? "text-primary" : "text-tertiary"
+              }`}
+            >
+              {routingRow.earnRate}x
+              {routingRow.capHit && <span className="ml-1 text-amber text-[11px]" title="Bonus cap reached: the rest earns a lower rate (see below)">⚠</span>}
+            </span>
+          ) : (
+            <span className="text-[12px] text-tertiary">—</span>
+          )}
+        </div>
       </div>
 
-      {/* Overflow rows */}
-      {routingRow?.overflow.map((ov, i) => (
-        <div
-          key={i}
-          className="grid grid-cols-[140px_minmax(170px,1fr)_minmax(150px,210px)_52px_92px] items-center gap-2 px-3 py-1 bg-surface/50"
-        >
-          <span className="text-[11px] text-tertiary pl-2">↳ overflow</span>
-          <span className="text-[12px] text-secondary truncate">{ov.walletCard.card.name}</span>
-          <div />
-          <span className="text-[12px] text-secondary tabular-nums text-right">{ov.earnRate}x</span>
-          <div className="text-right">
-            <div className="text-[12px] text-secondary tabular-nums">{fmt(Math.round(ov.points))}</div>
-            <div className="text-[11px] text-tertiary tabular-nums">{fmtDollar(ov.dollarValue)}</div>
+      {/* Spend past a bonus cap */}
+      {active &&
+        routingRow.overflow.map((ov, i) => (
+          <div key={i} className="mt-1 text-[12px] text-secondary md:pl-[162px]">
+            ↳ {fmtDollar(ov.spend)} past the cap earns {ov.earnRate}x on{" "}
+            <span className="font-medium text-primary">{ov.walletCard.card.name}</span>
+            <span className="text-tertiary"> ({fmt(ov.points)} pts, {fmtDollar(ov.dollarValue)})</span>
           </div>
-        </div>
-      ))}
+        ))}
     </div>
   );
 }
 
-// ─── Table headers ────────────────────────────────────────────────────────────
+// ─── Bonus caps ───────────────────────────────────────────────────────────────
 
-function TableHeaders() {
+function CapMeter({ cap, monthLabel }: { cap: CapStatus; monthLabel: string }) {
+  const pct = Math.min(100, (cap.used / cap.limit) * 100);
+  const full = cap.used >= cap.limit - 0.5;
   return (
-    <div className="grid grid-cols-[140px_minmax(170px,1fr)_minmax(150px,210px)_52px_92px] gap-2 px-3 py-2 bg-surface border-b border-subtle">
-      <span className="text-[13px] text-tertiary font-medium">Category</span>
-      <span className="text-[13px] text-tertiary font-medium">Monthly spend</span>
-      <span className="text-[13px] text-tertiary font-medium">Card</span>
-      <span className="text-[13px] text-tertiary font-medium text-right">Rate</span>
-      <span className="text-[13px] text-tertiary font-medium text-right">Pts / Value</span>
+    <div className="min-w-0">
+      <div className="flex items-baseline justify-between gap-3 text-[12px]">
+        <span className="text-primary truncate">
+          <span className="font-medium">{cap.cardName}</span>
+          <span className="text-secondary"> · {cap.label}</span>
+        </span>
+        <span className={`shrink-0 tabular-nums ${full ? "text-red font-medium" : "text-secondary"}`}>
+          {full ? "Cap reached" : `${fmtDollar(cap.limit - cap.used)} left`}
+        </span>
+      </div>
+      <div className="mt-1 h-1.5 rounded-full bg-surface overflow-hidden">
+        <div className={`h-full rounded-full ${full ? "bg-red" : "bg-green"}`} style={{ width: `${pct}%` }} />
+      </div>
+      <div className="mt-0.5 text-[11px] text-tertiary tabular-nums">
+        {fmtDollar(cap.used)} of {fmtDollar(cap.limit)} used {capPeriodLabel(cap.period, cap.periodStart)}, through {monthLabel}
+      </div>
     </div>
   );
 }
 
-// ─── Profile block (self-contained per person) ──────────────────────────────
+// ─── Spend table (one person, or the merged household) ───────────────────────
 
-function ProfileBlock({
-  personId,
-  personName,
-  valuationTier,
-  quarter,
+function SpendTable({
+  spendKey,
+  title,
+  walletCards,
+  result,
   selectedMonth,
+  monthLabel,
+  editMonthOnly,
 }: {
-  personId: string;
-  personName: string;
-  valuationTier: ValuationTier;
-  quarter: 1 | 2 | 3 | 4;
-  selectedMonth: string | null;
+  spendKey: string;
+  title: string;
+  walletCards: WalletCard[];
+  /** This month's routing, with caps carried over from earlier months. */
+  result: RoutingResult;
+  selectedMonth: string;
+  monthLabel: string;
+  /** Edits change only this month instead of every month. */
+  editMonthOnly: boolean;
 }) {
-  const people = useStore((s) => s.people);
   const overrides = useStore((s) => s.overrides);
-  const defaultSpend = useStore((s) => s.spend[personId] ?? EMPTY_SPEND);
-  const monthlySpendStore = useStore((s) => s.monthlySpend[personId] ?? {} as Record<string, Record<string, number>>);
+  const defaults = useStore((s) => s.spend[spendKey] ?? EMPTY_SPEND);
+  const monthly = useStore((s) => s.monthlySpend[spendKey] ?? EMPTY_MONTHLY);
   const setSpend = useStore((s) => s.setSpend);
   const setMonthlySpend = useStore((s) => s.setMonthlySpend);
   const clearMonthlySpend = useStore((s) => s.clearMonthlySpend);
   const setOverride = useStore((s) => s.setOverride);
 
-  const walletCards = useMemo(
-    () => people.find((p) => p.id === personId)?.cards ?? [],
-    [people, personId]
-  );
-
-  const effectiveSpend = useMemo(() => {
-    if (!selectedMonth) return defaultSpend as Record<string, number>;
-    const result: Record<string, number> = {};
-    for (const cat of CATEGORIES) {
-      const override = monthlySpendStore[cat.id]?.[selectedMonth];
-      result[cat.id] = override !== undefined ? override : (defaultSpend[cat.id] ?? cat.defaultAmount);
-    }
-    return result;
-  }, [selectedMonth, defaultSpend, monthlySpendStore]);
-
-  const result = useMemo(
-    () => routeMonth(walletCards, effectiveSpend, overrides, quarter, valuationTier),
-    [walletCards, effectiveSpend, overrides, quarter, valuationTier]
-  );
-
-  const routingMap = useMemo(
-    () => Object.fromEntries(result.rows.map((r) => [r.categoryId, r])),
-    [result.rows]
-  );
-
+  const spend = useMemo(() => resolveSpend(defaults, monthly, selectedMonth), [defaults, monthly, selectedMonth]);
+  const routingMap = useMemo(() => Object.fromEntries(result.rows.map((r) => [r.categoryId, r])), [result.rows]);
+  const monthlySpendTotal = Object.values(spend).reduce((s, v) => s + v, 0);
   const monthlyPoints = result.currencyTotals.reduce((s, ct) => s + ct.points, 0);
+  const caps = result.caps ?? [];
 
-  const handleSpendChange = useCallback(
-    (catId: string, val: number) => {
-      if (selectedMonth) {
-        const def = defaultSpend[catId] ?? CATEGORIES.find(c => c.id === catId)?.defaultAmount ?? 0;
-        if (val === def) {
-          clearMonthlySpend(personId, catId, selectedMonth);
-        } else {
-          setMonthlySpend(personId, catId, selectedMonth, val);
-        }
-      } else {
-        setSpend(personId, catId, val);
-      }
-    },
-    [personId, selectedMonth, defaultSpend, setSpend, setMonthlySpend, clearMonthlySpend]
-  );
-
-  const handleOverrideChange = useCallback(
-    (catId: string, walletCardId: string | null) => setOverride(catId, walletCardId),
-    [setOverride]
-  );
+  function handleSpendChange(catId: string, val: number) {
+    if (!editMonthOnly) {
+      // Typical spend changes every month; drop this month's override so the
+      // number typed is the number shown.
+      if (monthly[catId]?.[selectedMonth] !== undefined) clearMonthlySpend(spendKey, catId, selectedMonth);
+      return setSpend(spendKey, catId, val);
+    }
+    const def = defaults[catId] ?? CATEGORIES.find((c) => c.id === catId)?.defaultAmount ?? 0;
+    if (val === def) clearMonthlySpend(spendKey, catId, selectedMonth);
+    else setMonthlySpend(spendKey, catId, selectedMonth, val);
+  }
 
   return (
-    <div className="bg-white border border-subtle rounded-xl overflow-hidden min-w-[660px]">
-      <div className="px-4 py-3 border-b border-subtle bg-white flex items-center justify-between cursor-grab active:cursor-grabbing">
-        <span className="text-[16px] font-semibold text-ink">{personName}</span>
-        <span className="text-[13px] text-secondary">
+    <div className="bg-white border border-subtle rounded-xl overflow-hidden">
+      <div className="px-4 py-3 border-b border-subtle flex items-center justify-between gap-3">
+        <span className="text-[16px] font-semibold text-ink truncate">{title}</span>
+        <span className="text-[13px] text-secondary shrink-0">
           {walletCards.length} card{walletCards.length !== 1 ? "s" : ""}
         </span>
       </div>
-      <TableHeaders />
+      <div className={`hidden md:grid ${ROW_GRID} px-3 py-2 bg-surface border-b border-subtle text-[12px] text-tertiary font-medium`}>
+        <span>Category</span>
+        <span>Spend in {monthLabel}</span>
+        <span>Card</span>
+        <span className="text-right">Rate</span>
+        <span className="text-right">Pts / Value</span>
+      </div>
       {CATEGORIES.map((cat) => {
-        const hasMonthlyOverride = selectedMonth
-          ? monthlySpendStore[cat.id]?.[selectedMonth] !== undefined
-          : false;
+        const isOverride = monthly[cat.id]?.[selectedMonth] !== undefined;
         return (
           <SpendRow
-            key={`${personId}-${cat.id}-${selectedMonth ?? "annual"}`}
+            key={`${spendKey}-${cat.id}-${selectedMonth}`}
             categoryId={cat.id}
-            spend={effectiveSpend[cat.id] ?? 0}
+            spend={spend[cat.id] ?? 0}
             routingRow={routingMap[cat.id]}
             walletCards={walletCards}
-            overrides={overrides}
+            overrideId={overrides[cat.id] ?? null}
             onSpendChange={handleSpendChange}
-            onOverrideChange={handleOverrideChange}
-            defaultAmount={selectedMonth ? (defaultSpend[cat.id] ?? 0) : undefined}
-            isMonthlyOverride={hasMonthlyOverride}
-            onClearOverride={hasMonthlyOverride && selectedMonth
-              ? () => clearMonthlySpend(personId, cat.id, selectedMonth)
-              : undefined}
+            onOverrideChange={setOverride}
+            defaultAmount={defaults[cat.id] ?? 0}
+            isMonthlyOverride={isOverride}
+            onClearOverride={isOverride ? () => clearMonthlySpend(spendKey, cat.id, selectedMonth) : undefined}
             selectedMonth={selectedMonth}
           />
         );
       })}
-      {monthlyPoints > 0 && (
-        <div className="grid grid-cols-[140px_minmax(170px,1fr)_minmax(150px,210px)_52px_92px] gap-2 px-3 py-2 bg-surface border-t border-subtle">
-          <span className="text-[12px] font-semibold text-secondary">Monthly</span>
-          <div /><div /><div />
-          <div className="text-right">
-            <div className="text-[13px] font-semibold text-primary tabular-nums">{fmt(Math.round(monthlyPoints))}</div>
-            <div className="text-[11px] text-green font-medium tabular-nums">{fmtDollar(result.totalDollarValue)}</div>
+      {caps.length > 0 && (
+        <div className="px-4 py-3 border-t border-subtle space-y-3">
+          <div className="text-[12px] font-medium text-tertiary">Bonus caps</div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {caps.map((c) => (
+              <CapMeter key={`${c.walletCardId}-${c.bucket}`} cap={c} monthLabel={monthLabel} />
+            ))}
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-// ─── Sortable profile block wrapper ─────────────────────────────────────────
-
-function SortableProfileBlock({
-  personId,
-  personName,
-  valuationTier,
-  quarter,
-  selectedMonth,
-}: {
-  personId: string;
-  personName: string;
-  valuationTier: ValuationTier;
-  quarter: 1 | 2 | 3 | 4;
-  selectedMonth: string | null;
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: personId });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-    zIndex: isDragging ? 50 : undefined,
-  };
-
-  return (
-    <div ref={setNodeRef} style={style} className="flex-1 min-w-0">
-      {/* Drag handle layer over the header */}
-      <div className="relative">
-        <div {...attributes} {...listeners} className="absolute inset-x-0 top-0 h-[48px] z-10 cursor-grab active:cursor-grabbing" />
-        <ProfileBlock
-          personId={personId}
-          personName={personName}
-          valuationTier={valuationTier}
-          quarter={quarter}
-          selectedMonth={selectedMonth}
-        />
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-surface border-t border-subtle">
+        <span className="text-[13px] font-semibold text-secondary">
+          {fmtDollar(monthlySpendTotal)} spent in {monthLabel}
+        </span>
+        <div className="text-right">
+          <span className="text-[13px] font-semibold text-primary tabular-nums">{fmt(monthlyPoints)} pts</span>
+          <span className="ml-2 text-[13px] text-green font-semibold tabular-nums">{fmtDollar(result.totalDollarValue)}</span>
+        </div>
       </div>
     </div>
   );
@@ -455,8 +442,7 @@ function MetricCard({
   sub?: string;
   accent?: "green" | "red" | "default";
 }) {
-  const valueClass =
-    accent === "green" ? "text-green" : accent === "red" ? "text-red" : "text-primary";
+  const valueClass = accent === "green" ? "text-green" : accent === "red" ? "text-red" : "text-primary";
   return (
     <div className="bg-white border border-subtle rounded-xl p-4">
       <div className="text-[14px] text-secondary mb-1">{label}</div>
@@ -474,401 +460,245 @@ export default function SimulatePage() {
   const allMonthlySpend = useStore((s) => s.monthlySpend);
   const overrides = useStore((s) => s.overrides);
   const subEarned = useStore((s) => s.subEarned);
+  const spendMode = useStore((s) => s.spendMode);
+  const setSpendMode = useStore((s) => s.setSpendMode);
   const resetMonthForPerson = useStore((s) => s.resetMonthForPerson);
-  const storeValuationTier = useStore((s) => s.valuationTier);
-  const storeViewQuarter = useStore((s) => s.viewQuarter);
+  const valuationTier = useStore((s) => s.valuationTier);
   const setValuation = useStore((s) => s.setValuation);
-  const setViewQuarter = useStore((s) => s.setViewQuarter);
-  const reorderPeople = useStore((s) => s.reorderPeople);
 
-  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  // The calendar is always the real one: this year, opening on this month.
+  const [today] = useState(() => new Date());
+  const year = today.getFullYear();
+  const months = useMemo(() => monthsOf(year), [year]);
+  const [monthIdx, setMonthIdx] = useState(() => today.getMonth());
+  const [editMonthOnly, setEditMonthOnly] = useState(false);
+  const selectedMonth = months[monthIdx];
+  const quarter = monthToQuarter(selectedMonth);
 
-  const valuationTier: ValuationTier = storeValuationTier;
+  const merged = spendMode === "household" && people.length > 1;
+  const allCards = useMemo(() => people.flatMap((p) => p.cards), [people]);
 
-  // Derive quarter from selected month; fall back to store-persisted quarter for annual view
-  const viewQuarter: 1 | 2 | 3 | 4 = selectedMonth ? monthToQuarter(selectedMonth) : storeViewQuarter;
-
-  // True if the selected month has at least one spend override for any person
-  const selectedMonthHasOverrides = selectedMonth
-    ? people.some((p) =>
-        Object.values(allMonthlySpend[p.id] ?? {}).some((catMap) => selectedMonth in catMap)
-      )
-    : false;
-
-  // ── DnD sensors ─────────────────────────────────────────────────────────────
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor)
+  /** Who gets a spend table: each person, or one merged household. */
+  const profiles = useMemo(
+    () =>
+      merged
+        ? [{ key: HOUSEHOLD_ID, title: "Household (combined)", cards: allCards }]
+        : people.map((p) => ({ key: p.id, title: p.name, cards: p.cards })),
+    [merged, allCards, people]
   );
 
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = people.findIndex((p) => p.id === active.id);
-    const newIndex = people.findIndex((p) => p.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-    const reordered = arrayMove(people.map((p) => p.id), oldIndex, newIndex);
-    reorderPeople(reordered);
-  }
+  // ── The year, month by month, with bonus caps carried across months ───────
+  const years = useMemo(
+    () =>
+      profiles.map((prof) => {
+        const defaults = allSpend[prof.key] ?? EMPTY_SPEND;
+        const monthly = allMonthlySpend[prof.key] ?? EMPTY_MONTHLY;
+        return routeYear(prof.cards, (m) => resolveSpend(defaults, monthly, months[m]), overrides, valuationTier);
+      }),
+    [profiles, allSpend, allMonthlySpend, overrides, valuationTier, months]
+  );
 
-  // ── Household-level aggregation ─────────────────────────────────────────────
-
-  const householdStats = useMemo(() => {
-    const subEarnedSet = new Set(subEarned);
-    let totalAnnualValue = 0;
-    let totalGrossFees = 0;
-    let totalCredits = 0;
-    let totalNetFees = 0;
-    let totalSubValue = 0;
-    const mergedCurrencies: Record<string, { points: number; dollarValue: number }> = {};
-
-    for (const person of people) {
-      const cards = person.cards;
-      const personDefaults = allSpend[person.id] ?? EMPTY_SPEND;
-      const personMonthly = allMonthlySpend[person.id] ?? {};
-      const resolveSpend = (ym: string): Record<string, number> => {
-        const result: Record<string, number> = {};
-        for (const cat of CATEGORIES) {
-          const ov = personMonthly[cat.id]?.[ym];
-          result[cat.id] = ov !== undefined ? ov : (personDefaults[cat.id] ?? cat.defaultAmount);
-        }
-        return result;
-      };
-
-      let personAnnual;
-      if (selectedMonth) {
-        const monthSpend = resolveSpend(selectedMonth);
-        const q = monthToQuarter(selectedMonth);
-        const mr = routeMonth(cards, monthSpend, overrides, q, valuationTier);
-        personAnnual = {
-          totalDollarValue: mr.totalDollarValue * 12,
-          currencyTotals: mr.currencyTotals.map(ct => ({
-            ...ct,
-            points: ct.points * 12,
-            dollarValue: ct.dollarValue * 12,
-          })),
-        };
-      } else {
-        let tv = 0;
-        const cmap: Record<string, { points: number; dollarValue: number }> = {};
-        for (const ym of MONTHS_OF_YEAR) {
-          const ms = resolveSpend(ym);
-          const q = monthToQuarter(ym);
-          const mr = routeMonth(cards, ms, overrides, q, valuationTier);
-          tv += mr.totalDollarValue;
-          for (const ct of mr.currencyTotals) {
-            if (!cmap[ct.currencyId]) cmap[ct.currencyId] = { points: 0, dollarValue: 0 };
-            cmap[ct.currencyId].points += ct.points;
-            cmap[ct.currencyId].dollarValue += ct.dollarValue;
-          }
-        }
-        personAnnual = {
-          totalDollarValue: tv,
-          currencyTotals: Object.entries(cmap).map(([c, v]) => ({ currencyId: c, ...v })),
-        };
-      }
-
-      const personFees = calculateFees(cards);
-      const personSubVal = calculateSubValue(cards, subEarnedSet, valuationTier);
-      totalAnnualValue += personAnnual.totalDollarValue;
-      totalGrossFees += personFees.grossFees;
-      totalCredits += personFees.estimatedCredits;
-      totalNetFees += personFees.netFees;
-      totalSubValue += personSubVal;
-
-      for (const ct of personAnnual.currencyTotals) {
-        if (!mergedCurrencies[ct.currencyId]) mergedCurrencies[ct.currencyId] = { points: 0, dollarValue: 0 };
-        mergedCurrencies[ct.currencyId].points += ct.points;
-        mergedCurrencies[ct.currencyId].dollarValue += ct.dollarValue;
+  const stats = useMemo(() => {
+    let earn = 0;
+    const currencies: Record<string, { points: number; dollarValue: number }> = {};
+    for (const y of years) {
+      earn += y.total.totalDollarValue;
+      for (const ct of y.total.currencyTotals) {
+        const c = (currencies[ct.currencyId] ??= { points: 0, dollarValue: 0 });
+        c.points += ct.points;
+        c.dollarValue += ct.dollarValue;
       }
     }
-
+    const fees = calculateFees(allCards);
+    const subs = calculateSubValue(allCards, new Set(subEarned), valuationTier);
     return {
-      totalAnnualValue,
-      totalGrossFees,
-      totalCredits,
-      totalNetFees,
-      totalSubValue,
-      netTotal: totalAnnualValue + totalSubValue - totalNetFees,
-      currencyTotals: Object.entries(mergedCurrencies).map(([currencyId, v]) => ({ currencyId, ...v })),
+      earn,
+      fees,
+      subs,
+      net: earn + subs - fees.netFees,
+      currencyTotals: Object.entries(currencies)
+        .map(([currencyId, v]) => ({ currencyId, ...v }))
+        .sort((a, b) => b.dollarValue - a.dollarValue),
     };
-  }, [people, overrides, valuationTier, subEarned, selectedMonth, allSpend, allMonthlySpend]);
+  }, [years, valuationTier, subEarned, allCards]);
 
-  // ── Household monthly totals (for the bottom summary bar) ─────────────────
-
-  const householdMonthlyTotals = useMemo(() => {
-    let totalPoints = 0;
-    let totalValue = 0;
-
-    for (const person of people) {
-      const cards = person.cards;
-      const personDefaults = allSpend[person.id] ?? EMPTY_SPEND;
-      const personMonthly = allMonthlySpend[person.id] ?? {};
-      const monthSpend: Record<string, number> = {};
-      for (const cat of CATEGORIES) {
-        if (selectedMonth) {
-          const ov = personMonthly[cat.id]?.[selectedMonth];
-          monthSpend[cat.id] = ov !== undefined ? ov : (personDefaults[cat.id] ?? cat.defaultAmount);
-        } else {
-          monthSpend[cat.id] = personDefaults[cat.id] ?? cat.defaultAmount;
-        }
-      }
-      const q = selectedMonth ? monthToQuarter(selectedMonth) : viewQuarter;
-      const mr = routeMonth(cards, monthSpend, overrides, q, valuationTier);
-      totalPoints += mr.currencyTotals.reduce((s, ct) => s + ct.points, 0);
-      totalValue += mr.totalDollarValue;
+  // ── Rotating 5% categories in effect for the month shown ───────────────────
+  const rotating = useMemo(() => {
+    const seen = new Set<string>();
+    const out: { name: string; cats: string[] }[] = [];
+    for (const wc of allCards) {
+      if (!wc.card.rotating || seen.has(wc.card.id)) continue;
+      seen.add(wc.card.id);
+      out.push({ name: wc.card.name, cats: rotatingCategories(wc.card, wc.config, quarter) });
     }
+    return out;
+  }, [allCards, quarter]);
 
-    return { totalPoints, totalValue };
-  }, [people, allSpend, allMonthlySpend, overrides, valuationTier, selectedMonth, viewQuarter]);
-
-  // ── Empty state ───────────────────────────────────────────────────────────────
-
-  const hasAnyCards = people.some((p) => p.cards.length > 0);
-  if (!hasAnyCards) {
+  if (allCards.length === 0) {
     return (
       <div className="p-6">
         <div className="bg-white border border-subtle rounded-lg py-16 text-center">
           <p className="text-[14px] text-tertiary mb-2">No cards in wallet yet.</p>
           <a href="/browse" className="text-[14px] text-green font-medium hover:underline">
-            Go to Wallet to add cards →
+            Add cards to your wallet →
           </a>
         </div>
       </div>
     );
   }
 
-  const monthLabel = selectedMonth
-    ? `${MONTH_LABELS[parseInt(selectedMonth.split("-")[1], 10) - 1]} ${CURRENT_YEAR}`
-    : null;
-
-  const displayStats = householdStats;
-  const totalCards = people.reduce((n, p) => n + p.cards.length, 0);
+  const monthLabel = MONTH_LABELS[monthIdx];
+  const selectedHasOverrides = profiles.some((p) =>
+    Object.values(allMonthlySpend[p.key] ?? {}).some((m) => selectedMonth in m)
+  );
 
   return (
-    <div className="px-4 sm:px-8 lg:px-10 pt-6 sm:pt-8 pb-14 mx-auto max-w-[1180px] space-y-6">
-      {/* ── Global controls ─────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="font-display text-[40px] sm:text-[44px] leading-none text-ink">Simulator</h1>
-          <p className="mt-2 text-[15px] text-secondary">Set what you spend. We route every category to your best card.</p>
-        </div>
+    <div className="px-4 sm:px-8 lg:px-10 pt-6 sm:pt-8 pb-14 mx-auto max-w-[1100px] space-y-6">
+      <PageHeader
+        title="Simulator"
+        subtitle="Set what you spend. Every category goes to the card that earns you the most."
+      />
 
-        <div className="flex items-center gap-2 flex-wrap min-w-0 max-w-full">
-          {/* Month selector — scrollable */}
-          <div className="flex rounded-lg border border-subtle overflow-x-auto text-[13px] max-w-full shrink-0">
-            <button
-              onClick={() => setSelectedMonth(null)}
-              className={`px-3 py-1.5 font-medium transition-colors duration-150 whitespace-nowrap shrink-0 ${
-                !selectedMonth ? "bg-ink text-paper" : "bg-white text-secondary hover:bg-surface"
-              }`}
-            >
-              Annual
-            </button>
-            {MONTHS_OF_YEAR.map((ym, i) => (
-              <button
-                key={ym}
-                onClick={() => setSelectedMonth(ym)}
-                className={`px-2.5 py-1.5 font-medium transition-colors duration-150 border-l border-subtle whitespace-nowrap shrink-0 ${
-                  selectedMonth === ym ? "bg-ink text-paper" : "bg-white text-secondary hover:bg-surface"
-                }`}
-              >
-                {MONTH_LABELS[i]}
-              </button>
-            ))}
-          </div>
-
-          {/* Reset month overrides */}
-          {selectedMonth && selectedMonthHasOverrides && (
-            <button
-              onClick={() => people.forEach((p) => resetMonthForPerson(p.id, selectedMonth))}
-              className="px-2.5 py-1.5 text-[12px] font-medium text-red-500 hover:text-red-600 border border-red-200 hover:border-red-300 rounded-lg transition-colors duration-150 whitespace-nowrap"
-              title="Reset all spend for this month to your annual averages"
-            >
-              ↺ Reset {MONTH_LABELS[MONTHS_OF_YEAR.indexOf(selectedMonth)]}
-            </button>
-          )}
-
-          {/* Valuation toggle */}
-          <div className="flex rounded-lg border border-subtle overflow-hidden">
-            {(["floor", "composite", "ceiling"] as const).map((tier) => (
-              <button
-                key={tier}
-                onClick={() => setValuation(tier)}
-                className={`px-3 py-1.5 text-[13px] font-medium transition-colors duration-150 capitalize ${
-                  valuationTier === tier
-                    ? "bg-ink text-paper border-ink"
-                    : "bg-white text-secondary hover:bg-surface"
-                }`}
-              >
-                {tier === "composite" ? "MCC" : tier.charAt(0).toUpperCase() + tier.slice(1)}
-              </button>
-            ))}
-          </div>
-
-          {/* Quarter selector — only relevant in annual view for rotating cards */}
-          {!selectedMonth && (
-            <div className="flex rounded-lg border border-subtle overflow-hidden">
-              {([1, 2, 3, 4] as const).map((q) => (
-                <button
-                  key={q}
-                  onClick={() => setViewQuarter(q)}
-                  className={`px-2.5 py-1.5 text-[13px] font-medium transition-colors duration-150 ${
-                    viewQuarter === q
-                      ? "bg-ink text-white"
-                      : "bg-white text-secondary hover:bg-surface"
-                  }`}
-                  title={`View rotating card categories for Q${q}`}
-                >
-                  Q{q}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+      {/* ── Controls ───────────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+        {people.length > 1 && (
+          <Segmented
+            label="Count spending"
+            value={merged ? "household" : "individual"}
+            onChange={setSpendMode}
+            options={[
+              { value: "individual", label: "Per person", title: "Each person has their own spending and cards" },
+              { value: "household", label: "As one household", title: "One combined budget that can use every card in the household" },
+            ]}
+          />
+        )}
+        <Segmented
+          label={`Month (${year})`}
+          value={String(monthIdx)}
+          onChange={(v) => setMonthIdx(Number(v))}
+          options={MONTH_LABELS.map((m, i) => ({
+            value: String(i),
+            label: i === today.getMonth() ? <span className="underline underline-offset-4 decoration-cardinal">{m}</span> : m,
+            title: i === today.getMonth() ? "This month" : undefined,
+          }))}
+        />
+        <Segmented
+          label="Edits change"
+          value={editMonthOnly ? "month" : "every"}
+          onChange={(v) => setEditMonthOnly(v === "month")}
+          options={[
+            { value: "every", label: "Every month", title: "Your typical spending, used for every month" },
+            { value: "month", label: `Only ${monthLabel}`, title: "A one-off amount for this month" },
+          ]}
+        />
+        <Segmented
+          label="Point values"
+          value={valuationTier}
+          onChange={setValuation}
+          options={[
+            { value: "floor", label: "Cash-out" },
+            { value: "composite", label: "MCC" },
+            { value: "ceiling", label: "Best case" },
+          ]}
+        />
+        {selectedHasOverrides && (
+          <button
+            onClick={() => profiles.forEach((p) => resetMonthForPerson(p.key, selectedMonth))}
+            className="px-3 py-1.5 text-[13px] font-medium text-red border border-red/30 hover:border-red/60 rounded-lg whitespace-nowrap"
+          >
+            ↺ Reset {monthLabel}
+          </button>
+        )}
       </div>
 
-      {/* ── Annual summary metrics ─────────────────────────────────────────── */}
+      {/* ── Year summary ───────────────────────────────────────────────────── */}
       <section>
-        <h2 className="text-[20px] font-semibold text-ink mb-3">
-          {people.length > 1 ? "Your household this year" : "Your wallet this year"}
+        <h2 className="text-[20px] font-semibold text-ink mb-1">
+          {people.length > 1 ? "Your household" : "Your wallet"} in {year}
         </h2>
+        <p className="text-[13px] text-tertiary mb-3">
+          All 12 months in order: each quarter&apos;s rotating categories, any month you&apos;ve changed, and bonus caps used up as the year goes.
+        </p>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <MetricCard
-            label="Points value"
-            value={fmtDollar(displayStats.totalAnnualValue)}
-            sub="Annual rewards"
-            accent="green"
-          />
+          <MetricCard label="Rewards" value={fmtDollar(stats.earn)} sub="Earned on spending" accent="green" />
           <MetricCard
             label="Annual fees"
-            value={fmtDollar(displayStats.totalNetFees)}
+            value={fmtDollar(stats.fees.netFees)}
             sub={
-              displayStats.totalCredits > 0
-                ? `${fmtDollar(displayStats.totalGrossFees)} − ${fmtDollar(displayStats.totalCredits)} credits`
-                : `${totalCards} card${totalCards !== 1 ? "s" : ""} total`
+              stats.fees.estimatedCredits > 0
+                ? `${fmtDollar(stats.fees.grossFees)} − ${fmtDollar(stats.fees.estimatedCredits)} credits`
+                : `${allCards.length} card${allCards.length !== 1 ? "s" : ""}`
             }
-            accent={displayStats.totalNetFees > 0 ? "red" : "green"}
+            accent={stats.fees.netFees > 0 ? "red" : "green"}
           />
-          <MetricCard
-            label="SUBs earned"
-            value={fmtDollar(displayStats.totalSubValue)}
-            sub="Sign-up bonuses"
-            accent={displayStats.totalSubValue > 0 ? "green" : "default"}
-          />
-          <MetricCard
-            label="Net total value"
-            value={fmtDollar(displayStats.netTotal)}
-            sub="Rewards + SUBs − fees"
-            accent={displayStats.netTotal >= 0 ? "green" : "red"}
-          />
+          <MetricCard label="Bonuses earned" value={fmtDollar(stats.subs)} sub="Sign-up bonuses" accent={stats.subs > 0 ? "green" : "default"} />
+          <MetricCard label="Net value" value={fmtDollar(stats.net)} sub="Rewards + bonuses − fees" accent={stats.net >= 0 ? "green" : "red"} />
         </div>
       </section>
 
-      {/* Monthly override hint */}
-      {selectedMonth && (
-        <div className="flex items-center gap-2 px-3 py-2 bg-blue/5 border border-blue/15 rounded-lg text-[13px] text-blue/80">
-          <span>Editing spend for <strong>{monthLabel}</strong>. Changes save as monthly overrides. Tap ↺ next to a category to reset it to your default average.</span>
+      {/* ── What the table shows ───────────────────────────────────────────── */}
+      <div className="px-3 py-2.5 bg-white border border-subtle rounded-lg text-[13px] text-secondary space-y-1">
+        <div>
+          Showing <strong className="text-primary">{monthLabel} {year}</strong>, with bonus caps already used earlier in the period counted.{" "}
+          {editMonthOnly
+            ? <>Changes apply to {monthLabel} only; ↺ puts a category back to your typical amount.</>
+            : <>Changes set your typical spending for every month.</>}
+          {merged && " Spending is pooled, so any card in the household can be used."}
         </div>
-      )}
-
-      {/* ── Profile blocks (drag-and-drop) ─────────────────────────────────── */}
-      <section>
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={people.map((p) => p.id)}
-            strategy={horizontalListSortingStrategy}
-          >
-            <div className="flex flex-col md:flex-row gap-4 overflow-x-auto">
-              {people.map((person) => (
-                <SortableProfileBlock
-                  key={person.id}
-                  personId={person.id}
-                  personName={person.name}
-                  valuationTier={valuationTier}
-                  quarter={selectedMonth ? monthToQuarter(selectedMonth) : viewQuarter}
-                  selectedMonth={selectedMonth}
-                />
-              ))}
-              
-            </div>
-          </SortableContext>
-        </DndContext>
-      </section>
-
-      {/* ── Household Total bar ────────────────────────────────────────────── */}
-      {people.length > 1 && householdMonthlyTotals.totalPoints > 0 && (
-        <div className="bg-ink rounded-lg px-4 py-3 flex items-center justify-between">
-          <span className="text-[14px] font-semibold text-white">Household Total</span>
-          <div className="flex items-center gap-6">
-            <div className="text-right">
-              <div className="text-[13px] text-white/40 font-medium">Monthly pts</div>
-              <div className="text-[14px] font-semibold text-white tabular-nums">
-                {fmt(Math.round(householdMonthlyTotals.totalPoints))}
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-[13px] text-white/40 font-medium">Monthly value</div>
-              <div className="text-[14px] font-semibold text-[#8fd3a8] tabular-nums">
-                {fmtDollar(householdMonthlyTotals.totalValue)}
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-[13px] text-white/40 font-medium">Annual fees</div>
-              <div className="text-[14px] font-semibold text-white tabular-nums">
-                {fmtDollar(displayStats.totalNetFees)}
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-[13px] text-white/40 font-medium">Annual net</div>
-              <div className={`text-[14px] font-semibold tabular-nums ${displayStats.netTotal >= 0 ? "text-[#8fd3a8]" : "text-red-400"}`}>
-                {fmtDollar(displayStats.netTotal)}
-              </div>
-            </div>
+        {rotating.length > 0 && (
+          <div>
+            Rotating 5% in Q{quarter} ({QUARTER_SPANS[quarter - 1]}):{" "}
+            {rotating.map((r, i) => (
+              <span key={r.name}>
+                {i > 0 && " · "}
+                <span className="font-medium text-primary">{r.name}</span>{" "}
+                {r.cats.length ? r.cats.map(catLabel).join(", ") : "not announced yet"}
+              </span>
+            ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* ── Currency breakdown ──────────────────────────────────────────────── */}
-      {displayStats.currencyTotals.length > 0 && (
+      {/* ── Spend tables ───────────────────────────────────────────────────── */}
+      <section className="space-y-4">
+        {profiles.map((p, i) => (
+          <SpendTable
+            key={p.key}
+            spendKey={p.key}
+            title={p.title}
+            walletCards={p.cards}
+            result={years[i].months[monthIdx]}
+            selectedMonth={selectedMonth}
+            monthLabel={monthLabel}
+            editMonthOnly={editMonthOnly}
+          />
+        ))}
+      </section>
+
+      {/* ── Where the points land ─────────────────────────────────────────── */}
+      {stats.currencyTotals.length > 0 && (
         <section>
-          <h2 className="text-[20px] font-semibold text-ink mb-3">
-            {people.length > 1 ? "Where the points land" : "Where the points land"}
-          </h2>
+          <h2 className="text-[20px] font-semibold text-ink mb-3">Where the points land</h2>
           <div className="bg-white border border-subtle rounded-lg overflow-hidden divide-y divide-subtle">
-            {displayStats.currencyTotals
-              .slice()
-              .sort((a, b) => b.dollarValue - a.dollarValue)
-              .map((ct) => {
-                const currency = CURRENCY_MAP[ct.currencyId];
-                const floorVal = currency ? (ct.points * currency.floor) / 10000 : ct.dollarValue;
-                const ceilVal = currency ? (ct.points * currency.ceiling) / 10000 : ct.dollarValue;
-                return (
-                  <div key={ct.currencyId} className="flex items-center justify-between px-4 py-2.5">
-                    <div>
-                      <div className="text-[14px] font-medium text-primary">
-                        {currency?.name ?? ct.currencyId}
-                      </div>
-                      <div className="text-[12px] text-tertiary mt-0.5">
-                        {fmt(Math.round(ct.points))} pts
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-[14px] font-semibold text-primary tabular-nums">
-                        {fmtDollar(ct.dollarValue)}
-                      </div>
-                      <div className="text-[12px] text-tertiary tabular-nums">
-                        {fmtDollar(floorVal)} – {fmtDollar(ceilVal)}
-                      </div>
+            {stats.currencyTotals.map((ct) => {
+              const currency = CURRENCY_MAP[ct.currencyId];
+              const floorVal = currency ? (ct.points * currency.floor) / 10000 : ct.dollarValue;
+              const ceilVal = currency ? (ct.points * currency.ceiling) / 10000 : ct.dollarValue;
+              return (
+                <div key={ct.currencyId} className="flex items-center justify-between px-4 py-2.5">
+                  <div>
+                    <div className="text-[14px] font-medium text-primary">{currency?.name ?? ct.currencyId}</div>
+                    <div className="text-[12px] text-tertiary mt-0.5">{fmt(ct.points)} pts</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[14px] font-semibold text-primary tabular-nums">{fmtDollar(ct.dollarValue)}</div>
+                    <div className="text-[12px] text-tertiary tabular-nums">
+                      {fmtDollar(floorVal)} – {fmtDollar(ceilVal)}
                     </div>
                   </div>
-                );
-              })}
+                </div>
+              );
+            })}
           </div>
         </section>
       )}

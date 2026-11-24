@@ -1,4 +1,4 @@
-export type { Card } from "./card";
+export type { Card, CapPeriod } from "./card";
 export type { Currency } from "./currency";
 export type { SpendCategory } from "./category";
 export type { WalletCard, CardConfig } from "./walletCard";

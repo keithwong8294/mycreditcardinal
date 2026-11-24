@@ -45,14 +45,11 @@ function fmtPoints(n: number): string {
   return Math.round(n).toLocaleString();
 }
 
-const FEE_OPTIONS = [
-  { label: "Any fee", value: "any" },
-  { label: "No fee ($0)", value: "0" },
-  { label: "Under $100", value: "100" },
-  { label: "Under $250", value: "250" },
-  { label: "Under $500", value: "500" },
-  { label: "Any amount", value: "any" },
-];
+/** A return in % (cents per dollar), e.g. 3.6% or 5%. */
+function fmtPct(n: number): string {
+  const r = Math.round(n * 10) / 10;
+  return `${Number.isInteger(r) ? r : r.toFixed(1)}%`;
+}
 
 const GOAL_OPTIONS: { value: CardGoal; label: string; hint: string }[] = [
   { value: "everyday", label: "Earn more on everyday spending", hint: "Ranks by value every year; welcome bonuses are spread over a few years." },
@@ -72,6 +69,13 @@ const REDEMPTION_OPTIONS: { value: Redemption; label: string }[] = [
 const ECOSYSTEM_OPTIONS: { value: Ecosystem; label: string }[] = [
   { value: "open", label: "Open to a new bank" },
   { value: "stay", label: "Stick with my current programs" },
+];
+
+const FOCUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "No preference" },
+  ...["groceries", "dining", "gas", "travel", "hotels", "online", "streaming", "transit", "entertainment", "drugstore", "rent", "other"].map(
+    (id) => ({ value: id, label: CATEGORIES.find((c) => c.id === id)?.label ?? id })
+  ),
 ];
 
 const CREDIT_USAGE_OPTIONS: { value: CreditUsage; label: string }[] = [
@@ -158,9 +162,8 @@ function WhatIfModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const { getActiveWalletCards, getActivePersonSpend, overrides, valuationTier, subEarned, optimizerAnswers } = useStore();
-  const spend = getActivePersonSpend();
-  const walletCards = getActiveWalletCards();
+  const { getPlanningContext, overrides, valuationTier, subEarned, optimizerAnswers } = useStore();
+  const { walletCards, spend } = getPlanningContext();
   const tier = rankingValuation(optimizerAnswers, walletCards, valuationTier);
   const subEarnedSet = new Set(subEarned);
 
@@ -258,7 +261,7 @@ function WhatIfModal({
                   <div key={imp.categoryId} className="flex items-center justify-between text-[13px]">
                     <span className="text-secondary">{cat?.label ?? imp.categoryId}</span>
                     <div className="flex items-center gap-2">
-                      <span className="text-tertiary">{imp.currentRate}x → {imp.candidateRate}x</span>
+                      <span className="text-tertiary">{fmtPct(imp.currentReturn)} → {fmtPct(imp.newReturn)} back</span>
                       <span className="text-green font-medium">+{fmtDollar(imp.annualGain)}/yr</span>
                     </div>
                   </div>
@@ -282,9 +285,9 @@ function generateExplanation(rec: Recommendation, spend: Record<string, number>)
     const catLabel = CATEGORIES.find((c) => c.id === topImp.categoryId)?.label ?? topImp.categoryId;
     const monthly = spend[topImp.categoryId] ?? 0;
     parts.push(
-      `Earns ${topImp.candidateRate}x on ${catLabel} vs your current best of ${topImp.currentRate}x` +
+      `Lifts ${catLabel} from ${fmtPct(topImp.currentReturn)} to ${fmtPct(topImp.newReturn)} back over the year` +
         (monthly > 0
-          ? `, about ${fmtDollar(topImp.annualGain)} more a year at $${monthly.toLocaleString()}/month.`
+          ? `, about ${fmtDollar(topImp.annualGain)} more at $${monthly.toLocaleString()}/month.`
           : ".")
     );
   } else {
@@ -375,7 +378,7 @@ function RecommendationCard({
                   key={imp.categoryId}
                   className="inline-flex items-center px-2 py-0.5 rounded-full bg-green/10 text-green text-[12px] font-medium"
                 >
-                  {cat?.label ?? imp.categoryId}: {imp.currentRate}x→{imp.candidateRate}x
+                  {cat?.label ?? imp.categoryId}: {fmtPct(imp.currentReturn)} → {fmtPct(imp.newReturn)}
                 </span>
               );
             })}
@@ -451,16 +454,24 @@ function RecommendationCard({
 
 export default function OptimizePage() {
   const {
-    getActiveWalletCards,
-    getActivePersonSpend,
+    getPlanningContext,
     valuationTier,
     toggleCard,
     customCards,
     optimizerAnswers,
     setOptimizerAnswers,
+    spendMode,
+    people,
+    spend: allSpend,
+    activePersonId,
   } = useStore();
-  const spend = getActivePersonSpend();
-  const walletCards = getActiveWalletCards();
+  // Re-derive only when the inputs it reads change.
+  const { walletCards, spend } = useMemo(
+    () => getPlanningContext(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [spendMode, people, allSpend, activePersonId]
+  );
+  const householdPlan = spendMode === "household" && people.length > 1;
 
   // Track page view once on mount
   useEffect(() => { trackOptimizerViewed(); }, []);
@@ -490,7 +501,7 @@ export default function OptimizePage() {
 
   const allCards = useMemo(() => [...baseCards, ...customCards], [baseCards, customCards]);
 
-  const { recommendations, hiddenBusinessCount, hidden524Count } = useMemo(
+  const { recommendations, hiddenBusinessCount, hidden524Count, hiddenNewBankCount } = useMemo(
     () => getRecommendationSummary(walletCards, spend, preferences, allCards, valuationTier),
     [walletCards, spend, preferences, allCards, valuationTier]
   );
@@ -507,7 +518,11 @@ export default function OptimizePage() {
     <div className="px-4 sm:px-8 lg:px-10 pt-6 sm:pt-8 pb-14 mx-auto max-w-[1180px] space-y-6">
       <PageHeader
         title="Find a better card"
-        subtitle="Answer a few questions. Cards are ranked by what they add to the wallet you already have."
+        subtitle={
+          householdPlan
+            ? "Answer a few questions. Cards are ranked by what they add to your household's combined wallet and spending."
+            : "Answer a few questions. Cards are ranked by what they add to the wallet you already have."
+        }
       />
 
       {/* Questionnaire */}
@@ -521,6 +536,19 @@ export default function OptimizePage() {
             onChange={(goal) => setOptimizerAnswers({ goal })}
           />
           {goalHint && <div className="text-[12px] text-tertiary mt-1.5">{goalHint}</div>}
+        </Question>
+
+        <Question label="Any category you most want to earn more on?">
+          <ChoiceChips
+            options={FOCUS_OPTIONS}
+            value={optimizerAnswers.focusCategory ?? ""}
+            onChange={(v) => setOptimizerAnswers({ focusCategory: v || null })}
+          />
+          {optimizerAnswers.focusCategory && (
+            <div className="text-[12px] text-tertiary mt-1.5">
+              Only cards that raise it are shown, ranked by how much more you&apos;d earn on it.
+            </div>
+          )}
         </Question>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -666,17 +694,19 @@ export default function OptimizePage() {
       {baseCards.length > 0 && walletCards.length > 0 && recommendations.length === 0 && (
         <div className="bg-white border border-subtle rounded-lg p-8 text-center">
           <div className="text-[14px] text-secondary">No recommendations match your current filters.</div>
-          <div className="text-[12px] text-tertiary mt-1">Try a different goal or relax the fee and credit score filters.</div>
+          <div className="text-[12px] text-tertiary mt-1">Try a different goal, category or bank preference, or relax the filters below.</div>
         </div>
       )}
 
       {/* What the answers hid */}
-      {walletCards.length > 0 && (hiddenBusinessCount > 0 || hidden524Count > 0) && (
+      {walletCards.length > 0 && (hiddenBusinessCount > 0 || hidden524Count > 0 || hiddenNewBankCount > 0) && (
         <div className="text-[12px] text-tertiary">
           {hiddenBusinessCount > 0 &&
             `${hiddenBusinessCount} business card${hiddenBusinessCount !== 1 ? "s" : ""} hidden since you don't have a business. `}
           {hidden524Count > 0 &&
-            `${hidden524Count} Chase card${hidden524Count !== 1 ? "s" : ""} hidden since Chase usually declines applicants with 5+ new cards in 24 months.`}
+            `${hidden524Count} Chase card${hidden524Count !== 1 ? "s" : ""} hidden since Chase usually declines applicants with 5+ new cards in 24 months. `}
+          {hiddenNewBankCount > 0 &&
+            `${hiddenNewBankCount} card${hiddenNewBankCount !== 1 ? "s" : ""} from new banks hidden since you want to stick with your current programs.`}
         </div>
       )}
 
