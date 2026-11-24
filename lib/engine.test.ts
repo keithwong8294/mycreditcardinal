@@ -1,6 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import {
   getEarnRate,
+  rotatingCategories,
+  currentQuarter,
   routeMonth,
   routeAnnual,
   calculateFees,
@@ -12,6 +14,16 @@ import {
 import type { OptimizerPreferences } from "./engine";
 import { CARDS } from "./cards";
 import type { WalletCard, CardConfig } from "@/types";
+
+// Pin the clock to a year with no announced rotating schedule so the user's
+// quarterly picks apply; schedule-specific tests set their own date.
+beforeAll(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2030-02-01T12:00:00Z"));
+});
+afterAll(() => {
+  vi.useRealTimers();
+});
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -56,11 +68,11 @@ describe("getEarnRate", () => {
     expect(getEarnRate(csr, "other", config, 1)).toBe(1);
   });
 
-  it("returns base + 5 for rotating card when quarterly category matches", () => {
+  it("returns 5x total for rotating card when quarterly category matches", () => {
     const cff = CARDS.find((c) => c.id === "cff")!;
     const config: CardConfig = { rotQ: ["dining", null, null, null], custom: [] };
-    // CFF dining base = 3, rotating bonus = +5 → 8x
-    expect(getEarnRate(cff, "dining", config, 1)).toBe(8);
+    // CFF dining base = 3, rotating 5% is total, not stacked → 5x
+    expect(getEarnRate(cff, "dining", config, 1)).toBe(5);
   });
 
   it("returns base rate for rotating card when quarterly category does not match", () => {
@@ -87,7 +99,7 @@ describe("getEarnRate", () => {
     const cff = CARDS.find((c) => c.id === "cff")!;
     const config: CardConfig = { rotQ: [null, "gas", null, null], custom: [] };
     // Q2 = gas
-    expect(getEarnRate(cff, "gas", config, 2)).toBe(cff.earn_json["gas"] + 5);
+    expect(getEarnRate(cff, "gas", config, 2)).toBe(5);
     // Q1 = null → base rate
     expect(getEarnRate(cff, "gas", config, 1)).toBe(cff.earn_json["gas"]);
   });
@@ -106,7 +118,7 @@ describe("routeMonth — basic routing", () => {
     expect(diningRow!.earnRate).toBe(3);
   });
 
-  it("routes dining to Freedom Flex at 8x when quarterly is set to dining (Q1)", () => {
+  it("routes dining to Freedom Flex at 5x when quarterly is set to dining (Q1)", () => {
     const wallet = [
       makeWalletCard("cff", { rotQ: ["dining", null, null, null], custom: [] }),
       makeWalletCard("csr"),
@@ -115,7 +127,7 @@ describe("routeMonth — basic routing", () => {
     const diningRow = result.rows.find((r) => r.categoryId === "dining");
     expect(diningRow).toBeDefined();
     expect(diningRow!.walletCard.card.id).toBe("cff");
-    expect(diningRow!.earnRate).toBe(8);
+    expect(diningRow!.earnRate).toBe(5);
   });
 
   it("calculates points and dollar value correctly", () => {
@@ -195,7 +207,7 @@ describe("routeMonth — cap overflow", () => {
 
   it("Freedom Flex rotating cap is quarterly / 3 per month", () => {
     // CFF rot_cap = 1500 quarterly → 500/mo
-    // Set dining spend = 700 → 500 to CFF at 8x, 200 overflow to next card
+    // Set dining spend = 700 → 500 to CFF at 5x, 200 overflow to next card
     const cff = makeWalletCard("cff", { rotQ: ["dining", null, null, null], custom: [] });
     const csr = makeWalletCard("csr"); // 3x dining
     const result = routeMonth([cff, csr], { dining: 700 }, {}, 1);
@@ -206,6 +218,45 @@ describe("routeMonth — cap overflow", () => {
     expect(diningRow!.capHit).toBe(true);
     expect(diningRow!.overflow[0].walletCard.card.id).toBe("csr");
     expect(diningRow!.overflow[0].spend).toBeCloseTo(200);
+  });
+});
+
+describe("announced rotating schedule", () => {
+  beforeAll(() => vi.setSystemTime(new Date("2026-11-24T12:00:00Z")));
+  afterAll(() => vi.setSystemTime(new Date("2030-02-01T12:00:00Z")));
+
+  it("knows the current quarter", () => {
+    expect(currentQuarter()).toBe(4);
+  });
+
+  it("applies every announced category for the quarter and ignores stale picks", () => {
+    const cff = CARDS.find((c) => c.id === "cff")!;
+    // Stale pick from an old guessed schedule
+    const config: CardConfig = { rotQ: [null, null, null, "online"], custom: [] };
+    expect(rotatingCategories(cff, config, 4).sort()).toEqual(["dining", "groceries"]);
+    expect(getEarnRate(cff, "groceries", config, 4)).toBe(5);
+    expect(getEarnRate(cff, "dining", config, 4)).toBe(5);
+    expect(getEarnRate(cff, "online", config, 4)).toBe(1);
+  });
+
+  it("Discover it Q4 2026 is entertainment + restaurants", () => {
+    const d = CARDS.find((c) => c.id === "discover_it")!;
+    const config: CardConfig = { rotQ: [null, null, null, null], custom: [] };
+    expect(getEarnRate(d, "entertainment", config, 4)).toBe(5);
+    expect(getEarnRate(d, "dining", config, 4)).toBe(5);
+    expect(getEarnRate(d, "groceries", config, 4)).toBe(1);
+  });
+
+  it("shares the quarterly cap across all bonus categories", () => {
+    // CFF Q4: groceries + dining share $1,500/qtr → $500/mo combined
+    const cff = makeWalletCard("cff");
+    const csr = makeWalletCard("csr");
+    const result = routeMonth([cff, csr], { dining: 400, groceries: 400 }, {}, 4);
+    const onCff = result.rows
+      .flatMap((r) => [r, ...r.overflow])
+      .filter((r) => r.walletCard.card.id === "cff" && r.earnRate === 5)
+      .reduce((sum, r) => sum + r.spend, 0);
+    expect(onCff).toBeCloseTo(500);
   });
 });
 

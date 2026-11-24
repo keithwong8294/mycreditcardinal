@@ -6,6 +6,7 @@ import { CATEGORIES } from "@/lib/categories";
 import { CURRENCY_MAP } from "@/lib/currencies";
 import type { Card } from "@/types";
 import { cardGradient, isLightBackground } from "@/lib/utils";
+import { announcedRotation, currentQuarter } from "@/lib/engine";
 import { useProCheck } from "@/lib/useProCheck";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { CardArt } from "@/components/CardArt";
@@ -192,7 +193,18 @@ export function CardDetailModal({
             <Section label="Earn rates">
               {card.rotating && (
                 <div className="mb-2 px-2.5 py-1.5 bg-purple/10 rounded-lg text-[12px] text-purple font-medium">
-                  5x rotating quarterly bonus (on top of base rate) · ${card.rot_cap?.toLocaleString()}/quarter cap
+                  5x rotating quarterly categories · ${card.rot_cap?.toLocaleString()}/quarter cap
+                  {(() => {
+                    const q = currentQuarter();
+                    const cats = announcedRotation(card, q);
+                    if (!cats) return null;
+                    const names = cats.map((id) => CATEGORIES.find((c) => c.id === id)?.label ?? id);
+                    return (
+                      <div className="mt-0.5 font-normal text-primary">
+                        Q{q} {new Date().getFullYear()}: {names.join(", ")}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
               {card.custom_select && card.custom_rate != null && (

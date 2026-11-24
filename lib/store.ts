@@ -167,7 +167,7 @@ const initialState: AppState = {
   cardConfigs: {},
   customCards: [],
   syncMeta: { householdId: null, spendProfileId: null },
-  viewQuarter: 1,
+  viewQuarter: (Math.floor(new Date().getMonth() / 3) + 1) as 1 | 2 | 3 | 4,
   valuationTier: "composite",
   activeTab: "browse",
   optimizerAnswers: {
@@ -542,7 +542,6 @@ export const useStore = create<Store>()(
         cardConfigs: s.cardConfigs,
         customCards: s.customCards,
         syncMeta: s.syncMeta,
-        viewQuarter: s.viewQuarter,
         valuationTier: s.valuationTier,
         activeTab: s.activeTab,
         optimizerAnswers: s.optimizerAnswers,
@@ -553,6 +552,8 @@ export const useStore = create<Store>()(
         return {
           ...current,
           ...p,
+          // Always open on the real current quarter, not a stale saved one.
+          viewQuarter: current.viewQuarter,
           optimizerAnswers: { ...current.optimizerAnswers, ...p.optimizerAnswers },
         };
       },

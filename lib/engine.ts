@@ -28,6 +28,40 @@ function getCpp(currencyId: string, tier: Valuation): number {
   return currency.composite;
 }
 
+// ─── Rotating categories ──────────────────────────────────────────────────────
+
+/** Calendar quarter (1-4) for a date; defaults to today. */
+export function currentQuarter(date: Date = new Date()): 1 | 2 | 3 | 4 {
+  return (Math.floor(date.getMonth() / 3) + 1) as 1 | 2 | 3 | 4;
+}
+
+/** Issuer-announced bonus categories for a quarter, or null if not announced. */
+export function announcedRotation(
+  card: Card,
+  quarter: 1 | 2 | 3 | 4,
+  year: number = new Date().getFullYear()
+): string[] | null {
+  const cats = card.rotation_schedule?.[String(year)]?.[`Q${quarter}`];
+  return cats?.length ? cats : null;
+}
+
+/**
+ * Categories earning the rotating 5x bonus in a quarter. The issuer's
+ * announced schedule always wins (a quarter can have several categories,
+ * e.g. groceries + dining); the user's pick only fills unannounced quarters.
+ */
+export function rotatingCategories(
+  card: Card,
+  config: WalletCard["config"],
+  quarter: 1 | 2 | 3 | 4
+): string[] {
+  if (!card.rotating) return [];
+  const announced = announcedRotation(card, quarter);
+  if (announced) return announced;
+  const pick = config.rotQ[quarter - 1];
+  return pick ? [pick] : [];
+}
+
 // ─── Earn rate ────────────────────────────────────────────────────────────────
 
 /**
@@ -48,13 +82,10 @@ export function getEarnRate(
   const baseRate = card.earn_json[categoryId] ?? 1;
 
   // Rotating quarterly cards (Freedom Flex, Discover it)
-  if (card.rotating) {
-    const rotCategory = config.rotQ[quarter - 1];
-    if (rotCategory === categoryId) {
-      // INSTRUCTIONS: rotating earn = base_rate + 5 (not just 5)
-      // The rot_cap covers the bonus portion only.
-      return baseRate + 5;
-    }
+  // Rotating 5% is 5x total (the 1x base plus a 4x bonus), not on top of
+  // other category bonuses, so Freedom Flex dining stays 5x, not 8x.
+  if (rotatingCategories(card, config, quarter).includes(categoryId)) {
+    return Math.max(baseRate, 5);
   }
 
   // Custom-select cards (Citi Custom Cash, US Bank Cash+, BoA CCR)
@@ -86,12 +117,14 @@ function getMonthlyCap(
   earnRate: number
 ): number | null {
   // Rotating bonus cap
-  if (card.rotating && card.rot_cap != null) {
-    const rotCategory = config.rotQ[quarter - 1];
-    if (rotCategory === categoryId) {
-      // rot_cap is quarterly → divide by 3 for a monthly cap
-      return card.rot_cap / 3;
-    }
+  if (
+    card.rotating &&
+    card.rot_cap != null &&
+    earnRate > (card.earn_json[categoryId] ?? 1) &&
+    rotatingCategories(card, config, quarter).includes(categoryId)
+  ) {
+    // rot_cap is quarterly and shared by all bonus categories → monthly = /3
+    return card.rot_cap / 3;
   }
 
   // Custom-select combined cap (shared across all selected categories)
@@ -250,6 +283,8 @@ export function routeMonth(
   // Track how much of each card's custom cap has been consumed this month.
   // Key: walletCard.id + "|custom"
   const customCapUsed: Record<string, number> = {};
+  // Rotating 5x cap is combined across all of the quarter's bonus categories.
+  const rotCapUsed: Record<string, number> = {};
 
   const rows: RoutingRow[] = [];
 
@@ -315,6 +350,12 @@ export function routeMonth(
         const totalCustomCap = wc.card.caps_json["custom"];
         cap = Math.max(0, totalCustomCap - usedCustom);
       }
+      const isRotBonus =
+        wc.card.rotating &&
+        wc.card.rot_cap != null &&
+        rate > (wc.card.earn_json[cat.id] ?? 1) &&
+        rotatingCategories(wc.card, wc.config, quarter).includes(cat.id);
+      if (isRotBonus && cap != null) cap = Math.max(0, cap - (rotCapUsed[wc.id] ?? 0));
 
       const allocatedSpend = cap != null ? Math.min(remainingSpend, cap) : remainingSpend;
       if (allocatedSpend <= 0) continue;
@@ -334,6 +375,7 @@ export function routeMonth(
       ) {
         customCapUsed[capKey] = usedCustom + allocatedSpend;
       }
+      if (isRotBonus) rotCapUsed[wc.id] = (rotCapUsed[wc.id] ?? 0) + allocatedSpend;
 
       if (primaryRow === null) {
         primaryRow = {
@@ -532,11 +574,10 @@ function topSpendCategory(options: string[], spend: Record<string, number>): str
 export function candidateConfig(card: Card, spend: Record<string, number>): WalletCard["config"] {
   const rotQ: WalletCard["config"]["rotQ"] = [null, null, null, null];
   if (card.rotating) {
-    const schedule = card.rotation_schedule?.[String(new Date().getFullYear())];
+    // Announced quarters are applied automatically; guess the rest.
     for (let q = 0; q < 4; q++) {
-      const announced = schedule?.[`Q${q + 1}`];
-      rotQ[q] = announced?.length
-        ? topSpendCategory(announced, spend)
+      rotQ[q] = announcedRotation(card, (q + 1) as 1 | 2 | 3 | 4)
+        ? null
         : topSpendCategory(card.rot_opts ?? [], spend);
     }
   }

@@ -117,7 +117,7 @@ MyCreditCardinal uses a proprietary "MCC Composite" valuation — a trimmed mean
 10. **Annual summary**: runs routing for each of 12 months separately (using monthly override or default), applying the correct quarterly rotation per month. Sum all 12 months.
 
 ### Special card logic:
-- **Rotating cards** (Freedom Flex, Discover it): categories **auto-populate** from the `rotation_schedule` field in the card database. When a rotating card is added to a wallet, `config_json.rotQ` is automatically set to the current year's schedule. Users see the pre-filled quarters and can override any of them. When admin updates next year's schedule, all users' cards auto-update on next load. Earn rate = base_rate + 5 for the active quarterly category. E.g., Freedom Flex dining base is 3x; with quarterly bonus it's 7x (not 5x).
+- **Rotating cards** (Freedom Flex, Discover it): categories **auto-populate** from the `rotation_schedule` field in the card database. When a rotating card is added to a wallet, `config_json.rotQ` is automatically set to the current year's schedule. Announced quarters always use the issuer's schedule (a quarter can have several 5% categories, which share the quarterly cap); users only pick categories for quarters that haven't been announced. Earn rate = 5x total for the quarterly categories (1x base + 4x bonus, matching issuer terms), so Freedom Flex dining is 5x in a dining quarter, not 8x.
 - **Custom-select cards** (Citi Custom Cash, US Bank Cash+, BoA CCR): earn rate = customRate for selected categories, default rate for everything else.
 
 ### Simulator view modes:

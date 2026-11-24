@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useStore } from "@/lib/store";
 import { CATEGORIES } from "@/lib/categories";
 import { CURRENCY_MAP } from "@/lib/currencies";
+import { announcedRotation, currentQuarter } from "@/lib/engine";
 import type { WalletCard } from "@/types";
 import { Checkbox } from "@/components/ui/checkbox";
 import { UpgradeModal } from "@/components/UpgradeModal";
@@ -40,77 +41,57 @@ const QUARTERS = [1, 2, 3, 4] as const;
 function RotationConfig({ wc }: { wc: WalletCard }) {
   const setRotation = useStore((s) => s.setRotation);
   const opts = wc.card.rot_opts ?? [];
-
-  // Get auto-populated values from rotation_schedule for current year
-  const year = new Date().getFullYear().toString();
-  const schedule = wc.card.rotation_schedule?.[year];
-  const autoValues = schedule
-    ? ([1, 2, 3, 4] as const).map((q) => schedule[`Q${q}`]?.[0] ?? null)
-    : [null, null, null, null];
+  const year = new Date().getFullYear();
+  const nowQ = currentQuarter();
+  const label = (id: string) => CATEGORIES.find((c) => c.id === id)?.label ?? id;
 
   return (
     <div className="mt-2 pt-2 border-t border-subtle">
       <div className="flex items-center gap-2 mb-1.5">
-        <div className="text-[13px] text-purple font-medium">
-          Rotating quarters
-        </div>
-        {schedule && (
-          <span className="text-[11px] text-tertiary">
-            · auto-filled from {year} schedule
-          </span>
-        )}
+        <div className="text-[13px] text-purple font-medium">Rotating 5% quarters</div>
+        <span className="text-[11px] text-tertiary">· {year} issuer calendar</span>
       </div>
-      <div className="grid grid-cols-4 gap-1.5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
         {QUARTERS.map((q) => {
+          const announced = announcedRotation(wc.card, q, year);
           const current = wc.config.rotQ[q - 1] ?? null;
-          const auto = autoValues[q - 1];
-          const isOverridden = current !== auto;
           return (
             <div key={q}>
-              <div className="text-[11px] text-tertiary mb-0.5 text-center flex items-center justify-center gap-1">
+              <div className="text-[11px] text-tertiary mb-0.5 text-center">
                 Q{q}
-                {isOverridden && auto !== null && (
-                  <span className="text-purple text-[11px]" title="Overriding schedule">✎</span>
-                )}
+                {q === nowQ && <span className="text-purple font-medium"> · now</span>}
               </div>
-              <Select
-                value={current ?? "__none__"}
-                onValueChange={(v) =>
-                  setRotation(wc.id, q, v === "__none__" ? null : v)
-                }
-              >
-                <SelectTrigger className={`h-7 text-[12px] w-full px-1.5 ${isOverridden ? "border-purple/40" : ""}`}>
-                  <SelectValue placeholder="—" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">—</SelectItem>
-                  {opts.map((opt) => {
-                    const cat = CATEGORIES.find((c) => c.id === opt);
-                    const isAuto = opt === auto;
-                    return (
+              {announced ? (
+                <div
+                  className={`min-h-7 rounded-md border px-1.5 py-1 text-[12px] leading-tight text-center ${
+                    q === nowQ ? "border-purple/40 bg-purple/10 text-primary" : "border-subtle text-secondary"
+                  }`}
+                  title="Announced by the issuer"
+                >
+                  {announced.map(label).join(" + ")}
+                </div>
+              ) : (
+                <Select
+                  value={current ?? "__none__"}
+                  onValueChange={(v) => setRotation(wc.id, q, v === "__none__" ? null : v)}
+                >
+                  <SelectTrigger className="h-7 text-[12px] w-full px-1.5">
+                    <SelectValue placeholder="Not announced" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Not announced</SelectItem>
+                    {opts.map((opt) => (
                       <SelectItem key={opt} value={opt}>
-                        {cat?.label ?? opt}{isAuto ? " ✓" : ""}
+                        {label(opt)}
                       </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           );
         })}
       </div>
-      {schedule && (
-        <button
-          onClick={() => {
-            ([1, 2, 3, 4] as const).forEach((q) => {
-              setRotation(wc.id, q, autoValues[q - 1]);
-            });
-          }}
-          className="mt-1.5 text-[11px] text-purple hover:text-purple/70 transition-colors"
-        >
-          Reset to {year} schedule
-        </button>
-      )}
     </div>
   );
 }
