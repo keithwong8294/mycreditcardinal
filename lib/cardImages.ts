@@ -38,6 +38,7 @@ export const CARD_IMAGE_IDS: ReadonlySet<string> = new Set([
   "csr",
   "discover_it",
   "robinhood_gold",
+  "synchrony_premier",
   "usb_altitude_go",
   "usb_cash_plus",
   "wf_active_cash",
