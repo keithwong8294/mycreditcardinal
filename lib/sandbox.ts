@@ -6,7 +6,7 @@
 import type { Card, CardConfig, WalletCard } from "@/types";
 import { CARDS, CARD_MAP } from "./cards";
 import { CATEGORIES } from "./categories";
-import { candidateConfig, routeAnnual, type CreditUsage, type ValuationTier } from "./engine";
+import { candidateConfig, routeAnnual, type CreditUsage, type Valuation } from "./engine";
 
 // ─── Presets ──────────────────────────────────────────────────────────────────
 
@@ -126,7 +126,7 @@ export interface WalletScore {
 export function scoreWallet(
   walletCards: WalletCard[],
   spend: Record<string, number>,
-  tier: ValuationTier = "composite",
+  tier: Valuation = "composite",
   creditUsage: CreditUsage = "some"
 ): WalletScore {
   const rewards = walletCards.length ? routeAnnual(walletCards, spend, {}, {}, tier).totalDollarValue : 0;
@@ -146,7 +146,7 @@ export function scoreWallet(
 export function valueByCategory(
   walletCards: WalletCard[],
   spend: Record<string, number>,
-  tier: ValuationTier = "composite"
+  tier: Valuation = "composite"
 ): Record<string, { value: number; cardName: string | null }> {
   const out: Record<string, { value: number; cardName: string | null }> = {};
   for (const c of CATEGORIES) out[c.id] = { value: 0, cardName: null };
@@ -186,7 +186,7 @@ export function whatIfAdd(
   walletCards: WalletCard[],
   spend: Record<string, number>,
   card: Card,
-  tier: ValuationTier = "composite",
+  tier: Valuation = "composite",
   creditUsage: CreditUsage = "some",
   before: WalletScore = scoreWallet(walletCards, spend, tier, creditUsage)
 ): WhatIf {
@@ -203,7 +203,7 @@ export function whatIfAdd(
 export function bestAdditions(
   walletCards: WalletCard[],
   spend: Record<string, number>,
-  tier: ValuationTier = "composite",
+  tier: Valuation = "composite",
   creditUsage: CreditUsage = "some",
   limit = 5,
   cards: Card[] = CARDS

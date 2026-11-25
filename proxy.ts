@@ -7,6 +7,7 @@ const OPEN_PREFIXES = [
   "/auth",
   "/privacy",
   "/terms",
+  "/point-values",
   "/offline",
   "/browse",
   "/wallet",

@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { CARDS, CARD_MAP } from "@/lib/cards";
 import { CATEGORIES } from "@/lib/categories";
-import { routeMonth } from "@/lib/engine";
+import { routeMonth, type Valuation } from "@/lib/engine";
+import { CURRENCY_MAP } from "@/lib/currencies";
 import type { WalletCard } from "@/types";
 import { CardinalMark } from "@/lib/brand";
 import { WALLET_PRESETS, alternativeNames, buildWallet, scoreWallet } from "@/lib/sandbox";
 import { CardArt } from "@/components/CardArt";
 import { CardCycle } from "@/components/CardCycle";
+import { PointValueToggle, type PointMode } from "@/components/PointValueToggle";
 
 const serif = { className: "font-serif" };
 const mono = { className: "font-mono" };
@@ -30,22 +32,41 @@ const EXAMPLE_SPEND: Record<string, number> = {
   online: 310, entertainment: 0, transit: 90, rent: 0, drugstore: 35, other: 680,
 };
 
-const example = routeMonth(EXAMPLE_WALLET, EXAMPLE_SPEND, {}, 1, "composite");
-const exampleRows = example.rows.filter((r) => r.spend > 0);
+// Everything is shown at cash-out value (about 1¢ a point) unless the
+// visitor switches to MCC values. Cash-out also routes at cash-out, so a
+// card is picked for what most people actually get from it.
+const MODES: PointMode[] = ["floor", "mcc"];
+const VALUATIONS: Record<PointMode, Valuation> = {
+  floor: (currencyId) => CURRENCY_MAP[currencyId]?.floor ?? 100,
+  mcc: "composite",
+};
+
 const exampleSpendTotal = Object.values(EXAMPLE_SPEND).reduce((a, b) => a + b, 0);
 const flatCardMonthly = exampleSpendTotal * 0.015;
-const upliftYearly = Math.round((example.totalDollarValue - flatCardMonthly) * 12);
+const examples = MODES.map((mode) => {
+  const result = routeMonth(EXAMPLE_WALLET, EXAMPLE_SPEND, {}, 1, VALUATIONS[mode]);
+  return {
+    mode,
+    result,
+    rows: result.rows.filter((r) => r.spend > 0),
+    uplift: Math.round((result.totalDollarValue - flatCardMonthly) * 12),
+  };
+});
 
 // Preset wallets scored at the same sample spending, counting half of each
-// card's statement credits (the sandbox default), best first.
+// card's statement credits (the sandbox default), best first at cash-out.
 const presetScores = WALLET_PRESETS.slice(0, 6)
-  .map((p) => ({
-    preset: p,
-    score: scoreWallet(buildWallet(p.cardIds.map((cardId) => ({ cardId })), EXAMPLE_SPEND), EXAMPLE_SPEND, "composite", "some"),
-  }))
-  .map((x) => ({ ...x, net: x.score.net }))
-  .sort((a, b) => b.net - a.net);
-const bestPreset = presetScores.reduce((a, b) => (b.net > a.net ? b : a));
+  .map((p) => {
+    const wallet = buildWallet(p.cardIds.map((cardId) => ({ cardId })), EXAMPLE_SPEND);
+    const scores = Object.fromEntries(
+      MODES.map((m) => [m, scoreWallet(wallet, EXAMPLE_SPEND, VALUATIONS[m], "some")])
+    ) as Record<PointMode, ReturnType<typeof scoreWallet>>;
+    return { preset: p, scores };
+  })
+  .sort((a, b) => b.scores.floor.net - a.scores.floor.net);
+const bestPresetId = Object.fromEntries(
+  MODES.map((m) => [m, presetScores.reduce((a, b) => (b.scores[m].net > a.scores[m].net ? b : a)).preset.id])
+) as Record<PointMode, string>;
 
 const SANDBOX_FEATURES = [
   ["Load a preset", "Chase trifecta, Amex foodie, a no-fee starter and more, set up for your spending."],
@@ -205,40 +226,50 @@ export default function Home() {
               <div className={`${mono.className} text-[11px] text-[#a8a29e]`}>Q1</div>
             </div>
 
-            <table className={`${mono.className} w-full text-[11.5px] sm:text-[12.5px]`}>
-              <thead>
-                <tr className="text-[#a8a29e] text-[11px]">
-                  <th className="text-left font-normal pl-4 sm:px-6 pt-3 pb-1">category</th>
-                  <th className="text-left font-normal pt-3 pb-1">card</th>
-                  <th className="text-right font-normal pt-3 pb-1">rate</th>
-                  <th className="text-right font-normal pr-4 sm:px-6 pt-3 pb-1">value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {exampleRows.map((r) => (
-                  <tr key={r.categoryId} className="align-baseline">
-                    <td className="pl-4 sm:px-6 pr-2 py-[5px] text-[#44403c] sm:whitespace-nowrap">
-                      {CATEGORY_LABEL[r.categoryId]?.split(" /")[0]}
-                    </td>
-                    <td className="py-[5px] pr-2 text-[#1c1917] sm:whitespace-nowrap">{r.walletCard.card.name}</td>
-                    <td className="py-[5px] pl-2 text-right">{r.earnRate}x</td>
-                    <td className="pr-4 sm:px-6 py-[5px] text-right">{money(r.dollarValue)}</td>
+            {examples.map(({ mode, result, rows, uplift }) => (
+              <div key={mode} className={`pv-${mode}`}>
+              <table className={`${mono.className} w-full text-[11.5px] sm:text-[12.5px]`}>
+                <thead>
+                  <tr className="text-[#a8a29e] text-[11px]">
+                    <th className="text-left font-normal pl-4 sm:px-6 pt-3 pb-1">category</th>
+                    <th className="text-left font-normal pt-3 pb-1">card</th>
+                    <th className="text-right font-normal pt-3 pb-1">rate</th>
+                    <th className="text-right font-normal pr-4 sm:px-6 pt-3 pb-1">value</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.categoryId} className="align-baseline">
+                      <td className="pl-4 sm:px-6 pr-2 py-[5px] text-[#44403c] sm:whitespace-nowrap">
+                        {CATEGORY_LABEL[r.categoryId]?.split(" /")[0]}
+                      </td>
+                      <td className="py-[5px] pr-2 text-[#1c1917] sm:whitespace-nowrap">{r.walletCard.card.name}</td>
+                      <td className="py-[5px] pl-2 text-right">{r.earnRate}x</td>
+                      <td className="pr-4 sm:px-6 py-[5px] text-right">{money(r.dollarValue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
 
-            <div className={`${mono.className} mx-6 mt-3 py-3 border-t border-dashed border-[#1c1917]/20 flex justify-between text-[13px]`}>
-              <span>{money(exampleSpendTotal)} spent</span>
-              <span className="font-medium">{money(example.totalDollarValue)} earned</span>
-            </div>
-            <div className="px-6 pb-5 text-[13px] text-[#44403c]">
-              That’s about <span className="font-semibold text-[#b3261e]">${upliftYearly.toLocaleString()} more a year</span> than
-              putting it all on a 1.5% card, before annual fees.
-            </div>
+              <div className={`${mono.className} mx-6 mt-3 py-3 border-t border-dashed border-[#1c1917]/20 flex justify-between text-[13px]`}>
+                <span>{money(exampleSpendTotal)} spent</span>
+                <span className="font-medium">{money(result.totalDollarValue)} earned</span>
+              </div>
+              <div className="px-6 pb-5 text-[13px] text-[#44403c]">
+                That’s about <span className="font-semibold text-[#b3261e]">${uplift.toLocaleString()} more a year</span> than
+                putting it all on a 1.5% card, before annual fees.
+              </div>
+              </div>
+            ))}
           </div>
           <figcaption className="mt-4 text-[12px] text-[#78716c] max-w-sm">
-            Computed by the same engine the app uses, at composite point values.
+            Computed by the same engine the app uses.{" "}
+            <span className="pv-floor">Points counted at cash-out value, about 1¢ each.</span>
+            <span className="pv-mcc">Points counted at MCC values, the typical value of transferring them for travel.</span>{" "}
+            <Link href="/point-values" className="underline underline-offset-2 hover:text-[#1c1917]">
+              How point values work
+            </Link>
+            <PointValueToggle className="mt-2 flex w-fit" />
           </figcaption>
         </figure>
       </section>
@@ -273,12 +304,18 @@ export default function Home() {
           <div>
             <div className="flex items-baseline justify-between gap-3 mb-3">
               <span className="text-[13px] font-semibold">Preset wallets, scored</span>
-              <span className="text-[12px] text-[#78716c] text-right">
-                value per year at the sample spending above (${exampleSpendTotal.toLocaleString()}/mo)
-              </span>
+              <PointValueToggle />
             </div>
+            <p className="-mt-1 mb-3 text-[12px] text-[#78716c]">
+              Value per year at the sample spending above (${exampleSpendTotal.toLocaleString()}/mo),{" "}
+              <span className="pv-floor">with points at cash-out value (about 1¢).</span>
+              <span className="pv-mcc">with points at MCC values, which assume you transfer them for travel.</span>{" "}
+              <Link href="/point-values" className="underline underline-offset-2 hover:text-[#1c1917]">
+                How point values work
+              </Link>
+            </p>
             <ul className="grid sm:grid-cols-2 gap-2.5">
-              {presetScores.map(({ preset, net, score }) => (
+              {presetScores.map(({ preset, scores }) => (
                 <li key={preset.id}>
                   <Link
                     href={`/sandbox?preset=${preset.id}`}
@@ -286,15 +323,22 @@ export default function Home() {
                   >
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="text-[15px] font-semibold">{preset.name}</span>
-                      <span className={`${mono.className} text-[15px] ${preset.id === bestPreset.preset.id ? "text-[#b3261e] font-semibold" : ""}`}>
-                        ${Math.round(net).toLocaleString()}
-                      </span>
+                      {MODES.map((m) => (
+                        <span
+                          key={m}
+                          className={`pv-${m} ${mono.className} text-[15px] ${preset.id === bestPresetId[m] ? "text-[#b3261e] font-semibold" : ""}`}
+                        >
+                          {dollars(scores[m].net)}
+                        </span>
+                      ))}
                     </div>
-                    <div className="mt-1 text-[12px] text-[#78716c] tabular-nums">
-                      {dollars(score.rewards)} earned
-                      {score.fees > 0 && <> − {dollars(score.fees)} fees</>}
-                      {score.credits > 0 && <> + {dollars(score.credits)} credits</>}
-                    </div>
+                    {MODES.map((m) => (
+                      <div key={m} className={`pv-${m} mt-1 text-[12px] text-[#78716c] tabular-nums`}>
+                        {dollars(scores[m].rewards)} earned
+                        {scores[m].fees > 0 && <> − {dollars(scores[m].fees)} fees</>}
+                        {scores[m].credits > 0 && <> + {dollars(scores[m].credits)} credits</>}
+                      </div>
+                    ))}
                     <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                       {preset.cardIds.map((id, i) =>
                         i === 0 && preset.alternatives ? (

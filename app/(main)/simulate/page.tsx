@@ -83,7 +83,7 @@ function Segmented<T extends string>({
   value,
   onChange,
 }: {
-  label: string;
+  label: React.ReactNode;
   options: { value: T; label: React.ReactNode; title?: string }[];
   value: T;
   onChange: (v: T) => void;
@@ -597,13 +597,20 @@ export default function SimulatePage() {
           ]}
         />
         <Segmented
-          label="Point values"
+          label={
+            <>
+              Point values{" "}
+              <a href="/point-values" className="underline underline-offset-2 hover:text-primary">
+                (how?)
+              </a>
+            </>
+          }
           value={valuationTier}
           onChange={setValuation}
           options={[
-            { value: "floor", label: "Cash-out" },
-            { value: "composite", label: "MCC" },
-            { value: "ceiling", label: "Best case" },
+            { value: "floor", label: "Cash-out", title: "Redeemed for cash or statement credit: about 1¢ a point" },
+            { value: "composite", label: "MCC", title: "Average of published valuations (TPG, NerdWallet, Bankrate and others) for transferring points to travel partners" },
+            { value: "ceiling", label: "Best case", title: "A strong travel redemption, such as a premium-cabin flight" },
           ]}
         />
         {selectedHasOverrides && (

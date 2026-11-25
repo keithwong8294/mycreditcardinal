@@ -204,3 +204,9 @@
 @keyframes card-cycle-5 { 0% { opacity: 0; } 5.00% { opacity: 1; } 20.00% { opacity: 1; } 25.00% { opacity: 0; } 100% { opacity: 0; } }
 @keyframes card-cycle-6 { 0% { opacity: 0; } 4.17% { opacity: 1; } 16.67% { opacity: 1; } 20.83% { opacity: 0; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .card-cycle { animation: none; } .card-cycle:first-child { opacity: 1; } }
+
+/* Landing page point values (components/PointValueToggle.tsx): cash-out by default */
+html:not([data-points="mcc"]) .pv-mcc,
+html[data-points="mcc"] .pv-floor {
+  display: none;
+}
