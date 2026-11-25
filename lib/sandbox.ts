@@ -42,8 +42,8 @@ export const WALLET_PRESETS: WalletPreset[] = [
   {
     id: "amex-foodie",
     name: "Amex foodie",
-    blurb: "Gold's 4x on restaurants and groceries, Blue Cash Everyday's 3% on gas and online shopping.",
-    cardIds: ["amex_gold", "amex_bce"],
+    blurb: "Gold's 4x on restaurants and groceries, Blue Cash Preferred's 6% on streaming and 3% on gas and transit.",
+    cardIds: ["amex_gold", "amex_bcp"],
   },
   {
     id: "citi-trifecta",
