@@ -12,6 +12,7 @@ import { trackCardAdded } from "@/lib/analytics";
 import { CardDetailModal } from "@/components/CardDetailModal";
 import { CardArt } from "@/components/CardArt";
 import { UpgradeModal } from "@/components/UpgradeModal";
+import { RequestCardDialog } from "@/components/RequestCardDialog";
 import {
   Dialog,
   DialogContent,
@@ -289,6 +290,7 @@ export default function BrowsePage() {
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
   const [detailCard, setDetailCard] = useState<Card | null>(null);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [requestOpen, setRequestOpen] = useState(false);
 
   const allCards = useMemo(() => [...CARDS, ...customCards], [customCards]);
 
@@ -328,7 +330,13 @@ export default function BrowsePage() {
             <h1 className="font-display text-[40px] sm:text-[44px] leading-none text-ink">Browse cards</h1>
             <p className="mt-2 text-[15px] text-secondary">
               {filtered.length} card{filtered.length !== 1 ? "s" : ""}
-              {filtering ? " match" : ""}. Adding one puts it in {owner} wallet.
+              {filtering ? " match" : ""}. Adding one puts it in {owner} wallet.{" "}
+              <button
+                onClick={() => setRequestOpen(true)}
+                className="text-cardinal hover:text-cardinal-dark font-medium"
+              >
+                Missing a card?
+              </button>
             </p>
           </div>
           <div className="flex items-center gap-2 flex-[0_1_420px] min-w-0 w-full sm:w-auto">
@@ -398,14 +406,28 @@ export default function BrowsePage() {
         </div>
 
         {filtered.length === 0 ? (
-          <div className="py-16 text-center text-secondary text-[15px]">
-            No cards match.{" "}
-            <button
-              onClick={() => { setSearch(""); setChip("all"); setIssuerFilter("all"); }}
-              className="text-cardinal hover:text-cardinal-dark font-medium"
-            >
-              Clear filters
-            </button>
+          <div className="py-14 flex flex-col items-center gap-4 text-center">
+            <p className="text-secondary text-[15px]">
+              No cards match{search.trim() ? <> &ldquo;{search.trim()}&rdquo;</> : null}.{" "}
+              <button
+                onClick={() => { setSearch(""); setChip("all"); setIssuerFilter("all"); }}
+                className="text-cardinal hover:text-cardinal-dark font-medium"
+              >
+                Clear filters
+              </button>
+            </p>
+            <div className="bg-white border border-subtle rounded-xl px-5 py-4 max-w-md">
+              <p className="text-[15px] text-ink font-medium">Not in our catalog yet?</p>
+              <p className="text-[14px] text-secondary mt-1">
+                Send us the details and we&apos;ll add it for everyone.
+              </p>
+              <button
+                onClick={() => setRequestOpen(true)}
+                className="mt-3 px-4 py-2 min-h-10 text-[14px] font-medium bg-cardinal hover:bg-cardinal-dark text-white rounded-lg transition-colors"
+              >
+                Request this card
+              </button>
+            </div>
           </div>
         ) : (
           <section aria-label="Cards" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -420,7 +442,26 @@ export default function BrowsePage() {
             ))}
           </section>
         )}
+
+        {filtered.length > 0 && (
+          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 border-t border-subtle pt-6 text-[15px] text-secondary">
+            Can&apos;t find your card?
+            <button
+              onClick={() => setRequestOpen(true)}
+              className="text-cardinal hover:text-cardinal-dark font-medium min-h-10"
+            >
+              Request it
+            </button>
+          </div>
+        )}
       </div>
+
+      <RequestCardDialog
+        open={requestOpen}
+        onOpenChange={setRequestOpen}
+        initialName={filtered.length === 0 ? search.trim() : ""}
+        onUseCustomCard={() => { setRequestOpen(false); setCustomDialogOpen(true); }}
+      />
 
       <CardDetailModal
         card={detailCard}

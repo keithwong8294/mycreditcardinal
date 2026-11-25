@@ -14,10 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import type { CardRequest } from "@/lib/cardRequests";
+import { CardRequestsPanel } from "./CardRequestsPanel";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = "cards" | "valuations";
+type Tab = "cards" | "valuations" | "requests";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -428,7 +430,7 @@ function ValuationEditor() {
 
 // ─── Main client ──────────────────────────────────────────────────────────────
 
-export function AdminClient() {
+export function AdminClient({ requests }: { requests: CardRequest[] }) {
   const [tab, setTab] = useState<Tab>("cards");
   const [localCards, setLocalCards] = useState<Card[]>([...CARDS]);
   const [editCard, setEditCard] = useState<Card | null>(null);
@@ -487,7 +489,7 @@ export function AdminClient() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-subtle">
-        {(["cards", "valuations"] as const).map((t) => (
+        {(["cards", "valuations", "requests"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -497,7 +499,11 @@ export function AdminClient() {
                 : "text-secondary hover:text-primary"
             }`}
           >
-            {t === "cards" ? `Cards (${localCards.length})` : "Valuations"}
+            {t === "cards"
+              ? `Cards (${localCards.length})`
+              : t === "requests"
+                ? `Requests (${requests.filter((r) => r.status === "new").length})`
+                : "Valuations"}
           </button>
         ))}
       </div>
@@ -592,6 +598,7 @@ export function AdminClient() {
       )}
 
       {tab === "valuations" && <ValuationEditor />}
+      {tab === "requests" && <CardRequestsPanel initial={requests} />}
     </div>
   );
 }

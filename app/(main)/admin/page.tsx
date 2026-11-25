@@ -1,8 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { ADMIN_EMAILS } from "@/lib/supabase/constants";
+import { listCardRequests } from "@/lib/cardRequests";
 import { AdminClient } from "./AdminClient";
-
-const ADMIN_EMAILS = ["keithwong8294@gmail.com"];
 
 export default async function AdminPage() {
   const supabase = await createClient();
@@ -14,5 +14,5 @@ export default async function AdminPage() {
     redirect("/browse");
   }
 
-  return <AdminClient />;
+  return <AdminClient requests={await listCardRequests()} />;
 }
