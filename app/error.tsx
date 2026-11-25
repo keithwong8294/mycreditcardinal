@@ -15,14 +15,13 @@ export default function GlobalError({
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-surface px-4 text-center">
-      <div className="text-[40px] leading-none select-none">⚠</div>
-      <h1 className="mt-4 text-[18px] font-semibold text-primary">Something went wrong</h1>
-      <p className="mt-2 text-[13px] text-secondary max-w-xs">
+      <h1 className="font-display text-[44px] leading-none text-ink">Something went <span className="italic text-cardinal">wrong.</span></h1>
+      <p className="mt-3 text-[15px] text-secondary max-w-xs">
         An unexpected error occurred. Your data is safe.
       </p>
       <button
         onClick={reset}
-        className="mt-6 px-4 py-2 bg-ink hover:bg-ink/85 text-paper text-[13px] font-medium rounded-lg transition-colors duration-150"
+        className="mt-6 px-5 py-2.5 bg-ink hover:bg-cardinal text-paper text-[14px] font-medium rounded-lg transition-colors duration-200"
       >
         Try again
       </button>

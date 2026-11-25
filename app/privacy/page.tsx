@@ -12,16 +12,16 @@ export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-surface">
       <div className="max-w-2xl mx-auto px-4 py-12">
-        <Link href="/" className="text-[12px] text-secondary hover:text-primary transition-colors">
+        <Link href="/" className="text-[13px] text-secondary hover:text-cardinal transition-colors">
           ← Back to MyCreditCardinal
         </Link>
 
-        <h1 className="mt-6 text-[24px] font-semibold text-primary">Privacy Policy</h1>
-        <p className="mt-1 text-[12px] text-tertiary">Last updated: {LAST_UPDATED}</p>
+        <h1 className="font-display mt-8 text-[44px] sm:text-[52px] leading-none text-ink">Privacy Policy</h1>
+        <p className="mt-3 text-[13px] text-tertiary">Last updated: {LAST_UPDATED}</p>
 
-        <div className="mt-8 space-y-6 text-[13px] text-secondary leading-relaxed">
+        <div className="mt-10 space-y-8 text-[15px] text-secondary leading-relaxed">
           <section>
-            <h2 className="text-[15px] font-semibold text-primary mb-2">1. Information We Collect</h2>
+            <h2 className="font-display text-[24px] leading-tight text-ink mb-2">1. Information We Collect</h2>
             <p>
               We collect information you provide directly to us, including your name, email address,
               and credit card wallet configuration (which cards you hold, spending amounts, and
@@ -35,7 +35,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-[15px] font-semibold text-primary mb-2">2. How We Use Your Information</h2>
+            <h2 className="font-display text-[24px] leading-tight text-ink mb-2">2. How We Use Your Information</h2>
             <ul className="list-disc list-inside space-y-1">
               <li>To provide, maintain, and improve the MyCreditCardinal service</li>
               <li>To personalize your rewards optimization experience</li>
@@ -47,7 +47,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-[15px] font-semibold text-primary mb-2">3. Data Storage</h2>
+            <h2 className="font-display text-[24px] leading-tight text-ink mb-2">3. Data Storage</h2>
             <p>
               Your data is stored securely in Supabase (PostgreSQL) with row-level security policies
               that ensure you can only access your own data. Authentication is handled by Supabase Auth
@@ -56,7 +56,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-[15px] font-semibold text-primary mb-2">4. Third-Party Services</h2>
+            <h2 className="font-display text-[24px] leading-tight text-ink mb-2">4. Third-Party Services</h2>
             <p>We use the following third-party services:</p>
             <ul className="list-disc list-inside mt-1 space-y-1">
               <li><strong className="text-primary">Supabase</strong> — database and authentication</li>
@@ -67,7 +67,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-[15px] font-semibold text-primary mb-2">5. Data Retention</h2>
+            <h2 className="font-display text-[24px] leading-tight text-ink mb-2">5. Data Retention</h2>
             <p>
               We retain your account data for as long as your account is active. You may request
               deletion of your account and associated data at any time by contacting us.
@@ -75,7 +75,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-[15px] font-semibold text-primary mb-2">6. Your Rights</h2>
+            <h2 className="font-display text-[24px] leading-tight text-ink mb-2">6. Your Rights</h2>
             <p>
               You have the right to access, correct, or delete your personal data. To exercise these
               rights, contact us at{" "}
@@ -87,7 +87,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-[15px] font-semibold text-primary mb-2">7. Changes to This Policy</h2>
+            <h2 className="font-display text-[24px] leading-tight text-ink mb-2">7. Changes to This Policy</h2>
             <p>
               We may update this Privacy Policy from time to time. We will notify you of material
               changes by posting the new policy on this page and updating the &quot;Last updated&quot; date.
@@ -95,7 +95,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-[15px] font-semibold text-primary mb-2">8. Contact</h2>
+            <h2 className="font-display text-[24px] leading-tight text-ink mb-2">8. Contact</h2>
             <p>
               Questions about this Privacy Policy? Email{" "}
               <a href="mailto:privacy@mycreditcardinal.com" className="text-green hover:underline">
