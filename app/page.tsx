@@ -128,7 +128,7 @@ const FAQS = [
   },
   {
     q: "Where do the point values come from?",
-    a: "Each currency has three values: a floor (cash-out), a composite (a trimmed average of published valuations) and a ceiling (strong transfer redemptions). Switch between them anywhere in the app.",
+    a: "Each currency has three values: a floor (cash-out), an MCC value (the median of published valuations from TPG, NerdWallet, Upgraded Points and One Mile at a Time) and a ceiling (strong transfer redemptions). Switch between them anywhere in the app.",
   },
   {
     q: "How current is the card data?",

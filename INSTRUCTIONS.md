@@ -87,18 +87,7 @@ valuations: id uuid PK, currency text, month text, source text, value_cents nume
 
 ## Point/mile currencies and valuations
 
-MyCreditCardinal uses a proprietary "MCC Composite" valuation — a trimmed mean of 5-6 published sources (TPG, Upgraded Points, NerdWallet, Bankrate, OMAAT, Freddie Awards). Users see three tiers:
-
-| Currency | ID | Floor | MCC Composite | Ceiling |
-|----------|----|-------|---------------|---------|
-| Chase Ultimate Rewards | chase_ur | 1.00¢ | 2.00¢ | 4.00¢ |
-| Amex Membership Rewards | amex_mr | 1.00¢ | 1.95¢ | 4.00¢ |
-| Capital One Miles | cap1 | 1.00¢ | 1.70¢ | 3.00¢ |
-| Citi ThankYou Points | citi_typ | 1.00¢ | 1.75¢ | 3.50¢ |
-| Bilt Rewards | bilt | 1.00¢ | 2.10¢ | 3.50¢ |
-| Wells Fargo Rewards | wf | 1.00¢ | 1.55¢ | 2.50¢ |
-| Cash Back | cash | 1.00¢ | 1.00¢ | 1.00¢ |
-| Discover Cashback | discover | 1.00¢ | 1.00¢ | 1.00¢ |
+The "MCC value" (composite tier) is the median of published valuations from The Points Guy, NerdWallet, Upgraded Points and One Mile at a Time, checked November 2026. Each currency's source numbers live in `lib/currencies.ts` (`sources`), a test keeps `composite` equal to their median, and /point-values shows them all. Cash-out (floor) is the default on the landing page; Best case (ceiling) is a strong travel redemption.
 
 ## Routing engine rules
 
