@@ -16,6 +16,8 @@ import type { CapStatus } from "@/lib/engine";
 import type { RoutingResult, RoutingRow, WalletCard } from "@/types";
 import { PageHeader } from "@/components/PageHeader";
 import { AverageSpendPreset } from "@/components/AverageSpendPreset";
+import { SubTrackerList } from "@/components/SubTracker";
+import { spendByCard } from "@/lib/subTracker";
 import {
   Select,
   SelectContent,
@@ -527,6 +529,14 @@ export default function SimulatePage() {
     };
   }, [years, valuationTier, subEarned, allCards]);
 
+  // ── Spend routed to each card, for the sign-up bonus tracker ──────────────
+  const cardSpend = useMemo(() => {
+    const out = new Map<string, number[]>();
+    for (const y of years) for (const [id, arr] of spendByCard(y.months)) out.set(id, arr);
+    return out;
+  }, [years]);
+  const subsInProgress = allCards.some((wc) => wc.card.sub_json && !subEarned.includes(wc.id));
+
   // ── Rotating 5% categories in effect for the month shown ───────────────────
   const rotating = useMemo(() => {
     const seen = new Set<string>();
@@ -687,6 +697,17 @@ export default function SimulatePage() {
           />
         ))}
       </section>
+
+      {/* ── Sign-up bonuses in progress ────────────────────────────────────── */}
+      {subsInProgress && (
+        <section>
+          <h2 className="text-[20px] font-semibold text-ink mb-1">Sign-up bonuses in progress</h2>
+          <p className="text-[13px] text-tertiary mb-3">
+            When each bonus&apos;s minimum spend is met at the spending above. Set the open date, or enter what you&apos;ve spent so far.
+          </p>
+          <SubTrackerList cards={allCards} spend={cardSpend} />
+        </section>
+      )}
 
       {/* ── Where the points land ─────────────────────────────────────────── */}
       {stats.currencyTotals.length > 0 && (

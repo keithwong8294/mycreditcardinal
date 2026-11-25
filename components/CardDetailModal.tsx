@@ -325,7 +325,7 @@ function WhatIfSection({ card }: { card: Card }) {
   const toggleCard = useStore((s) => s.toggleCard);
 
   const ctx = useMemo(
-    () => planningContextOf({ people, activePersonId, spend, spendMode, monthlySpend: {}, overrides: {}, subEarned: [], cardConfigs: {} }),
+    () => planningContextOf({ people, activePersonId, spend, spendMode, monthlySpend: {}, overrides: {}, subEarned: [], subProgress: {}, cardConfigs: {} }),
     [people, activePersonId, spend, spendMode]
   );
   const held = ctx.walletCards.some((w) => w.card.id === card.id);

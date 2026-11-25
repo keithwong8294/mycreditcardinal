@@ -90,6 +90,9 @@ export interface AppState {
   // Which wallet card SUBs have been marked earned (by walletCard.id)
   subEarned: string[]; // stored as array for JSON-serialization; use Set in components
 
+  // Progress toward sign-up bonuses not yet earned, by walletCard.id
+  subProgress: Record<string, SubProgress>;
+
   // Card configs keyed by walletCard.id (rotation selections, custom picks)
   // Note: configs also live inside WalletCard.config — this is the source of truth,
   // WalletCard.config is derived when building walletCards from people.
@@ -125,9 +128,17 @@ export interface AppState {
 }
 
 /** The parts of the state that make up "your wallet". */
+/** What the user entered about a sign-up bonus in progress. */
+export interface SubProgress {
+  /** Account open date, "YYYY-MM-DD". */
+  opened?: string;
+  /** Spend so far in dollars; estimated from the simulator when unset. */
+  spent?: number | null;
+}
+
 export type WalletSnapshot = Pick<
   AppState,
-  "people" | "activePersonId" | "spend" | "monthlySpend" | "overrides" | "subEarned" | "cardConfigs" | "spendMode"
+  "people" | "activePersonId" | "spend" | "monthlySpend" | "overrides" | "subEarned" | "subProgress" | "cardConfigs" | "spendMode"
 >;
 
 function snapshot(s: AppState): WalletSnapshot {
@@ -138,6 +149,7 @@ function snapshot(s: AppState): WalletSnapshot {
     monthlySpend: s.monthlySpend,
     overrides: s.overrides,
     subEarned: s.subEarned,
+    subProgress: s.subProgress,
     cardConfigs: s.cardConfigs,
     spendMode: s.spendMode,
   };
@@ -203,6 +215,7 @@ export interface AppActions {
 
   // SUBs
   toggleSub: (walletCardId: string) => void;
+  setSubProgress: (walletCardId: string, patch: Partial<SubProgress>) => void;
 
   // Card configs (rotation + custom-select)
   setRotation: (walletCardId: string, quarter: 1 | 2 | 3 | 4, categoryId: string | null) => void;
@@ -261,6 +274,7 @@ const initialState: AppState = {
   monthlySpend: { [initialPersonId]: {} },
   overrides: {},
   subEarned: [],
+  subProgress: {},
   cardConfigs: {},
   customCards: [],
   syncMeta: { householdId: null, spendProfileId: null },
@@ -519,6 +533,12 @@ export const useStore = create<Store>()(
         });
       },
 
+      setSubProgress(walletCardId, patch) {
+        set((s) => ({
+          subProgress: { ...s.subProgress, [walletCardId]: { ...s.subProgress[walletCardId], ...patch } },
+        }));
+      },
+
       // ── Card configs ─────────────────────────────────────────────────────────
 
       setRotation(walletCardId, quarter, categoryId) {
@@ -640,7 +660,8 @@ export const useStore = create<Store>()(
       exitSandbox(keep = false) {
         set((s) => {
           if (!s.sandbox.active) return {};
-          const restore = !keep && s.sandbox.real ? s.sandbox.real : {};
+          // Snapshots saved before subProgress existed lack it.
+          const restore = !keep && s.sandbox.real ? { ...s.sandbox.real, subProgress: s.sandbox.real.subProgress ?? {} } : {};
           return { ...restore, sandbox: { active: false, real: null } };
         });
       },
@@ -696,6 +717,7 @@ export const useStore = create<Store>()(
         monthlySpend: s.monthlySpend,
         overrides: s.overrides,
         subEarned: s.subEarned,
+        subProgress: s.subProgress,
         cardConfigs: s.cardConfigs,
         customCards: s.customCards,
         syncMeta: s.syncMeta,

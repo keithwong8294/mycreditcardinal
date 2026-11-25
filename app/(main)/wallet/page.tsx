@@ -13,6 +13,7 @@ import type { WalletCard } from "@/types";
 import { Checkbox } from "@/components/ui/checkbox";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { CardArt } from "@/components/CardArt";
+import { SubTrackerRow, useCardSpend } from "@/components/SubTracker";
 import { useProCheck } from "@/lib/useProCheck";
 import {
   Select,
@@ -194,6 +195,7 @@ function SubSection({
 }) {
   const subEarned = useStore((s) => s.subEarned);
   const toggleSub = useStore((s) => s.toggleSub);
+  const cardSpend = useCardSpend();
 
   const cardsWithSub = walletCards.filter((wc) => wc.card.sub_json !== null);
   if (cardsWithSub.length === 0) return null;
@@ -220,10 +222,8 @@ function SubSection({
           const value = subDollarValue(wc, valuationTier);
           const sub = wc.card.sub_json!;
           return (
-            <label
-              key={wc.id}
-              className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-surface transition-colors"
-            >
+            <div key={wc.id} className="px-3 py-2.5">
+            <label className="flex items-center gap-3 cursor-pointer">
               <Checkbox
                 checked={isEarned}
                 onCheckedChange={() => toggleSub(wc.id)}
@@ -242,11 +242,17 @@ function SubSection({
                 ${Math.round(value).toLocaleString()}
               </span>
             </label>
+            {!isEarned && (
+              <div className="pl-7">
+                <SubTrackerRow wc={wc} monthly={cardSpend.get(wc.id)} />
+              </div>
+            )}
+            </div>
           );
         })}
       </div>
       <p className="text-[11px] text-tertiary mt-1.5">
-        Check off SUBs you&apos;ve earned to track their value.
+        Check off bonuses once they post. Until then, each one shows when you&apos;ll hit the minimum spend at your simulator spending.
       </p>
     </section>
   );
