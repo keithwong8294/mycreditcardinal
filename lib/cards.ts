@@ -49,6 +49,8 @@ interface CardInput {
   issuer: string;
   network: string;
   currency: string;
+  /** See Card.pools_into. */
+  pools_into?: string;
   fee: number;
   earn_json: Record<string, number>;
   /** Issuer caps in dollars per `capPeriod` (default "month"). */
@@ -77,6 +79,7 @@ function card(c: CardInput): Card {
     issuer: c.issuer,
     network: c.network,
     currency: c.currency,
+    ...(c.pools_into ? { pools_into: c.pools_into } : {}),
     fee: c.fee,
     earn_json: c.earn_json,
     caps_json: c.caps_json ?? {},
@@ -653,6 +656,7 @@ export const CARDS: Card[] = [
     issuer: "Capital One",
     network: "Mastercard",
     currency: "cash",
+    pools_into: "cap1",
     fee: 0,
     earn_json: earn(1, { dining: 3, groceries: 3, entertainment: 3, streaming: 3 }),
     sub_json: sub(25000, 500, 3),
@@ -673,6 +677,7 @@ export const CARDS: Card[] = [
     issuer: "Capital One",
     network: "Mastercard",
     currency: "cash",
+    pools_into: "cap1",
     fee: 0,
     earn_json: earn(1.5),
     sub_json: sub(20000, 500, 3),

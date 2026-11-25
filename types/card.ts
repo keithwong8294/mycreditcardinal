@@ -7,6 +7,11 @@ export interface Card {
   issuer: string;
   network: string;
   currency: string;
+  /**
+   * Currency this card's rewards can be moved into when the wallet also has a
+   * card earning it (Savor cash back → Venture miles). Valued as that currency then.
+   */
+  pools_into?: string;
   fee: number;
 
   /** Per-category earn rates. Key = category ID, value = multiplier (e.g. 3 = 3x) */

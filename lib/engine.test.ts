@@ -599,3 +599,19 @@ describe("card database", () => {
     }
   });
 });
+
+describe("reward pooling", () => {
+  it("values Savor cash back as Venture miles when the wallet has a Venture card", async () => {
+    const { CARD_MAP } = await import("./cards");
+    const { routeMonth } = await import("./engine");
+    const wc = (id: string) => ({ id: `t_${id}`, card: CARD_MAP[id], config: { rotQ: [null, null, null, null] as [null, null, null, null], custom: [] } });
+    const spend = { groceries: 600 };
+    const alone = routeMonth([wc("c1_savorone")], spend, {}, 1);
+    expect(alone.rows[0].dollarValue).toBeCloseTo(18); // 3% cash
+    const pooled = routeMonth([wc("c1_venturex"), wc("c1_savorone")], spend, {}, 1);
+    const row = pooled.rows.find((r) => r.categoryId === "groceries")!;
+    expect(row.walletCard.card.id).toBe("c1_savorone");
+    expect(row.dollarValue).toBeGreaterThan(18);
+    expect(pooled.currencyTotals.map((c) => c.currencyId)).toEqual(["cap1"]);
+  });
+});

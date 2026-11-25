@@ -367,6 +367,20 @@ export function rankingValuation(
  * 4. Past a cap, the card keeps earning its regular rate there, and the spend
  *    goes to whichever card is then worth the most (often the same card).
  */
+/**
+ * The currency each wallet card's rewards end up in: a card with `pools_into`
+ * earns that currency when the wallet holds a card that earns it natively.
+ */
+export function pooledCurrencies(walletCards: WalletCard[]): Map<string, string> {
+  const native = new Set(walletCards.map((wc) => wc.card.currency));
+  return new Map(
+    walletCards.map((wc) => {
+      const into = wc.card.pools_into;
+      return [wc.id, into && native.has(into) ? into : wc.card.currency];
+    })
+  );
+}
+
 export function routeMonth(
   walletCards: WalletCard[],
   spend: Record<string, number>,
@@ -380,6 +394,9 @@ export function routeMonth(
   const book = ledger ?? newLedger(month);
   const routeTier: Valuation = typeof tier === "function" ? tier : "composite";
 
+  const pooled = pooledCurrencies(walletCards);
+  const cur = (wc: WalletCard) => pooled.get(wc.id) ?? wc.card.currency;
+
   type Candidate = { wc: WalletCard; rate: number; worth: number; cap: CapInfo | null };
   const plans: { cat: (typeof CATEGORIES)[number]; candidates: Candidate[]; overrideId: string | null; edge: number }[] = [];
 
@@ -389,7 +406,7 @@ export function routeMonth(
     // a candidate of its own.
     const candidates: Candidate[] = [];
     for (const wc of walletCards) {
-      const cpp = getCpp(wc.card.currency, routeTier);
+      const cpp = getCpp(cur(wc), routeTier);
       const rate = getEarnRate(wc.card, cat.id, wc.config, quarter);
       const cap = bonusCap(wc.card, cat.id, wc.config, quarter, rate);
       candidates.push({ wc, rate, worth: rate * cpp, cap });
@@ -401,10 +418,10 @@ export function routeMonth(
     candidates.sort((a, b) => {
       if (Math.abs(b.worth - a.worth) > 1e-9) return b.worth - a.worth;
       if (b.rate !== a.rate) return b.rate - a.rate;
-      const aPref = preferredCurrency && a.wc.card.currency === preferredCurrency ? 1 : 0;
-      const bPref = preferredCurrency && b.wc.card.currency === preferredCurrency ? 1 : 0;
+      const aPref = preferredCurrency && cur(a.wc) === preferredCurrency ? 1 : 0;
+      const bPref = preferredCurrency && cur(b.wc) === preferredCurrency ? 1 : 0;
       if (bPref !== aPref) return bPref - aPref;
-      return getCpp(b.wc.card.currency, "composite") - getCpp(a.wc.card.currency, "composite");
+      return getCpp(cur(b.wc), "composite") - getCpp(cur(a.wc), "composite");
     });
 
     // Manual override: the chosen card first (its bonus, then its after-cap rate)
@@ -459,7 +476,7 @@ export function routeMonth(
       const allocated = Math.min(remaining, room);
       if (allocated <= 0) continue;
 
-      const cpp = getCpp(wc.card.currency, tier);
+      const cpp = getCpp(cur(wc), tier);
       const points = allocated * rate;
       // cpp is stored as hundredths of a cent (200 = 2.00¢ = $0.02/pt)
       const dollarValue = (points * cpp) / 10000;
@@ -494,8 +511,8 @@ export function routeMonth(
     c.dollarValue += dv;
   };
   for (const row of rows) {
-    add(row.walletCard.card.currency, row.points, row.dollarValue);
-    for (const ov of row.overflow) add(ov.walletCard.card.currency, ov.points, ov.dollarValue);
+    add(cur(row.walletCard), row.points, row.dollarValue);
+    for (const ov of row.overflow) add(cur(ov.walletCard), ov.points, ov.dollarValue);
   }
   const currencyTotals = Object.values(currencyMap);
   const totalDollarValue = currencyTotals.reduce((sum, ct) => sum + ct.dollarValue, 0);
