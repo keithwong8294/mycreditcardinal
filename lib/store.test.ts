@@ -17,3 +17,18 @@ describe("refreshPeople", () => {
     expect(person.cards[0].card).toBe(ghost);
   });
 });
+
+import { nextPlayerName } from "./store";
+
+describe("nextPlayerName", () => {
+  it("numbers people Player 1, 2, 3 and skips names in use", () => {
+    expect(nextPlayerName([])).toBe("Player 1");
+    expect(nextPlayerName([{ name: "Player 1" }])).toBe("Player 2");
+    expect(nextPlayerName([{ name: "Player 1" }, { name: "Player 3" }])).toBe("Player 4");
+    expect(nextPlayerName([{ name: "Keith" }, { name: "Player 2" }])).toBe("Player 3");
+  });
+
+  it("renames the old default 'You' to Player 1 on load", () => {
+    expect(refreshPeople([{ id: "p", name: "You", sortOrder: 0, cards: [] }], [])[0].name).toBe("Player 1");
+  });
+});

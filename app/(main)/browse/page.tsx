@@ -317,7 +317,7 @@ export default function BrowsePage() {
     trackCardAdded(card.id, card.name, activePerson.id);
   }
 
-  const owner = activePerson?.name === "You" || !activePerson ? "your" : `${activePerson.name}\u2019s`;
+  const owner = !activePerson || people.length <= 1 ? "your" : `${activePerson.name}\u2019s`;
   const filtering = deferredSearch.trim() !== "" || chip !== "all" || issuerFilter !== "all";
 
   return (

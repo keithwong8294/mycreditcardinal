@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useStore } from "@/lib/store";
+import { useStore, nextPlayerName } from "@/lib/store";
 import { scoreWallet } from "@/lib/sandbox";
 import { CATEGORIES } from "@/lib/categories";
 import { CURRENCY_MAP } from "@/lib/currencies";
@@ -362,12 +362,9 @@ export default function WalletPage() {
               className="flex items-center gap-1"
               onSubmit={(e) => {
                 e.preventDefault();
-                const trimmed = newPersonName.trim();
-                if (trimmed) {
-                  addPerson(trimmed);
-                  setNewPersonName("");
-                  setAddingPerson(false);
-                }
+                addPerson(newPersonName.trim() || nextPlayerName(people));
+                setNewPersonName("");
+                setAddingPerson(false);
               }}
             >
               <input
@@ -380,6 +377,7 @@ export default function WalletPage() {
                     setNewPersonName("");
                   }
                 }}
+                onFocus={(e) => e.target.select()}
                 placeholder="Name…"
                 className="px-2 py-1 text-[13px] bg-field border border-medium rounded-lg w-28 focus:outline-none"
               />
@@ -397,6 +395,7 @@ export default function WalletPage() {
                   setUpgradeOpen(true);
                   return;
                 }
+                setNewPersonName(nextPlayerName(people));
                 setAddingPerson(true);
               }}
               className="px-2 py-1 text-[13px] text-tertiary hover:text-secondary border border-dashed border-subtle rounded-lg transition-colors"

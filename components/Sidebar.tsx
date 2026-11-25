@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "./AuthProvider";
 import { signOut } from "@/lib/supabase/actions";
-import { useStore } from "@/lib/store";
+import { useStore, nextPlayerName } from "@/lib/store";
 import { CardinalMark } from "@/lib/brand";
 import { useHydrated } from "@/lib/useHydrated";
 
@@ -40,7 +40,7 @@ export default function Sidebar() {
 
   function commitAddPerson() {
     const trimmed = newPersonName.trim();
-    if (trimmed) addPerson(trimmed);
+    addPerson(trimmed || nextPlayerName(people));
     setNewPersonName("");
     setAddingPerson(false);
   }
@@ -150,6 +150,7 @@ export default function Sidebar() {
                 onKeyDown={(e) => {
                   if (e.key === "Escape") { setAddingPerson(false); setNewPersonName(""); }
                 }}
+                onFocus={(e) => e.target.select()}
                 placeholder="Name"
                 aria-label="New person's name"
                 className="flex-1 min-w-0 px-3 py-1.5 bg-white border border-medium rounded-lg text-[13px] text-ink placeholder:text-tertiary focus:outline-none focus:border-strong"
@@ -160,7 +161,7 @@ export default function Sidebar() {
             </form>
           ) : (
             <button
-              onClick={() => setAddingPerson(true)}
+              onClick={() => { setNewPersonName(nextPlayerName(people)); setAddingPerson(true); }}
               className="px-3 py-1.5 rounded-full text-[13px] border border-dashed border-medium text-secondary hover:text-ink transition-colors"
             >
               + Person

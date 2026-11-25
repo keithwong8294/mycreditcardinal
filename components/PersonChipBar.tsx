@@ -3,8 +3,8 @@
 import { useState } from "react";
 
 export default function PersonChipBar() {
-  const [people, setPeople] = useState(["You"]);
-  const [active, setActive] = useState("You");
+  const [people, setPeople] = useState(["Player 1"]);
+  const [active, setActive] = useState("Player 1");
 
   function handleAdd() {
     const name = prompt("Enter a name:");

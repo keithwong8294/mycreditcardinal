@@ -30,10 +30,20 @@ function rotQFromSchedule(card: Card): CardConfig["rotQ"] {
   ];
 }
 
+/** "Player N" for the next person added: the lowest number not taken. */
+export function nextPlayerName(people: { name: string }[]): string {
+  const taken = new Set(people.map((p) => p.name.trim().toLowerCase()));
+  let n = people.length + 1;
+  while (taken.has(`player ${n}`)) n++;
+  return `Player ${n}`;
+}
+
 /** Swaps each wallet card's saved copy for the current card data. */
 export function refreshPeople(people: HouseholdMember[], customCards: Card[]): HouseholdMember[] {
   return people.map((person) => ({
     ...person,
+    // The old default name; new wallets start as "Player 1".
+    name: person.name === "You" ? "Player 1" : person.name,
     cards: person.cards.map((wc) => {
       const fresh = CARDS.find((c) => c.id === wc.card.id) ?? customCards.find((c) => c.id === wc.card.id);
       return fresh ? { ...wc, card: fresh } : wc;
@@ -241,7 +251,7 @@ const initialState: AppState = {
   people: [
     {
       id: initialPersonId,
-      name: "You",
+      name: "Player 1",
       sortOrder: 0,
       cards: [],
     },
@@ -283,7 +293,7 @@ export const useStore = create<Store>()(
         set((s) => ({
           people: [
             ...s.people,
-            { id, name: name.trim(), sortOrder: s.people.length, cards: [] },
+            { id, name: name.trim() || nextPlayerName(s.people), sortOrder: s.people.length, cards: [] },
           ],
           activePersonId: id,
           spend: { ...s.spend, [id]: defaultSpend() },
