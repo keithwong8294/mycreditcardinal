@@ -661,3 +661,89 @@ describe("cash_alone cards", () => {
     expect(r.currencyTotals.map((c) => c.currencyId)).toEqual(["cash"]);
   });
 });
+
+// ─── Catalog additions (Nov 2026) ─────────────────────────────────────────────
+
+describe("Costco Anywhere Visa", () => {
+  it("earns 4% on gas up to $7,000 a year, then 1%", () => {
+    const costco = makeWalletCard("citi_costco");
+    expect(costco.card.fee).toBe(0);
+    expect(costco.card.ftf).toBe(0);
+    const { months, total } = routeYear([costco], () => ({ gas: 1000 }), {});
+    const gas = (m: number) => months[m].rows.find((r) => r.categoryId === "gas")!;
+    expect(gas(0).earnRate).toBe(4);
+    expect(gas(6).spend).toBeCloseTo(1000); // July: $7,000 used up exactly
+    expect(gas(6).earnRate).toBe(4);
+    expect(gas(7).earnRate).toBe(1); // August: past the cap
+    // $7,000 × 4% + $5,000 × 1% = $330
+    expect(total.totalDollarValue).toBeCloseTo(330);
+  });
+
+  it("earns 3% on restaurants and travel with no cap", () => {
+    const costco = makeWalletCard("citi_costco");
+    for (const cat of ["dining", "travel", "hotels"]) {
+      expect(getEarnRate(costco.card, cat, costco.config, 1)).toBe(3);
+    }
+    const r = routeAnnual([costco], { dining: 2000 }, {}, {});
+    expect(r.totalDollarValue).toBeCloseTo(720); // $24,000 × 3%
+  });
+
+  it("wins gas over Blue Cash Everyday's 3%", () => {
+    const wallet = [makeWalletCard("amex_bce"), makeWalletCard("citi_costco")];
+    const row = routeMonth(wallet, { gas: 200 }, {}, 1).rows.find((r) => r.categoryId === "gas")!;
+    expect(row.walletCard.card.id).toBe("citi_costco");
+  });
+});
+
+describe("Discover it Chrome", () => {
+  it("shares one $1,000 quarterly cap across gas and restaurants", () => {
+    const chrome = makeWalletCard("discover_chrome");
+    const { months } = routeYear([chrome], () => ({ gas: 200, dining: 200 }), {});
+    const q1 = months.slice(0, 3);
+    const bonusSpend = q1
+      .flatMap((m) => m.rows.filter((r) => r.categoryId === "gas" || r.categoryId === "dining"))
+      .filter((r) => r.earnRate === 2)
+      .reduce((s, r) => s + r.spend, 0);
+    expect(bonusSpend).toBeCloseTo(1000);
+    // A new quarter resets the cap
+    const april = months[3].rows.filter((r) => r.categoryId === "gas" || r.categoryId === "dining");
+    expect(april.every((r) => r.earnRate === 2)).toBe(true);
+  });
+});
+
+describe("new hotel and airline cards", () => {
+  it("Hilton Honors Aspire earns 14x at Hilton and 7x on flights and dining", () => {
+    const aspire = makeWalletCard("amex_hilton_aspire");
+    expect(getEarnRate(aspire.card, "hotels", aspire.config, 1)).toBe(14);
+    expect(getEarnRate(aspire.card, "travel", aspire.config, 1)).toBe(7);
+    expect(getEarnRate(aspire.card, "dining", aspire.config, 1)).toBe(7);
+    expect(getEarnRate(aspire.card, "other", aspire.config, 1)).toBe(3);
+  });
+
+  it("no-fee Hilton Honors card earns 5x on dining, groceries and gas", () => {
+    const hh = makeWalletCard("amex_hilton");
+    expect(hh.card.fee).toBe(0);
+    for (const cat of ["dining", "groceries", "gas"]) {
+      expect(getEarnRate(hh.card, cat, hh.config, 1)).toBe(5);
+    }
+  });
+
+  it("annual credits offset the fee on premium co-brands", () => {
+    const fees = calculateFees([makeWalletCard("amex_marriott_brilliant")]);
+    expect(fees.grossFees).toBe(650);
+    expect(fees.netFees).toBe(650 - 300);
+    const reserve = calculateFees([makeWalletCard("amex_delta_reserve")]);
+    expect(reserve.netFees).toBe(650 - 240 - 200 - 120);
+  });
+});
+
+describe("catalog integrity", () => {
+  it("every card has a unique id and all 12 earn categories", () => {
+    const ids = new Set<string>();
+    for (const c of CARDS) {
+      expect(ids.has(c.id)).toBe(false);
+      ids.add(c.id);
+      expect(Object.keys(c.earn_json).length).toBe(12);
+    }
+  });
+});

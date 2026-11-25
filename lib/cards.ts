@@ -368,6 +368,31 @@ export const CARDS: Card[] = [
   }),
 
   card({
+    id: "chase_united_quest",
+    name: "United Quest",
+    issuer: "Chase",
+    network: "Visa",
+    currency: "united",
+    fee: 350,
+    earn_json: earn(1, { travel: 4, hotels: 2, transit: 2, dining: 2, streaming: 2 }),
+    sub_json: sub(80000, 4000, 3),
+    score: 66,
+    perks_json: [
+      { label: "4x United, 2x Other Travel", value: "2x dining & select streaming; 5x Renowned Hotels" },
+      { label: "United TravelBank Credit", value: "$200/yr", annual_credit: 200 },
+      { label: "Renowned Hotels Credit", value: "$150/yr", annual_credit: 150 },
+      { label: "Instacart Credit", value: "$180/yr ($10 + $5 monthly, thru 2027)", annual_credit: 180 },
+      { label: "Rideshare Credit", value: "$100/yr", annual_credit: 100 },
+      { label: "JSX & Avis/Budget Credits", value: "$150 + $80/yr" },
+      { label: "Free First & Second Checked Bags", value: "You + 1 companion" },
+      { label: "10,000-Mile Award Discount", value: "Every anniversary" },
+    ],
+    color_json: ["#2a1446", "#6b3fa0"],
+    ftf: 0,
+    fico_min: 700,
+  }),
+
+  card({
     id: "chase_marriott_boundless",
     name: "Marriott Bonvoy Boundless",
     issuer: "Chase",
@@ -379,10 +404,12 @@ export const CARDS: Card[] = [
     caps_json: { groceries: 6000, gas: 6000, dining: 6000 },
     capPeriod: "year",
     capShared: true,
-    sub_json: sub(125000, 3000, 3),
+    // Current offer is 3 Free Night Awards (up to 50k each), counted as ~40k each.
+    sub_json: sub(120000, 3000, 3),
     sub_hi_json: sub(200000, 3000, 3, 2026),
     score: 62,
     perks_json: [
+      { label: "Welcome Offer", value: "3 Free Night Awards (up to 50k pts each) after $3k / 3 mo" },
       { label: "6x at Marriott", value: "3x grocery/gas/dining on first $6k/yr" },
       { label: "Free Night (up to 35k pts)", value: "Every anniversary" },
       { label: "Airline Credit", value: "$100/yr after $500 airline spend (thru Jun 2027)" },
@@ -569,6 +596,75 @@ export const CARDS: Card[] = [
   }),
 
   card({
+    id: "amex_hilton",
+    name: "Hilton Honors Card",
+    issuer: "Amex",
+    network: "Amex",
+    currency: "hilton",
+    fee: 0,
+    earn_json: earn(3, { hotels: 7, dining: 5, groceries: 5, gas: 5 }),
+    sub_json: sub(70000, 2000, 6),
+    score: 60,
+    perks_json: [
+      { label: "7x at Hilton", value: "5x US dining, supermarkets & gas; 3x everything else" },
+      { label: "Welcome Offer", value: "70k pts + Free Night after $2k / 6 mo" },
+      { label: "Silver Status", value: "Gold after $20k spend/yr" },
+      { label: "No Annual Fee", value: "No foreign transaction fees" },
+    ],
+    color_json: ["#f4f4f4", "#c9ced6"],
+    ftf: 0,
+    fico_min: 670,
+  }),
+
+  card({
+    id: "amex_hilton_aspire",
+    name: "Hilton Honors Aspire",
+    issuer: "Amex",
+    network: "Amex",
+    currency: "hilton",
+    fee: 550,
+    earn_json: earn(3, { hotels: 14, travel: 7, dining: 7 }),
+    sub_json: sub(200000, 6000, 6),
+    score: 72,
+    perks_json: [
+      { label: "14x at Hilton", value: "7x flights, car rentals & US dining" },
+      { label: "Hilton Resort Credit", value: "$400/yr ($200 semiannual)", annual_credit: 400 },
+      { label: "Flight Credit", value: "$200/yr ($50/qtr)", annual_credit: 200 },
+      { label: "CLEAR+ Credit", value: "$219/yr", annual_credit: 219 },
+      { label: "Diamond Status", value: "Complimentary" },
+      { label: "Free Night Reward", value: "Every year, more at $30k & $60k spend" },
+      { label: "Waldorf Astoria & Conrad Credit", value: "$100 on 2+ night stays" },
+    ],
+    color_json: ["#0d1f3c", "#1f4a7a"],
+    ftf: 0,
+    fico_min: 720,
+  }),
+
+  card({
+    id: "amex_marriott_brilliant",
+    name: "Marriott Bonvoy Brilliant",
+    issuer: "Amex",
+    network: "Amex",
+    currency: "marriott",
+    fee: 650,
+    earn_json: earn(2, { hotels: 6, dining: 3, travel: 3 }),
+    sub_json: sub(100000, 6000, 6),
+    sub_hi_json: sub(200000, 6000, 6, 2026),
+    score: 66,
+    perks_json: [
+      { label: "6x at Marriott", value: "3x restaurants & flights booked direct" },
+      { label: "Dining Credit", value: "$300/yr ($25/mo)", annual_credit: 300 },
+      { label: "Free Night (up to 85k pts)", value: "Every anniversary" },
+      { label: "Platinum Elite Status", value: "Plus 25 Elite Night Credits" },
+      { label: "Priority Pass", value: "Unlimited lounge visits" },
+      { label: "Global Entry / TSA PreCheck", value: "$120 credit" },
+    ],
+    color_json: ["#111111", "#3a3a3a"],
+    ftf: 0,
+    fico_min: 720,
+  }),
+
+  card({
     id: "amex_delta_gold",
     name: "Delta SkyMiles Gold",
     issuer: "Amex",
@@ -588,6 +684,55 @@ export const CARDS: Card[] = [
     color_json: ["#7a5c00", "#c9a227"],
     ftf: 0,
     fico_min: 680,
+  }),
+
+  card({
+    id: "amex_delta_platinum",
+    name: "Delta SkyMiles Platinum",
+    issuer: "Amex",
+    network: "Amex",
+    currency: "delta",
+    fee: 350,
+    earn_json: earn(1, { travel: 3, hotels: 3, dining: 2, groceries: 2 }),
+    sub_json: sub(90000, 3000, 6),
+    sub_hi_json: sub(100000, 6000, 6, 2026),
+    score: 62,
+    perks_json: [
+      { label: "3x Delta & Hotels Booked Direct", value: "2x restaurants & US supermarkets" },
+      { label: "Delta Stays Credit", value: "$150/yr", annual_credit: 150 },
+      { label: "Resy Credit", value: "$120/yr ($10/mo)", annual_credit: 120 },
+      { label: "Rideshare Credit", value: "$120/yr ($10/mo)", annual_credit: 120 },
+      { label: "Companion Certificate", value: "Every renewal (Main Cabin)" },
+      { label: "Free First Checked Bag", value: "Up to 9 on your reservation" },
+    ],
+    color_json: ["#b8bcc2", "#e3e5e8"],
+    ftf: 0,
+    fico_min: 700,
+  }),
+
+  card({
+    id: "amex_delta_reserve",
+    name: "Delta SkyMiles Reserve",
+    issuer: "Amex",
+    network: "Amex",
+    currency: "delta",
+    fee: 650,
+    earn_json: earn(1, { travel: 3 }),
+    sub_json: sub(70000, 5000, 6),
+    sub_hi_json: sub(125000, 8000, 6, 2026),
+    score: 62,
+    perks_json: [
+      { label: "3x on Delta", value: "1x everything else" },
+      { label: "Resy Credit", value: "$240/yr ($20/mo)", annual_credit: 240 },
+      { label: "Delta Stays Credit", value: "$200/yr", annual_credit: 200 },
+      { label: "Rideshare Credit", value: "$120/yr ($10/mo)", annual_credit: 120 },
+      { label: "Delta Sky Club", value: "15 visits/yr (unlimited after $75k spend)" },
+      { label: "Centurion Lounges", value: "When flying Delta" },
+      { label: "Companion Certificate", value: "Every renewal (incl. First Class)" },
+    ],
+    color_json: ["#3c4650", "#6b7782"],
+    ftf: 0,
+    fico_min: 720,
   }),
 
   // ─── CAPITAL ONE ──────────────────────────────────────────────────────────
@@ -645,7 +790,7 @@ export const CARDS: Card[] = [
     currency: "cap1",
     fee: 0,
     earn_json: earn(1.25),
-    sub_json: sub(20000, 500, 3),
+    sub_json: sub(40000, 1000, 3),
     score: 56,
     perks_json: [
       { label: "1.25x on Everything", value: "No annual fee" },
@@ -666,7 +811,7 @@ export const CARDS: Card[] = [
     pools_into: "cap1",
     fee: 0,
     earn_json: earn(1, { dining: 3, groceries: 3, entertainment: 3, streaming: 3 }),
-    sub_json: sub(25000, 500, 3),
+    sub_json: sub(20000, 500, 3),
     sub_hi_json: sub(25000, 500, 3, 2026),
     score: 70,
     perks_json: [
@@ -813,6 +958,33 @@ export const CARDS: Card[] = [
     fico_min: 670,
   }),
 
+  card({
+    id: "citi_costco",
+    name: "Costco Anywhere Visa",
+    issuer: "Citi",
+    network: "Visa",
+    currency: "cash",
+    fee: 0,
+    // 4% on gas & EV charging anywhere (5% at Costco gas) on the first
+    // $7,000 a year combined, then 1%. 2% at Costco has no category here.
+    earn_json: earn(1, { gas: 4, dining: 3, travel: 3, hotels: 3 }),
+    caps_json: { gas: 7000 },
+    capPeriod: "year",
+    sub_json: null,
+    score: 70,
+    perks_json: [
+      { label: "4% Gas & EV Charging", value: "5% at Costco gas; first $7k/yr combined, then 1%" },
+      { label: "3% Restaurants & Travel", value: "Incl. Costco Travel" },
+      { label: "2% at Costco & Costco.com", value: "1% everything else" },
+      { label: "Annual Reward Certificate", value: "Redeem at Costco (cash or merchandise)" },
+      { label: "No Annual Fee", value: "Requires a paid Costco membership" },
+      { label: "No Foreign Transaction Fee", value: "Visa, accepted at Costco" },
+    ],
+    color_json: ["#111111", "#3b3b3b"],
+    ftf: 0,
+    fico_min: 700,
+  }),
+
   // ─── DISCOVER ─────────────────────────────────────────────────────────────
 
   card({
@@ -845,6 +1017,30 @@ export const CARDS: Card[] = [
     },
     ftf: 0,
     fico_min: 650,
+  }),
+
+  card({
+    id: "discover_chrome",
+    name: "Discover it Chrome",
+    issuer: "Discover",
+    network: "Discover",
+    currency: "discover",
+    fee: 0,
+    earn_json: earn(1, { gas: 2, dining: 2 }),
+    // 2% on the first $1,000 a quarter of gas + restaurants combined
+    caps_json: { gas: 1000, dining: 1000 },
+    capPeriod: "quarter",
+    capShared: true,
+    sub_json: null,
+    score: 52,
+    perks_json: [
+      { label: "2% Gas & Restaurants", value: "First $1,000/qtr combined, automatic" },
+      { label: "Cashback Match", value: "All first-year rewards doubled" },
+      { label: "Now Issued by Capital One", value: "No annual or foreign transaction fee" },
+    ],
+    color_json: ["#9aa0a6", "#d9dcdf"],
+    ftf: 0,
+    fico_min: 670,
   }),
 
   // ─── US BANK ──────────────────────────────────────────────────────────────
@@ -1060,6 +1256,26 @@ export const CARDS: Card[] = [
     color_json: ["#0b1d3a", "#3a5a98"],
     ftf: 0,
     fico_min: 700,
+  }),
+
+  card({
+    id: "boa_unlimited_cash",
+    name: "Unlimited Cash Rewards",
+    issuer: "Bank of America",
+    network: "Visa",
+    currency: "cash",
+    fee: 0,
+    earn_json: earn(1.5),
+    sub_json: sub(20000, 1000, 3),
+    score: 56,
+    perks_json: [
+      { label: "1.5% on Everything", value: "No categories or caps" },
+      { label: "Welcome Offer", value: "$200 after $1,000 in 90 days" },
+      { label: "BofA Rewards Boost", value: "Up to 2.62% for Preferred Rewards clients" },
+    ],
+    color_json: ["#9ea3a8", "#d6d9dc"],
+    ftf: 3,
+    fico_min: 670,
   }),
 
   // ─── FINTECH ──────────────────────────────────────────────────────────────
