@@ -6,7 +6,7 @@ import { useStore } from "@/lib/store";
 import { CATEGORIES } from "@/lib/categories";
 import { CURRENCIES } from "@/lib/currencies";
 import type { Card } from "@/types";
-import { cardKind, earnLines, feeLabel } from "@/lib/cardDisplay";
+import { cardKind, categoryRate, earnLines, feeLabel, rateLabel, sortCards, type BrowseSort } from "@/lib/cardDisplay";
 import { useProCheck } from "@/lib/useProCheck";
 import { trackCardAdded } from "@/lib/analytics";
 import { CardDetailModal } from "@/components/CardDetailModal";
@@ -50,16 +50,31 @@ function matchesChip(card: Card, chip: Chip): boolean {
   }
 }
 
+const SORTS: { id: BrowseSort; label: string }[] = [
+  { id: "featured", label: "Featured" },
+  { id: "bonus", label: "Biggest welcome bonus" },
+  { id: "fee-asc", label: "Annual fee: low to high" },
+  { id: "fee-desc", label: "Annual fee: high to low" },
+  { id: "name", label: "Name A–Z" },
+  { id: "issuer", label: "Issuer A–Z" },
+  { id: "newest", label: "Newest added" },
+];
+
+const CATALOG_INDEX = new Map(CARDS.map((c, i) => [c.id, i]));
+
 // ─── Card tile ────────────────────────────────────────────────────────────────
 
 function CardTile({
   card,
   inWallet,
+  focusCategory,
   onDetails,
   onAdd,
 }: {
   card: Card;
   inWallet: boolean;
+  /** When sorting by a category, show that category's rate up top. */
+  focusCategory?: { id: string; label: string };
   onDetails: () => void;
   onAdd: () => void;
 }) {
@@ -79,6 +94,13 @@ function CardTile({
           </div>
         </div>
       </button>
+
+      {focusCategory && (
+        <div className="-mb-1 self-start text-[13px] font-medium text-cardinal bg-cardinal/8 rounded-full px-2.5 py-1">
+          <span className="font-mono tabular-nums">{rateLabel(card, categoryRate(card, focusCategory.id))}</span>{" "}
+          on {focusCategory.label.toLowerCase()}
+        </div>
+      )}
 
       <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-[14px]">
         {lines.map((l, i) => (
@@ -287,6 +309,7 @@ export default function BrowsePage() {
   const deferredSearch = useDeferredValue(search);
   const [chip, setChip] = useState<Chip>("all");
   const [issuerFilter, setIssuerFilter] = useState("all");
+  const [sort, setSort] = useState<BrowseSort>("featured");
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
   const [detailCard, setDetailCard] = useState<Card | null>(null);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
@@ -301,13 +324,14 @@ export default function BrowsePage() {
 
   const filtered = useMemo(() => {
     const q = deferredSearch.trim().toLowerCase();
-    return allCards.filter((card) => {
+    const matches = allCards.filter((card) => {
       if (card.status !== "active") return false;
       if (q && !card.name.toLowerCase().includes(q) && !card.issuer.toLowerCase().includes(q)) return false;
       if (issuerFilter !== "all" && card.issuer !== issuerFilter) return false;
       return matchesChip(card, chip);
     });
-  }, [allCards, deferredSearch, issuerFilter, chip]);
+    return sortCards(matches, sort, CATALOG_INDEX);
+  }, [allCards, deferredSearch, issuerFilter, chip, sort]);
 
   function addToWallet(card: Card) {
     if (!activePerson) return;
@@ -318,6 +342,10 @@ export default function BrowsePage() {
     toggleCardForPerson(card.id, activePerson.id);
     trackCardAdded(card.id, card.name, activePerson.id);
   }
+
+  const focusCategory = sort.startsWith("cat:")
+    ? CATEGORIES.find((c) => c.id === sort.slice(4))
+    : undefined;
 
   const owner = !activePerson || people.length <= 1 ? "your" : `${activePerson.name}\u2019s`;
   const filtering = deferredSearch.trim() !== "" || chip !== "all" || issuerFilter !== "all";
@@ -390,19 +418,38 @@ export default function BrowsePage() {
               </button>
             );
           })}
-          <label className="sm:ml-auto flex items-center gap-2 text-[14px] text-secondary">
-            Issuer
-            <select
-              value={issuerFilter}
-              onChange={(e) => setIssuerFilter(e.target.value)}
-              className="text-[14px] text-ink px-2.5 py-2 min-h-10 border border-medium rounded-lg bg-white"
-            >
-              <option value="all">All issuers</option>
-              {issuers.map((issuer) => (
-                <option key={issuer} value={issuer}>{issuer}</option>
-              ))}
-            </select>
-          </label>
+          <div className="sm:ml-auto flex flex-wrap items-center gap-x-4 gap-y-2">
+            <label className="flex items-center gap-2 text-[14px] text-secondary">
+              Sort
+              <select
+                value={sort}
+                onChange={(e) => setSort(e.target.value as BrowseSort)}
+                className="text-[14px] text-ink px-2.5 py-2 min-h-10 border border-medium rounded-lg bg-white max-w-[220px]"
+              >
+                {SORTS.map((s) => (
+                  <option key={s.id} value={s.id}>{s.label}</option>
+                ))}
+                <optgroup label="Best value per dollar (points at typical value)">
+                  {CATEGORIES.filter((c) => c.id !== "other").map((c) => (
+                    <option key={c.id} value={`cat:${c.id}`}>Best for {c.label.toLowerCase()}</option>
+                  ))}
+                </optgroup>
+              </select>
+            </label>
+            <label className="flex items-center gap-2 text-[14px] text-secondary">
+              Issuer
+              <select
+                value={issuerFilter}
+                onChange={(e) => setIssuerFilter(e.target.value)}
+                className="text-[14px] text-ink px-2.5 py-2 min-h-10 border border-medium rounded-lg bg-white"
+              >
+                <option value="all">All issuers</option>
+                {issuers.map((issuer) => (
+                  <option key={issuer} value={issuer}>{issuer}</option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
 
         {filtered.length === 0 ? (
@@ -436,6 +483,7 @@ export default function BrowsePage() {
                 key={card.id}
                 card={card}
                 inWallet={walletCardIds.has(card.id)}
+                focusCategory={focusCategory}
                 onDetails={() => setDetailCard(card)}
                 onAdd={() => addToWallet(card)}
               />
