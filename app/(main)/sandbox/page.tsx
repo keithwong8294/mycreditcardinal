@@ -9,6 +9,7 @@ import { candidateConfig } from "@/lib/engine";
 import {
   WALLET_PRESETS,
   PRESET_MAP,
+  alternativeNames,
   bestAdditions,
   buildWallet,
   decodeWallet,
@@ -227,6 +228,11 @@ export default function SandboxPage() {
                   ))}
                 </div>
                 <p className="mt-2 text-[13px] leading-snug text-secondary">{preset.blurb}</p>
+                {preset.alternatives && (
+                  <p className="mt-1.5 text-[12px] leading-snug text-tertiary">
+                    Same rate, also no fee: {alternativeNames(preset).join(" · ")}
+                  </p>
+                )}
               </button>
             ))}
           </div>

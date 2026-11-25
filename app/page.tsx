@@ -4,7 +4,7 @@ import { CATEGORIES } from "@/lib/categories";
 import { routeMonth } from "@/lib/engine";
 import type { WalletCard } from "@/types";
 import { CardinalMark } from "@/lib/brand";
-import { WALLET_PRESETS, buildWallet, scoreWallet } from "@/lib/sandbox";
+import { WALLET_PRESETS, alternativeNames, buildWallet, scoreWallet } from "@/lib/sandbox";
 import { CardArt } from "@/components/CardArt";
 
 const serif = { className: "font-serif" };
@@ -300,6 +300,11 @@ export default function Home() {
                       ))}
                     </div>
                     <p className="hidden sm:block mt-2.5 text-[13px] leading-[1.5] text-[#57534e]">{preset.blurb}</p>
+                    {preset.alternatives && (
+                      <p className="mt-1.5 text-[12px] leading-[1.45] text-[#78716c]">
+                        Same 2%, also no fee: {alternativeNames(preset).join(" · ")}
+                      </p>
+                    )}
                     <span className="mt-2 inline-block text-[13px] font-medium text-[#b3261e] group-hover:underline underline-offset-4">
                       Try this wallet →
                     </span>

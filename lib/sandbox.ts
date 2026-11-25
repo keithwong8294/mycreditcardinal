@@ -15,6 +15,8 @@ export interface WalletPreset {
   name: string;
   blurb: string;
   cardIds: string[];
+  /** Other cards that would score the same in this wallet (shown as "or"). */
+  alternatives?: string[];
 }
 
 export const WALLET_PRESETS: WalletPreset[] = [
@@ -23,6 +25,7 @@ export const WALLET_PRESETS: WalletPreset[] = [
     name: "One card, 2% everywhere",
     blurb: "The simplest wallet there is. The baseline every other setup has to beat.",
     cardIds: ["wf_active_cash"],
+    alternatives: ["citi_double_cash", "synchrony_premier", "fidelity_rewards", "bread_cashback"],
   },
   {
     id: "no-fee-starter",
@@ -73,6 +76,14 @@ export const WALLET_PRESETS: WalletPreset[] = [
     cardIds: ["bilt_obsidian"],
   },
 ];
+
+/** "Citi Double Cash, Synchrony Premier World Mastercard, …" for a preset's alternatives. */
+export function alternativeNames(preset: WalletPreset): string[] {
+  return (preset.alternatives ?? [])
+    .map((id) => CARD_MAP[id])
+    .filter(Boolean)
+    .map((c) => `${c.issuer} ${c.name}`);
+}
 
 export const PRESET_MAP: Record<string, WalletPreset> = Object.fromEntries(
   WALLET_PRESETS.map((p) => [p.id, p])

@@ -955,6 +955,65 @@ export const CARDS: Card[] = [
     fico_min: 670,
   }),
 
+  // ─── OTHER NO-FEE FLAT 2% (NerdWallet / issuer terms, Nov 2026) ───────────
+
+  card({
+    id: "synchrony_premier",
+    name: "Premier World Mastercard",
+    issuer: "Synchrony",
+    network: "Mastercard",
+    currency: "cash",
+    fee: 0,
+    earn_json: earn(2),
+    sub_json: sub(10000, 1000, 2),
+    score: 58,
+    perks_json: [
+      { label: "2% on Everything", value: "Posted as a statement credit" },
+      { label: "Welcome Offer", value: "$100 after $1,000 in 60 days" },
+    ],
+    color_json: ["#1f2937", "#4b5563"],
+    ftf: 3,
+    fico_min: 670,
+  }),
+
+  card({
+    id: "fidelity_rewards",
+    name: "Rewards Visa Signature",
+    issuer: "Fidelity",
+    network: "Visa",
+    currency: "cash",
+    fee: 0,
+    earn_json: earn(2),
+    sub_json: null,
+    score: 58,
+    perks_json: [
+      { label: "2% on Everything", value: "Deposited into a Fidelity account" },
+      { label: "Redemption", value: "Less than 2% if redeemed any other way" },
+    ],
+    color_json: ["#0b3d2e", "#2f7a5a"],
+    ftf: 1,
+    fico_min: 670,
+  }),
+
+  card({
+    id: "bread_cashback",
+    name: "Cashback American Express",
+    issuer: "Bread Financial",
+    network: "Amex",
+    currency: "cash",
+    fee: 0,
+    earn_json: earn(2),
+    sub_json: null,
+    score: 57,
+    perks_json: [
+      { label: "2% on Everything", value: "No categories or caps" },
+      { label: "No Foreign Transaction Fees", value: "Good for travel abroad" },
+    ],
+    color_json: ["#2b1a4a", "#5b3f8a"],
+    ftf: 0,
+    fico_min: 670,
+  }),
+
   // ─── BANK OF AMERICA ──────────────────────────────────────────────────────
 
   card({

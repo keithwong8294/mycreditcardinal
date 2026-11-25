@@ -18,7 +18,7 @@ const SPEND: Record<string, number> = {
 describe("presets", () => {
   it("only use real, active cards", () => {
     for (const p of WALLET_PRESETS) {
-      for (const id of p.cardIds) {
+      for (const id of [...p.cardIds, ...(p.alternatives ?? [])]) {
         expect(CARD_MAP[id], `${p.id}: ${id}`).toBeDefined();
         expect(CARD_MAP[id].status).toBe("active");
       }
@@ -30,6 +30,19 @@ describe("presets", () => {
       const s = scoreWallet(buildWallet(p.cardIds.map((cardId) => ({ cardId })), SPEND), SPEND);
       console.log(p.id, Math.round(s.net), Math.round(s.rewards), s.fees, s.returnPct.toFixed(2));
       expect(Number.isFinite(s.net)).toBe(true);
+    }
+  });
+});
+
+describe("preset alternatives", () => {
+  it("score the same as the card they stand in for", () => {
+    for (const p of WALLET_PRESETS) {
+      if (!p.alternatives) continue;
+      const base = scoreWallet(buildWallet(p.cardIds.map((cardId) => ({ cardId })), SPEND), SPEND).net;
+      for (const alt of p.alternatives) {
+        const w = buildWallet([alt].map((cardId) => ({ cardId })), SPEND);
+        expect(scoreWallet(w, SPEND).net, alt).toBeCloseTo(base, 0);
+      }
     }
   });
 });
