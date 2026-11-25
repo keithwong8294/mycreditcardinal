@@ -30,6 +30,17 @@ function rotQFromSchedule(card: Card): CardConfig["rotQ"] {
   ];
 }
 
+/** Swaps each wallet card's saved copy for the current card data. */
+export function refreshPeople(people: HouseholdMember[], customCards: Card[]): HouseholdMember[] {
+  return people.map((person) => ({
+    ...person,
+    cards: person.cards.map((wc) => {
+      const fresh = CARDS.find((c) => c.id === wc.card.id) ?? customCards.find((c) => c.id === wc.card.id);
+      return fresh ? { ...wc, card: fresh } : wc;
+    }),
+  }));
+}
+
 function defaultSpend(): Record<string, number> {
   return Object.fromEntries(CATEGORIES.map((c) => [c.id, c.defaultAmount]));
 }
@@ -685,11 +696,18 @@ export const useStore = create<Store>()(
         sandbox: s.sandbox,
       }),
       // Deep-merge questionnaire answers so newly added questions get defaults
+      // and refresh wallet cards from the current card data, since saved
+      // wallets hold a copy of each card that goes stale when rates change.
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<AppState>;
+        const custom = p.customCards ?? current.customCards;
         return {
           ...current,
           ...p,
+          ...(p.people ? { people: refreshPeople(p.people, custom) } : {}),
+          ...(p.sandbox?.real?.people
+            ? { sandbox: { ...p.sandbox, real: { ...p.sandbox.real, people: refreshPeople(p.sandbox.real.people, custom) } } }
+            : {}),
           optimizerAnswers: { ...current.optimizerAnswers, ...p.optimizerAnswers },
         };
       },
