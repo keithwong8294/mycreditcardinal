@@ -54,7 +54,7 @@ const examples = MODES.map((mode) => {
 });
 
 // Preset wallets scored at the same sample spending: year 1 = sign-up
-// bonuses + rewards + statement credits (capped at each card's fee) − fees;
+// bonuses + rewards + statement credits + yearly bonus points − fees;
 // later years drop the bonuses. Best first by later years, at cash-out.
 const presetScores = WALLET_PRESETS.slice(0, 6)
   .map((p) => {

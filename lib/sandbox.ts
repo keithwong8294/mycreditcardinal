@@ -108,7 +108,7 @@ export interface WalletScore {
   rewards: number;
   /** Annual fees. */
   fees: number;
-  /** Statement credits counted (share you'd use, capped at each card's fee). */
+  /** Statement credits counted (share you'd use) plus yearly bonus points. */
   credits: number;
   /** Sign-up bonuses this spending reaches in time (first year only). */
   subs: number;
@@ -131,10 +131,21 @@ export function scoreWallet(
   const rewards = walletCards.length ? routeAnnual(walletCards, spend, {}, {}, tier).totalDollarValue : 0;
   let fees = 0;
   let credits = 0;
-  for (const { card } of walletCards) {
+  const pooled = pooledCurrencies(walletCards);
+  for (const wc of walletCards) {
+    const { card } = wc;
     fees += card.fee;
-    const c = card.perks_json.reduce((s, p) => s + (p.annual_credit ?? 0), 0) * CREDIT_SHARE[creditUsage];
-    credits += Math.min(c, card.fee);
+    for (const p of card.perks_json) {
+      if (p.annual_points) {
+        // Deposited automatically every year, so counted in full, at the
+        // same point value as the card's rewards.
+        const currency = pooled.get(wc.id) ?? card.currency;
+        const cpp = typeof tier === "function" ? tier(currency) : (CURRENCY_MAP[currency]?.[tier] ?? 100);
+        credits += (p.annual_points * cpp) / 10000;
+      } else {
+        credits += (p.annual_credit ?? 0) * CREDIT_SHARE[creditUsage];
+      }
+    }
   }
   const monthly = Object.values(spend).reduce((s, v) => s + (v > 0 ? v : 0), 0);
   const yearSpend = monthly * 12;

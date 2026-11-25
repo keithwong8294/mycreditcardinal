@@ -52,14 +52,24 @@ describe("scoreWallet", () => {
     expect(scoreWallet([], SPEND).net).toBe(0);
   });
 
-  it("subtracts fees and caps credits at each card's fee", () => {
+  it("subtracts fees and counts credits at face value", () => {
     const w = buildWallet([{ cardId: "amex_plat" }], SPEND);
     const all = scoreWallet(w, SPEND, "composite", "all");
     expect(all.fees).toBe(CARD_MAP.amex_plat.fee);
-    expect(all.credits).toBeLessThanOrEqual(all.fees);
+    expect(all.credits).toBe(CARD_MAP.amex_plat.perks_json.reduce((s, p) => s + (p.annual_credit ?? 0), 0));
+    expect(scoreWallet(w, SPEND, "composite", "some").credits).toBeCloseTo(all.credits / 2);
     const none = scoreWallet(w, SPEND, "composite", "none");
     expect(none.credits).toBe(0);
     expect(none.net).toBeCloseTo(none.rewards - none.fees);
+  });
+
+  it("counts Venture X's $300 credit and 10,000 anniversary miles, beating its fee", () => {
+    const w = buildWallet([{ cardId: "c1_venturex" }], SPEND);
+    const s = scoreWallet(w, SPEND, () => 100, "all");
+    expect(s.credits).toBe(400);
+    expect(s.credits - s.fees).toBe(5);
+    // Anniversary miles are automatic, so they count even with no credits used.
+    expect(scoreWallet(w, SPEND, () => 100, "none").credits).toBe(100);
   });
 });
 

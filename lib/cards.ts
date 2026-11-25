@@ -751,7 +751,7 @@ export const CARDS: Card[] = [
     perks_json: [
       { label: "10x Hotels & Cars, 5x Flights", value: "Via Capital One Travel" },
       { label: "Annual Travel Credit", value: "$300/yr (C1 Travel)", annual_credit: 300 },
-      { label: "10,000 Anniversary Miles", value: "≈$100+ per year", annual_credit: 100 },
+      { label: "10,000 Anniversary Miles", value: "≈$100+ per year", annual_credit: 100, annual_points: 10000 },
       { label: "Capital One + Priority Pass Lounges", value: "Unlimited" },
       { label: "Global Entry / TSA PreCheck", value: "$120 credit" },
     ],
