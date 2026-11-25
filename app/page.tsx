@@ -6,6 +6,7 @@ import type { WalletCard } from "@/types";
 import { CardinalMark } from "@/lib/brand";
 import { WALLET_PRESETS, alternativeNames, buildWallet, scoreWallet } from "@/lib/sandbox";
 import { CardArt } from "@/components/CardArt";
+import { CardCycle } from "@/components/CardCycle";
 
 const serif = { className: "font-serif" };
 const mono = { className: "font-mono" };
@@ -294,15 +295,23 @@ export default function Home() {
                       {score.fees > 0 && <> − {dollars(score.fees)} fees</>}
                       {score.credits > 0 && <> + {dollars(score.credits)} credits</>}
                     </div>
-                    <div className="mt-2.5 flex gap-1.5">
-                      {preset.cardIds.map((id) => (
-                        <CardArt key={id} card={CARD_MAP[id]} className="w-11 h-[28px] rounded-[3px]" />
-                      ))}
+                    <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                      {preset.cardIds.map((id, i) =>
+                        i === 0 && preset.alternatives ? (
+                          <CardCycle
+                            key={id}
+                            cards={[id, ...preset.alternatives].map((a) => CARD_MAP[a])}
+                            className="w-11 h-[28px] rounded-[3px]"
+                          />
+                        ) : (
+                          <CardArt key={id} card={CARD_MAP[id]} className="w-11 h-[28px] rounded-[3px]" />
+                        )
+                      )}
                     </div>
                     <p className="hidden sm:block mt-2.5 text-[13px] leading-[1.5] text-[#57534e]">{preset.blurb}</p>
                     {preset.alternatives && (
                       <p className="mt-1.5 text-[12px] leading-[1.45] text-[#78716c]">
-                        Same 2%, also no fee: {alternativeNames(preset).join(" · ")}
+                        Any of these: {[CARD_MAP[preset.cardIds[0]]].map((c) => `${c.issuer} ${c.name}`).concat(alternativeNames(preset)).join(" · ")}
                       </p>
                     )}
                     <span className="mt-2 inline-block text-[13px] font-medium text-[#b3261e] group-hover:underline underline-offset-4">

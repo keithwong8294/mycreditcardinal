@@ -19,6 +19,7 @@ import {
   type WalletScore,
 } from "@/lib/sandbox";
 import { CardArt } from "@/components/CardArt";
+import { CardCycle } from "@/components/CardCycle";
 import { PageHeader, PAGE, PAGE_INNER } from "@/components/PageHeader";
 import { useHydrated } from "@/lib/useHydrated";
 import type { WalletCard } from "@/types";
@@ -222,15 +223,23 @@ export default function SandboxPage() {
                   <span className="text-[15px] font-semibold text-ink">{preset.name}</span>
                   <span className="text-[15px] font-semibold text-green font-mono">{usd(score.net)}</span>
                 </div>
-                <div className="mt-2 flex gap-1.5">
-                  {preset.cardIds.map((id) => (
-                    <CardArt key={id} card={CARD_MAP[id]} className="w-10 h-[25px] rounded" />
-                  ))}
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  {preset.cardIds.map((id, i) =>
+                    i === 0 && preset.alternatives ? (
+                      <CardCycle
+                        key={id}
+                        cards={[id, ...preset.alternatives].map((a) => CARD_MAP[a])}
+                        className="w-10 h-[25px] rounded"
+                      />
+                    ) : (
+                      <CardArt key={id} card={CARD_MAP[id]} className="w-10 h-[25px] rounded" />
+                    )
+                  )}
                 </div>
                 <p className="mt-2 text-[13px] leading-snug text-secondary">{preset.blurb}</p>
                 {preset.alternatives && (
                   <p className="mt-1.5 text-[12px] leading-snug text-tertiary">
-                    Same rate, also no fee: {alternativeNames(preset).join(" · ")}
+                    Any of these: {[CARD_MAP[preset.cardIds[0]]].map((c) => `${c.issuer} ${c.name}`).concat(alternativeNames(preset)).join(" · ")}
                   </p>
                 )}
               </button>

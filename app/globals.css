@@ -195,3 +195,12 @@
   font-weight: 400;
   letter-spacing: -0.01em;
 }
+
+/* CardCycle: cross-fade through n cards (components/CardCycle.tsx) */
+.card-cycle { opacity: 0; animation-duration: var(--cycle-total); animation-iteration-count: infinite; animation-timing-function: ease-in-out; }
+@keyframes card-cycle-2 { 0% { opacity: 0; } 6.00% { opacity: 1; } 50.00% { opacity: 1; } 56.00% { opacity: 0; } 100% { opacity: 0; } }
+@keyframes card-cycle-3 { 0% { opacity: 0; } 6.00% { opacity: 1; } 33.33% { opacity: 1; } 39.33% { opacity: 0; } 100% { opacity: 0; } }
+@keyframes card-cycle-4 { 0% { opacity: 0; } 6.00% { opacity: 1; } 25.00% { opacity: 1; } 31.00% { opacity: 0; } 100% { opacity: 0; } }
+@keyframes card-cycle-5 { 0% { opacity: 0; } 5.00% { opacity: 1; } 20.00% { opacity: 1; } 25.00% { opacity: 0; } 100% { opacity: 0; } }
+@keyframes card-cycle-6 { 0% { opacity: 0; } 4.17% { opacity: 1; } 16.67% { opacity: 1; } 20.83% { opacity: 0; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .card-cycle { animation: none; } .card-cycle:first-child { opacity: 1; } }
