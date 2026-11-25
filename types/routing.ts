@@ -2,6 +2,8 @@ import type { WalletCard } from "./walletCard";
 
 export interface OverflowRow {
   walletCard: WalletCard;
+  /** Other wallet cards that earn the same rate here (with cap room left). */
+  alsoEarn?: WalletCard[];
   earnRate: number;
   spend: number;
   points: number;
@@ -12,6 +14,8 @@ export interface RoutingRow {
   categoryId: string;
   /** The primary card assigned to this category */
   walletCard: WalletCard;
+  /** Other wallet cards that earn the same rate here (with cap room left). */
+  alsoEarn?: WalletCard[];
   earnRate: number;
   spend: number;
   points: number;

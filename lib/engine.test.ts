@@ -615,3 +615,31 @@ describe("reward pooling", () => {
     expect(pooled.currencyTotals.map((c) => c.currencyId)).toEqual(["cap1"]);
   });
 });
+
+describe("routeMonth: same-rate cards", () => {
+  it("lists other cards that earn the same rate", () => {
+    const r = routeMonth([makeWalletCard("csp"), makeWalletCard("c1_savorone")], { dining: 300 }, {}, 1);
+    const row = r.rows.find((x) => x.categoryId === "dining")!;
+    expect(row.earnRate).toBe(3);
+    expect(row.alsoEarn?.map((w) => w.card.id)).toEqual([
+      row.walletCard.card.id === "csp" ? "c1_savorone" : "csp",
+    ]);
+  });
+
+  it("lists same-rate cards for spend past a cap", () => {
+    const flex = makeWalletCard("cff", { rotQ: ["dining", null, null, null] });
+    const r = routeMonth([flex, makeWalletCard("csp"), makeWalletCard("c1_savorone")], { dining: 3000 }, {}, 1);
+    const row = r.rows.find((x) => x.categoryId === "dining")!;
+    expect(row.walletCard.card.id).toBe("cff");
+    expect(row.capHit).toBe(true);
+    const ov = row.overflow[0];
+    expect(ov.earnRate).toBe(3);
+    expect((ov.alsoEarn ?? []).length).toBeGreaterThan(0);
+  });
+
+  it("leaves a manual pick alone", () => {
+    const savor = makeWalletCard("c1_savorone");
+    const r = routeMonth([makeWalletCard("csp"), savor], { dining: 300 }, { dining: savor.id }, 1);
+    expect(r.rows[0].alsoEarn).toBeUndefined();
+  });
+});

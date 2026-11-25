@@ -476,6 +476,18 @@ export function routeMonth(
       const allocated = Math.min(remaining, room);
       if (allocated <= 0) continue;
 
+      // Other cards earning the same rate that still have cap room: shown as
+      // "A or B" so either card can be used.
+      const alsoEarn: WalletCard[] = [];
+      if (!overrideId) {
+        for (const alt of candidates) {
+          if (alt.wc.id === wc.id || alt.rate !== rate || alsoEarn.some((a) => a.id === alt.wc.id)) continue;
+          if (alt.cap && (book.caps[capKey(alt.wc.id, alt.cap, book.month)]?.used ?? 0) >= alt.cap.limit) continue;
+          alsoEarn.push(alt.wc);
+        }
+      }
+      const alt = alsoEarn.length ? { alsoEarn } : {};
+
       const cpp = getCpp(cur(wc), tier);
       const points = allocated * rate;
       // cpp is stored as hundredths of a cent (200 = 2.00¢ = $0.02/pt)
@@ -486,6 +498,7 @@ export function routeMonth(
         primaryRow = {
           categoryId: cat.id,
           walletCard: wc,
+          ...alt,
           earnRate: rate,
           spend: allocated,
           points,
@@ -495,7 +508,7 @@ export function routeMonth(
           override: overrideId,
         };
       } else {
-        overflowRows.push({ walletCard: wc, earnRate: rate, spend: allocated, points, dollarValue });
+        overflowRows.push({ walletCard: wc, ...alt, earnRate: rate, spend: allocated, points, dollarValue });
       }
       remaining -= allocated;
     }

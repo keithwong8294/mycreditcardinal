@@ -67,6 +67,10 @@ function fmtDollar(n: number): string {
   const r = Math.round(n);
   return `${r < 0 ? "-" : ""}$${Math.abs(r).toLocaleString()}`;
 }
+/** "Sapphire Preferred or Savor" when other cards earn the same rate. */
+function cardNames(wc: WalletCard, alsoEarn?: WalletCard[]): string {
+  return [wc, ...(alsoEarn ?? [])].map((c) => c.card.name).join(" or ");
+}
 function catLabel(id: string): string {
   return CATEGORIES.find((c) => c.id === id)?.label ?? id;
 }
@@ -167,7 +171,7 @@ function SpendRow({
   }
 
   const active = routingRow && spend > 0;
-  const autoLabel = routingRow ? `Auto: ${routingRow.walletCard.card.name} ${routingRow.earnRate}x` : "";
+  const autoLabel = routingRow ? `Auto: ${cardNames(routingRow.walletCard, routingRow.alsoEarn)} ${routingRow.earnRate}x` : "";
 
   return (
     <div className="border-b border-subtle last:border-b-0 px-3 py-2.5">
@@ -249,8 +253,8 @@ function SpendRow({
               value={overrideId ?? "__auto__"}
               onValueChange={(v) => onOverrideChange(categoryId, v === "__auto__" ? null : v)}
             >
-              <SelectTrigger className="h-7 text-[12px] w-full px-2">
-                <span className="truncate flex-1 text-left">
+              <SelectTrigger className="h-auto data-[size=default]:h-auto min-h-7 py-1 text-[12px] w-full px-2 whitespace-normal">
+                <span className="line-clamp-2 flex-1 text-left leading-snug" title={overrideId ? undefined : autoLabel}>
                   {overrideId
                     ? (walletCards.find((wc) => wc.id === overrideId)?.card.name ?? "Card")
                     : autoLabel}
@@ -292,7 +296,7 @@ function SpendRow({
         routingRow.overflow.map((ov, i) => (
           <div key={i} className="mt-1 text-[12px] text-secondary md:pl-[162px]">
             ↳ {fmtDollar(ov.spend)} past the cap earns {ov.earnRate}x on{" "}
-            <span className="font-medium text-primary">{ov.walletCard.card.name}</span>
+            <span className="font-medium text-primary">{cardNames(ov.walletCard, ov.alsoEarn)}</span>
             <span className="text-tertiary"> ({fmt(ov.points)} pts, {fmtDollar(ov.dollarValue)})</span>
           </div>
         ))}
