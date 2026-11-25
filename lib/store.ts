@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { Card, HouseholdMember, WalletCard, CardConfig } from "@/types";
-import type { ValuationTier, CardGoal, CreditUsage, Redemption, Ecosystem } from "./engine";
+import { candidateConfig, type ValuationTier, type CardGoal, type CreditUsage, type Redemption, type Ecosystem } from "./engine";
 import { CARDS } from "./cards";
 import { CATEGORIES } from "./categories";
 
@@ -94,6 +94,46 @@ export interface AppState {
 
   // Optimizer questionnaire answers
   optimizerAnswers: OptimizerAnswers;
+
+  /**
+   * Sandbox mode: while active, the wallet fields above hold a scratch copy
+   * and `real` holds the user's real wallet, restored on exit. Nothing is
+   * synced while the sandbox is on.
+   */
+  sandbox: { active: boolean; real: WalletSnapshot | null };
+}
+
+/** The parts of the state that make up "your wallet". */
+export type WalletSnapshot = Pick<
+  AppState,
+  "people" | "activePersonId" | "spend" | "monthlySpend" | "overrides" | "subEarned" | "cardConfigs" | "spendMode"
+>;
+
+function snapshot(s: AppState): WalletSnapshot {
+  return {
+    people: s.people,
+    activePersonId: s.activePersonId,
+    spend: s.spend,
+    monthlySpend: s.monthlySpend,
+    overrides: s.overrides,
+    subEarned: s.subEarned,
+    cardConfigs: s.cardConfigs,
+    spendMode: s.spendMode,
+  };
+}
+
+/** Wallet cards and monthly spend to plan with (household-aware). */
+export function planningContextOf(s: WalletSnapshot): { walletCards: WalletCard[]; spend: Record<string, number> } {
+  if (s.spendMode === "household" && s.people.length > 1) {
+    return {
+      walletCards: s.people.flatMap((p) => p.cards),
+      spend: s.spend[HOUSEHOLD_ID] ?? defaultSpend(),
+    };
+  }
+  return {
+    walletCards: s.people.find((p) => p.id === s.activePersonId)?.cards ?? [],
+    spend: s.spend[s.activePersonId] ?? defaultSpend(),
+  };
 }
 
 export interface OptimizerAnswers {
@@ -158,6 +198,14 @@ export interface AppActions {
   setActiveTab: (tab: AppState["activeTab"]) => void;
   setOptimizerAnswers: (answers: Partial<OptimizerAnswers>) => void;
 
+  // Sandbox
+  /** Turns sandbox mode on, starting from a copy of the real wallet. */
+  enterSandbox: () => void;
+  /** Turns sandbox mode off. `keep` makes the sandbox wallet your real one. */
+  exitSandbox: (keep?: boolean) => void;
+  /** Replaces the active person's cards (turning the sandbox on first). */
+  loadSandboxWallet: (entries: { cardId: string; config?: CardConfig }[]) => void;
+
   // Derived helpers (not persisted, just convenient)
   getActivePerson: () => HouseholdMember | undefined;
   getActiveWalletCards: () => WalletCard[];
@@ -205,6 +253,7 @@ const initialState: AppState = {
     over524: false,
     focusCategory: null,
   },
+  sandbox: { active: false, real: null },
 };
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -555,6 +604,41 @@ export const useStore = create<Store>()(
         set((s) => ({ optimizerAnswers: { ...s.optimizerAnswers, ...answers } }));
       },
 
+      // ── Sandbox ──────────────────────────────────────────────────────────────
+
+      enterSandbox() {
+        set((s) => (s.sandbox.active ? {} : { sandbox: { active: true, real: snapshot(s) } }));
+      },
+
+      exitSandbox(keep = false) {
+        set((s) => {
+          if (!s.sandbox.active) return {};
+          const restore = !keep && s.sandbox.real ? s.sandbox.real : {};
+          return { ...restore, sandbox: { active: false, real: null } };
+        });
+      },
+
+      loadSandboxWallet(entries) {
+        get().enterSandbox();
+        set((s) => {
+          const spend = s.spend[s.activePersonId] ?? defaultSpend();
+          const updatedConfigs = { ...s.cardConfigs };
+          const cards: WalletCard[] = [];
+          for (const { cardId, config } of entries) {
+            const card = CARDS.find((c) => c.id === cardId) ?? s.customCards.find((c) => c.id === cardId);
+            if (!card || cards.some((w) => w.card.id === cardId)) continue;
+            const id = uuid();
+            const cfg = config ?? candidateConfig(card, spend);
+            updatedConfigs[id] = cfg;
+            cards.push({ id, card, config: cfg });
+          }
+          return {
+            people: s.people.map((p) => (p.id === s.activePersonId ? { ...p, cards } : p)),
+            cardConfigs: updatedConfigs,
+          };
+        });
+      },
+
       // ── Derived helpers ──────────────────────────────────────────────────────
 
       getActivePerson() {
@@ -571,17 +655,7 @@ export const useStore = create<Store>()(
       },
 
       getPlanningContext() {
-        const s = get();
-        if (s.spendMode === "household" && s.people.length > 1) {
-          return {
-            walletCards: s.people.flatMap((p) => p.cards),
-            spend: s.spend[HOUSEHOLD_ID] ?? defaultSpend(),
-          };
-        }
-        return {
-          walletCards: s.getActiveWalletCards(),
-          spend: s.spend[s.activePersonId] ?? defaultSpend(),
-        };
+        return planningContextOf(get());
       },
     }),
     {
@@ -602,6 +676,7 @@ export const useStore = create<Store>()(
         spendMode: s.spendMode,
         activeTab: s.activeTab,
         optimizerAnswers: s.optimizerAnswers,
+        sandbox: s.sandbox,
       }),
       // Deep-merge questionnaire answers so newly added questions get defaults
       merge: (persisted, current) => {

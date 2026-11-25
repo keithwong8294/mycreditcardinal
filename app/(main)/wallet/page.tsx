@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useStore } from "@/lib/store";
+import { scoreWallet } from "@/lib/sandbox";
 import { CATEGORIES } from "@/lib/categories";
 import { CURRENCY_MAP } from "@/lib/currencies";
 import { announcedRotation, currentQuarter } from "@/lib/engine";
@@ -251,6 +252,37 @@ function SubSection({
   );
 }
 
+// ─── Yearly value score ───────────────────────────────────────────────────────
+
+function WalletScoreLine({ walletCards, personId }: { walletCards: WalletCard[]; personId: string }) {
+  const spend = useStore((s) => s.spend[personId]);
+  const tier = useStore((s) => s.valuationTier);
+  const creditUsage = useStore((s) => s.optimizerAnswers.creditUsage);
+  const sandboxOn = useStore((s) => s.sandbox.active);
+  const score = useMemo(
+    () => (walletCards.length && spend ? scoreWallet(walletCards, spend, tier, creditUsage) : null),
+    [walletCards, spend, tier, creditUsage]
+  );
+  if (!score) return null;
+
+  return (
+    <section className="bg-white border border-subtle rounded-lg p-4 flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <div className="text-[13px] text-tertiary">Yearly value at this spending, after fees</div>
+        <div className="mt-0.5 flex items-baseline gap-3">
+          <span className="font-display text-[36px] leading-none text-ink">
+            {score.net < 0 ? "−" : ""}${Math.abs(Math.round(score.net)).toLocaleString()}
+          </span>
+          <span className="text-[13px] text-secondary">{score.returnPct.toFixed(2)}% back</span>
+        </div>
+      </div>
+      <Link href="/sandbox" className="text-[14px] font-medium text-cardinal hover:text-cardinal-dark">
+        {sandboxOn ? "Compare with your real wallet" : "Try other setups in the sandbox"}
+      </Link>
+    </section>
+  );
+}
+
 // ─── Wallet page ──────────────────────────────────────────────────────────────
 
 export default function WalletPage() {
@@ -397,6 +429,8 @@ export default function WalletPage() {
           </div>
         )}
       </div>
+
+      <WalletScoreLine walletCards={walletCards} personId={activePersonId} />
 
       {/* Cards section */}
       <section>

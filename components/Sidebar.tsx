@@ -7,12 +7,14 @@ import { useAuth } from "./AuthProvider";
 import { signOut } from "@/lib/supabase/actions";
 import { useStore } from "@/lib/store";
 import { CardinalMark } from "@/lib/brand";
+import { useHydrated } from "@/lib/useHydrated";
 
 const primaryNav = [
   { label: "Browse cards", href: "/browse" },
   { label: "Wallet", href: "/wallet" },
   { label: "Simulator", href: "/simulate" },
   { label: "Find a better card", href: "/optimize" },
+  { label: "Wallet sandbox", href: "/sandbox" },
 ];
 
 const secondaryNav = [
@@ -31,6 +33,10 @@ export default function Sidebar() {
   const activePersonId = useStore((s) => s.activePersonId);
   const setActivePerson = useStore((s) => s.setActivePerson);
   const addPerson = useStore((s) => s.addPerson);
+  const hydrated = useHydrated();
+  const sandboxOn = useStore((s) => s.sandbox.active) && hydrated;
+  const enterSandbox = useStore((s) => s.enterSandbox);
+  const exitSandbox = useStore((s) => s.exitSandbox);
 
   function commitAddPerson() {
     const trimmed = newPersonName.trim();
@@ -72,6 +78,26 @@ export default function Sidebar() {
           );
         })}
       </nav>
+
+      <button
+        role="switch"
+        aria-checked={sandboxOn}
+        onClick={() => (sandboxOn ? exitSandbox(false) : enterSandbox())}
+        className="-mt-3 flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border border-subtle bg-white text-left hover:border-medium transition-colors"
+      >
+        <span>
+          <span className="block text-[14px] font-medium text-ink">Sandbox mode</span>
+          <span className="block text-[12px] text-tertiary">Try wallets without changing yours</span>
+        </span>
+        <span
+          aria-hidden
+          className={`relative shrink-0 w-9 h-5 rounded-full transition-colors ${sandboxOn ? "bg-cardinal" : "bg-medium"}`}
+        >
+          <span
+            className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${sandboxOn ? "translate-x-[18px]" : "translate-x-0.5"}`}
+          />
+        </span>
+      </button>
 
       <nav aria-label="More" className="flex flex-col gap-0.5 border-t border-subtle pt-4 -mt-3">
         {secondaryNav.map((item) => {

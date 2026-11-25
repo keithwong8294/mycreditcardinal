@@ -4,6 +4,8 @@ import { CATEGORIES } from "@/lib/categories";
 import { routeMonth } from "@/lib/engine";
 import type { WalletCard } from "@/types";
 import { CardinalMark } from "@/lib/brand";
+import { WALLET_PRESETS, buildWallet, scoreWallet } from "@/lib/sandbox";
+import { CardArt } from "@/components/CardArt";
 
 const serif = { className: "font-serif" };
 const mono = { className: "font-mono" };
@@ -33,6 +35,21 @@ const exampleSpendTotal = Object.values(EXAMPLE_SPEND).reduce((a, b) => a + b, 0
 const flatCardMonthly = exampleSpendTotal * 0.015;
 const upliftYearly = Math.round((example.totalDollarValue - flatCardMonthly) * 12);
 
+// Preset wallets scored at the same sample spending (no statement credits counted).
+const presetScores = WALLET_PRESETS.slice(0, 6).map((p) => ({
+  preset: p,
+  net: scoreWallet(buildWallet(p.cardIds.map((cardId) => ({ cardId })), EXAMPLE_SPEND), EXAMPLE_SPEND, "composite", "none").net,
+}));
+const bestPreset = presetScores.reduce((a, b) => (b.net > a.net ? b : a));
+
+const SANDBOX_FEATURES = [
+  ["Load a preset", "Chase trifecta, Amex foodie, a no-fee starter and more, set up for your spending."],
+  ["See the yearly score", "Rewards plus credits minus fees, so a $795 card has to earn its keep."],
+  ["Compare side by side", "Your real wallet next to the sandbox, category by category."],
+  ["Ask “what if?”", "Every card ranked by what it would add to the wallet you’re testing."],
+  ["Share a wallet", "Send a link. Friends see the same cards at their own spending."],
+] as const;
+
 const CATEGORY_LABEL = Object.fromEntries(CATEGORIES.map((c) => [c.id, c.label]));
 const ISSUERS = Array.from(new Set(CARDS.map((c) => c.issuer)));
 
@@ -61,6 +78,14 @@ const STEPS = [
 ];
 
 const FAQS = [
+  {
+    q: "Do you get paid when I apply for a card?",
+    a: "No. There are no affiliate links anywhere, so no card is ranked higher because it pays more. Apply on the issuer’s own site when you’re ready.",
+  },
+  {
+    q: "What is sandbox mode?",
+    a: "A scratch copy of your wallet. Turn it on, load a preset or add and drop any cards, and compare the result with your real wallet. Exit and your real wallet comes back exactly as it was, or keep the sandbox version if you like it better.",
+  },
   {
     q: "Do I have to make an account?",
     a: "No. Hit “Continue without signing in” and everything is saved in your browser. Sign in later if you want your wallet on more than one device.",
@@ -102,6 +127,7 @@ export default function Home() {
             <span className="text-[16px] font-semibold tracking-tight">MyCreditCardinal</span>
           </Link>
           <nav className="flex items-center gap-1 sm:gap-6 text-[14px]">
+            <a href="#sandbox" className="hidden sm:inline text-[#57534e] hover:text-[#1c1917]">Sandbox</a>
             <a href="#how" className="hidden sm:inline text-[#57534e] hover:text-[#1c1917]">How it works</a>
             <a href="#pricing" className="hidden sm:inline text-[#57534e] hover:text-[#1c1917]">Pricing</a>
             <Link href="/login" className="text-[#57534e] hover:text-[#1c1917] px-2">Sign in</Link>
@@ -139,7 +165,11 @@ export default function Home() {
             </Link>
           </div>
 
-          <dl className="mt-14 grid grid-cols-3 max-w-md border-t border-[#1c1917]/10 pt-6">
+          <p className="mt-5 text-[14px] text-[#57534e]">
+            Free to use. <span className="font-semibold text-[#1c1917]">No affiliate links</span>: nothing here pays us when you apply.
+          </p>
+
+          <dl className="mt-12 grid grid-cols-3 max-w-md border-t border-[#1c1917]/10 pt-6">
             <div>
               <dt className="text-[12px] text-[#78716c]">Cards</dt>
               <dd className={`${mono.className} text-[22px] mt-1`}>{CARDS.length}</dd>
@@ -204,6 +234,75 @@ export default function Home() {
             Computed by the same engine the app uses, at composite point values.
           </figcaption>
         </figure>
+      </section>
+
+      {/* ── Sandbox ── */}
+      <section id="sandbox" className="border-t border-[#1c1917]/10 bg-[#fbfaf7]">
+        <div className="max-w-6xl mx-auto px-5 sm:px-8 py-20 grid lg:grid-cols-[1fr_1.35fr] gap-12">
+          <div>
+            <div className={`${mono.className} text-[12px] text-[#b3261e] tracking-wide`}>SANDBOX MODE</div>
+            <h2 className={`${serif.className} mt-3 text-[44px] sm:text-[52px] leading-[1]`}>
+              Try any wallet
+              <br />
+              <span className="italic text-[#b3261e]">before you apply.</span>
+            </h2>
+            <p className="mt-6 text-[16px] leading-[1.65] text-[#44403c] max-w-md">
+              Flip on sandbox mode and play. Your real wallet is saved, and everything you try is scored
+              against your own spending. Free, no strings, built for how you actually spend.
+            </p>
+            <ul className="mt-8 space-y-4">
+              {SANDBOX_FEATURES.map(([t, b]) => (
+                <li key={t} className="grid grid-cols-[1.25rem_1fr] gap-2">
+                  <span className="text-[#b3261e] pt-0.5" aria-hidden>✦</span>
+                  <div>
+                    <div className="text-[15px] font-semibold">{t}</div>
+                    <div className="text-[14px] text-[#57534e] leading-[1.55]">{b}</div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <div className="flex items-baseline justify-between gap-3 mb-3">
+              <span className="text-[13px] font-semibold">Preset wallets, scored</span>
+              <span className="text-[12px] text-[#78716c]">per year after fees, same sample spending as above</span>
+            </div>
+            <ul className="grid sm:grid-cols-2 gap-2.5">
+              {presetScores.map(({ preset, net }) => (
+                <li key={preset.id}>
+                  <Link
+                    href={`/sandbox?preset=${preset.id}`}
+                    className="group block h-full bg-white rounded-md border border-[#1c1917]/10 p-4 hover:border-[#1c1917]/40 transition-colors"
+                  >
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-[15px] font-semibold">{preset.name}</span>
+                      <span className={`${mono.className} text-[15px] ${preset.id === bestPreset.preset.id ? "text-[#b3261e] font-semibold" : ""}`}>
+                        ${Math.round(net).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="mt-2.5 flex gap-1.5">
+                      {preset.cardIds.map((id) => (
+                        <CardArt key={id} card={CARD_MAP[id]} className="w-11 h-[28px] rounded-[3px]" />
+                      ))}
+                    </div>
+                    <p className="hidden sm:block mt-2.5 text-[13px] leading-[1.5] text-[#57534e]">{preset.blurb}</p>
+                    <span className="mt-2 inline-block text-[13px] font-medium text-[#b3261e] group-hover:underline underline-offset-4">
+                      Try this wallet →
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            <Link
+              href="/sandbox"
+              className="mt-5 flex flex-col items-start px-7 py-4 rounded-lg bg-[#1c1917] hover:bg-[#b3261e] text-[#f6f3ee] transition-colors duration-200"
+            >
+              <span className="text-[17px] font-semibold">Open the sandbox →</span>
+              <span className="text-[13px] text-[#f6f3ee]/65 mt-0.5">No account needed. Your real wallet stays untouched.</span>
+            </Link>
+          </div>
+        </div>
       </section>
 
       {/* ── How it works ── */}

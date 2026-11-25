@@ -41,4 +41,6 @@ Visitors can use everything without an account ("Continue without signing in"); 
 - `lib/cards.ts`: card database (fees, earn rates, bonuses, credits)
 - `lib/currencies.ts`: point valuations
 - `lib/engine.ts`: routing and optimizer
+- `lib/sandbox.ts`: preset wallets, yearly value score, what-if ranking, share-link encoding
+- Sandbox state: `sandbox` in `lib/store.ts` keeps the real wallet in a snapshot while the scratch copy is edited; `lib/sync.ts` never uploads while it's on
 - `lib/brand.tsx`: logo mark used for the UI, favicons and share image

@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { useStore } from "@/lib/store";
+import { useMemo, useState } from "react";
+import { planningContextOf, useStore } from "@/lib/store";
+import { whatIfAdd } from "@/lib/sandbox";
+import { candidateConfig } from "@/lib/engine";
 import { CATEGORIES } from "@/lib/categories";
 import { CURRENCY_MAP } from "@/lib/currencies";
 import type { Card } from "@/types";
@@ -267,6 +269,8 @@ export function CardDetailModal({
               </Section>
             )}
 
+            <WhatIfSection card={card} />
+
             {/* Per-person wallet actions */}
             <Section label="Add to wallet">
               {people.length === 0 ? (
@@ -304,6 +308,62 @@ export function CardDetailModal({
         reason="card_limit"
       />
     </>
+  );
+}
+
+// ─── What if I added this card? ───────────────────────────────────────────────
+
+function WhatIfSection({ card }: { card: Card }) {
+  const people = useStore((s) => s.people);
+  const activePersonId = useStore((s) => s.activePersonId);
+  const spend = useStore((s) => s.spend);
+  const spendMode = useStore((s) => s.spendMode);
+  const tier = useStore((s) => s.valuationTier);
+  const creditUsage = useStore((s) => s.optimizerAnswers.creditUsage);
+  const sandboxOn = useStore((s) => s.sandbox.active);
+  const enterSandbox = useStore((s) => s.enterSandbox);
+  const toggleCard = useStore((s) => s.toggleCard);
+
+  const ctx = useMemo(
+    () => planningContextOf({ people, activePersonId, spend, spendMode, monthlySpend: {}, overrides: {}, subEarned: [], cardConfigs: {} }),
+    [people, activePersonId, spend, spendMode]
+  );
+  const held = ctx.walletCards.some((w) => w.card.id === card.id);
+  const result = useMemo(
+    () => (held ? null : whatIfAdd(ctx.walletCards, ctx.spend, card, tier, creditUsage)),
+    [held, ctx, card, tier, creditUsage]
+  );
+  if (!result) return null;
+
+  const delta = Math.round(result.delta);
+  const whose = sandboxOn ? "your sandbox wallet" : "your wallet";
+
+  return (
+    <Section label="What if I added this card?">
+      <div className="rounded-lg bg-surface p-3 flex items-center justify-between gap-3">
+        <p className="text-[14px] text-primary leading-snug">
+          {delta > 0 ? (
+            <>
+              Adds about <span className="font-semibold text-green">${delta.toLocaleString()} a year</span> to {whose}{" "}
+              at your spending, after fees.
+            </>
+          ) : (
+            <>Wouldn’t add value to {whose} at your spending{card.fee ? " once the fee is counted" : ""}.</>
+          )}
+        </p>
+        {!sandboxOn && (
+          <button
+            onClick={() => {
+              enterSandbox();
+              toggleCard(card.id, candidateConfig(card, ctx.spend));
+            }}
+            className="shrink-0 text-[13px] font-medium px-3 py-1.5 rounded-md border border-medium bg-white hover:border-strong"
+          >
+            Try in sandbox
+          </button>
+        )}
+      </div>
+    </Section>
   );
 }
 

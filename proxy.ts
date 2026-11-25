@@ -12,6 +12,7 @@ const OPEN_PREFIXES = [
   "/wallet",
   "/simulate",
   "/optimize",
+  "/sandbox",
   "/reports",
   "/settings",
   "/api",

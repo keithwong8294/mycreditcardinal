@@ -101,13 +101,17 @@ export async function hydrateFromSupabase(userId: string): Promise<void> {
   }
 
   // 8. Set store — preserve activePersonId if it's still valid
-  const currentActiveId = useStore.getState().activePersonId;
+  const currentActiveId = (useStore.getState().sandbox.real ?? useStore.getState()).activePersonId;
   const activePersonId = people.some((p) => p.id === currentActiveId)
     ? currentActiveId
     : (people[0]?.id ?? currentActiveId);
 
+  // In sandbox mode the real wallet lives in the snapshot: hydrate that.
+  const { sandbox } = useStore.getState();
+  const real = sandbox.active ? sandbox.real : null;
+
   // Merge with existing spend (don't overwrite members not returned from DB)
-  const currentSpend = useStore.getState().spend;
+  const currentSpend = real?.spend ?? useStore.getState().spend;
   const mergedSpend: Record<string, Record<string, number>> = { ...currentSpend };
   for (const [memberId, memberSpend] of Object.entries(spendByMember)) {
     mergedSpend[memberId] = memberSpend;
@@ -121,12 +125,9 @@ export async function hydrateFromSupabase(userId: string): Promise<void> {
     }
   }
 
+  const hydrated = { people, activePersonId, cardConfigs, subEarned, spend: mergedSpend };
   useStore.setState({
-    people,
-    activePersonId,
-    cardConfigs,
-    subEarned,
-    spend: mergedSpend,
+    ...(real ? { sandbox: { active: true, real: { ...real, ...hydrated } } } : hydrated),
     syncMeta: {
       householdId: household.id,
       spendProfileId: null, // now per-member, managed in sync step
@@ -140,7 +141,8 @@ export async function syncToSupabase(userId: string): Promise<void> {
   const supabase = createClient();
   const state = useStore.getState();
   const { householdId } = state.syncMeta;
-  if (!householdId) return;
+  // Sandbox wallets are scratch work: never upload them.
+  if (!householdId || state.sandbox.active) return;
 
   const currentMemberIds = state.people.map((p) => p.id);
 
@@ -285,6 +287,7 @@ export function createSyncer(userId: string): () => void {
 
   // Subscribe to store changes that warrant a DB write
   const unsubscribe = useStore.subscribe((state, prev) => {
+    if (state.sandbox.active) return;
     if (
       state.people !== prev.people ||
       state.spend !== prev.spend ||
