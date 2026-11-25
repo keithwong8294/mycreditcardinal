@@ -134,13 +134,13 @@ describe("routeMonth — basic routing", () => {
   });
 
   it("calculates points and dollar value correctly", () => {
-    // CSR: 3x dining, chase_ur at composite 1.70¢
-    // $300 dining * 3x = 900 pts * 1.70¢ = $15.30
+    // CSR: 3x dining, chase_ur at composite 1.85¢
+    // $300 dining * 3x = 900 pts * 1.85¢ = $16.65
     const wallet = [makeWalletCard("csr")];
     const result = routeMonth(wallet, { dining: 300 }, {}, 1, "composite");
     const diningRow = result.rows.find((r) => r.categoryId === "dining");
     expect(diningRow!.points).toBeCloseTo(900);
-    expect(diningRow!.dollarValue).toBeCloseTo(15.3);
+    expect(diningRow!.dollarValue).toBeCloseTo(16.65);
   });
 
   it("changing valuation tier changes dollar value but not earn rate or routing", () => {
@@ -362,10 +362,10 @@ describe("calculateSubValue", () => {
   });
 
   it("calculates dollar value of earned SUB at composite cpp", () => {
-    // CSR SUB: 100,000 chase_ur at 1.70¢ = $1,700
+    // CSR SUB: 100,000 chase_ur at 1.85¢ = $1,850
     const wc = makeWalletCard("csr");
     const value = calculateSubValue([wc], new Set([wc.id]), "composite");
-    expect(value).toBeCloseTo(1700);
+    expect(value).toBeCloseTo(1850);
   });
 });
 

@@ -118,7 +118,7 @@ export default function PointValuesPage() {
             <h2 className="text-[15px] font-semibold text-primary mb-2">Example</h2>
             <p>
               $100 at 4x earns 400 Amex Membership Rewards points. At cash-out that&apos;s $4. At MCC value
-              (1.70¢) it&apos;s $6.80, but only if you transfer the points to a partner and book travel. The
+              (1.85¢) it&apos;s $7.40, but only if you transfer the points to a partner and book travel. The
               points are the same either way. Only the redemption changes.
             </p>
           </section>
