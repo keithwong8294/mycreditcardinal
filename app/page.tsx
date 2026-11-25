@@ -35,11 +35,15 @@ const exampleSpendTotal = Object.values(EXAMPLE_SPEND).reduce((a, b) => a + b, 0
 const flatCardMonthly = exampleSpendTotal * 0.015;
 const upliftYearly = Math.round((example.totalDollarValue - flatCardMonthly) * 12);
 
-// Preset wallets scored at the same sample spending (no statement credits counted).
-const presetScores = WALLET_PRESETS.slice(0, 6).map((p) => ({
-  preset: p,
-  net: scoreWallet(buildWallet(p.cardIds.map((cardId) => ({ cardId })), EXAMPLE_SPEND), EXAMPLE_SPEND, "composite", "none").net,
-}));
+// Preset wallets scored at the same sample spending, counting half of each
+// card's statement credits (the sandbox default), best first.
+const presetScores = WALLET_PRESETS.slice(0, 6)
+  .map((p) => ({
+    preset: p,
+    score: scoreWallet(buildWallet(p.cardIds.map((cardId) => ({ cardId })), EXAMPLE_SPEND), EXAMPLE_SPEND, "composite", "some"),
+  }))
+  .map((x) => ({ ...x, net: x.score.net }))
+  .sort((a, b) => b.net - a.net);
 const bestPreset = presetScores.reduce((a, b) => (b.net > a.net ? b : a));
 
 const SANDBOX_FEATURES = [
@@ -55,6 +59,8 @@ const ISSUERS = Array.from(new Set(CARDS.map((c) => c.issuer)));
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
+const dollars = (n: number) =>
+  n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
 // ─── Content ──────────────────────────────────────────────────────────────────
 
@@ -266,10 +272,12 @@ export default function Home() {
           <div>
             <div className="flex items-baseline justify-between gap-3 mb-3">
               <span className="text-[13px] font-semibold">Preset wallets, scored</span>
-              <span className="text-[12px] text-[#78716c]">per year after fees, same sample spending as above</span>
+              <span className="text-[12px] text-[#78716c] text-right">
+                value per year at the sample spending above (${exampleSpendTotal.toLocaleString()}/mo)
+              </span>
             </div>
             <ul className="grid sm:grid-cols-2 gap-2.5">
-              {presetScores.map(({ preset, net }) => (
+              {presetScores.map(({ preset, net, score }) => (
                 <li key={preset.id}>
                   <Link
                     href={`/sandbox?preset=${preset.id}`}
@@ -280,6 +288,11 @@ export default function Home() {
                       <span className={`${mono.className} text-[15px] ${preset.id === bestPreset.preset.id ? "text-[#b3261e] font-semibold" : ""}`}>
                         ${Math.round(net).toLocaleString()}
                       </span>
+                    </div>
+                    <div className="mt-1 text-[12px] text-[#78716c] tabular-nums">
+                      {dollars(score.rewards)} earned
+                      {score.fees > 0 && <> − {dollars(score.fees)} fees</>}
+                      {score.credits > 0 && <> + {dollars(score.credits)} credits</>}
                     </div>
                     <div className="mt-2.5 flex gap-1.5">
                       {preset.cardIds.map((id) => (

@@ -51,6 +51,8 @@ interface CardInput {
   currency: string;
   /** See Card.pools_into. */
   pools_into?: string;
+  /** See Card.cash_alone. */
+  cash_alone?: boolean;
   fee: number;
   earn_json: Record<string, number>;
   /** Issuer caps in dollars per `capPeriod` (default "month"). */
@@ -80,6 +82,7 @@ function card(c: CardInput): Card {
     network: c.network,
     currency: c.currency,
     ...(c.pools_into ? { pools_into: c.pools_into } : {}),
+    ...(c.cash_alone ? { cash_alone: true } : {}),
     fee: c.fee,
     earn_json: c.earn_json,
     caps_json: c.caps_json ?? {},
@@ -170,6 +173,7 @@ export const CARDS: Card[] = [
     issuer: "Chase",
     network: "Mastercard",
     currency: "chase_ur",
+    cash_alone: true,
     fee: 0,
     earn_json: earn(1, { dining: 3, drugstore: 3 }),
     sub_json: sub(20000, 500, 3),
@@ -206,6 +210,7 @@ export const CARDS: Card[] = [
     issuer: "Chase",
     network: "Visa",
     currency: "chase_ur",
+    cash_alone: true,
     fee: 0,
     earn_json: earn(1.5, { dining: 3, drugstore: 3 }),
     sub_json: sub(20000, 500, 3),
@@ -249,6 +254,7 @@ export const CARDS: Card[] = [
     issuer: "Chase",
     network: "Visa",
     currency: "chase_ur",
+    cash_alone: true,
     fee: 0,
     earn_json: earn(1.5),
     sub_json: sub(75000, 6000, 3),
@@ -271,6 +277,7 @@ export const CARDS: Card[] = [
     issuer: "Chase",
     network: "Visa",
     currency: "chase_ur",
+    cash_alone: true,
     fee: 0,
     earn_json: earn(1, { streaming: 5, dining: 2, gas: 2 }),
     // $25k/yr at 5% (internet, cable, phone); $25k/yr at 2% (dining, gas)
@@ -744,6 +751,7 @@ export const CARDS: Card[] = [
     issuer: "Citi",
     network: "Mastercard",
     currency: "citi_typ",
+    cash_alone: true,
     fee: 0,
     earn_json: earn(1, { groceries: 3, gas: 3, dining: 2 }),
     sub_json: sub(20000, 1000, 3),
@@ -765,6 +773,7 @@ export const CARDS: Card[] = [
     issuer: "Citi",
     network: "Mastercard",
     currency: "citi_typ",
+    cash_alone: true,
     fee: 0,
     earn_json: earn(1),
     caps_json: { custom: 500 }, // per billing cycle
@@ -790,6 +799,7 @@ export const CARDS: Card[] = [
     issuer: "Citi",
     network: "Mastercard",
     currency: "citi_typ",
+    cash_alone: true,
     fee: 0,
     earn_json: earn(2),
     sub_json: sub(20000, 1500, 6),
@@ -891,6 +901,7 @@ export const CARDS: Card[] = [
     issuer: "Wells Fargo",
     network: "Visa",
     currency: "wf",
+    cash_alone: true,
     fee: 0,
     earn_json: earn(1, { dining: 3, travel: 3, hotels: 3, gas: 3, transit: 3, streaming: 3 }),
     sub_json: sub(20000, 1000, 3),

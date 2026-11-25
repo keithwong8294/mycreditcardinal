@@ -175,7 +175,8 @@ describe("routeMonth — cap overflow", () => {
     // Citi Custom Cash: 5x dining up to $500/mo, base 1x after
     // Set spend > $500 to trigger overflow
     const cc = makeWalletCard("citi_custom_cash", { rotQ: [null, null, null, null], custom: ["dining"] });
-    const csr = makeWalletCard("csr"); // 3x dining, no cap
+    // Strata Premier: 3x dining, no cap (and it makes Custom Cash points ThankYou points)
+    const csr = makeWalletCard("citi_strata_premier");
     const wallet = [cc, csr];
     const result = routeMonth(wallet, { dining: 700 }, {}, 1);
     const diningRow = result.rows.find((r) => r.categoryId === "dining");
@@ -185,33 +186,33 @@ describe("routeMonth — cap overflow", () => {
     expect(diningRow!.capHit).toBe(true);
     expect(diningRow!.overflow.length).toBeGreaterThan(0);
 
-    // Overflow should go to CSR at 3x for remaining $200
+    // Overflow should go to Strata Premier at 3x for remaining $200
     const ov = diningRow!.overflow[0];
-    expect(ov.walletCard.card.id).toBe("csr");
+    expect(ov.walletCard.card.id).toBe("citi_strata_premier");
     expect(ov.spend).toBeCloseTo(200);
   });
 
   it("custom-select cap is shared across selected categories", () => {
     // Citi Custom Cash: $500/mo shared cap across custom-selected categories
-    const cc = makeWalletCard("citi_custom_cash", { rotQ: [null, null, null, null], custom: ["dining", "groceries"] });
-    const fallback = makeWalletCard("csr");
+    const cc = makeWalletCard("citi_custom_cash", { rotQ: [null, null, null, null], custom: ["dining", "streaming"] });
+    const fallback = makeWalletCard("citi_strata_premier");
     const wallet = [cc, fallback];
 
     // $600 of spend for a $500 cap. The cap goes where it gains most:
-    // groceries (else 1x on CSR) before dining (else 3x on CSR).
-    const result = routeMonth(wallet, { dining: 400, groceries: 200 }, {}, 1);
-    const grocRow = result.rows.find((r) => r.categoryId === "groceries")!;
+    // streaming (else 1x on Strata Premier) before dining (else 3x).
+    const result = routeMonth(wallet, { dining: 400, streaming: 200 }, {}, 1);
+    const grocRow = result.rows.find((r) => r.categoryId === "streaming")!;
     const dinRow = result.rows.find((r) => r.categoryId === "dining")!;
 
     expect(grocRow.walletCard.card.id).toBe("citi_custom_cash");
     expect(grocRow.spend).toBeCloseTo(200);
     expect(dinRow.walletCard.card.id).toBe("citi_custom_cash");
     expect(dinRow.spend).toBeCloseTo(300);
-    expect(dinRow.overflow[0].walletCard.card.id).toBe("csr");
+    expect(dinRow.overflow[0].walletCard.card.id).toBe("citi_strata_premier");
     expect(dinRow.overflow[0].spend).toBeCloseTo(100);
     // Rows still come back in category order
     expect(result.rows.map((r) => r.categoryId).indexOf("dining")).toBeLessThan(
-      result.rows.map((r) => r.categoryId).indexOf("groceries")
+      result.rows.map((r) => r.categoryId).indexOf("streaming")
     );
   });
 
@@ -241,10 +242,10 @@ describe("routeMonth — cap overflow", () => {
   });
 
   it("spend past a rotating cap keeps the card's own regular rate when that's best", () => {
-    // Past $1,500 at 7x, CFF still earns 3x Chase points on dining (~6%),
-    // which beats SavorOne's 3% cash back.
+    // Past $1,500 at 7x, CFF still earns 3% on dining, which beats a
+    // 2% catch-all.
     const cff = makeWalletCard("cff", { rotQ: ["dining", null, null, null], custom: [] });
-    const savor = makeWalletCard("c1_savorone");
+    const savor = makeWalletCard("wf_active_cash");
     const row = routeMonth([savor, cff], { dining: 2000 }, {}, 1).rows.find((r) => r.categoryId === "dining")!;
     expect(row.walletCard.card.id).toBe("cff");
     expect(row.earnRate).toBe(7);
@@ -486,8 +487,8 @@ describe("routing and ranking use real value, not raw multipliers", () => {
   });
 
   it("routes to the card worth more per dollar, not the bigger multiplier", () => {
-    // 1.5x Chase points (~2¢) = 3% vs 2% cash back
-    const wallet = [makeWalletCard("wf_active_cash"), makeWalletCard("cfu")];
+    // 1.5x Chase points (~2¢ with a Sapphire) = 3% vs 2% cash back
+    const wallet = [makeWalletCard("wf_active_cash"), makeWalletCard("cfu"), makeWalletCard("csp")];
     const r = routeMonth(wallet, { other: 1000 }, {}, 1, "floor");
     expect(r.rows.find((x) => x.categoryId === "other")!.walletCard.card.id).toBe("cfu");
     // ...but someone cashing out points gets the 2% card
@@ -641,5 +642,22 @@ describe("routeMonth: same-rate cards", () => {
     const savor = makeWalletCard("c1_savorone");
     const r = routeMonth([makeWalletCard("csp"), savor], { dining: 300 }, { dining: savor.id }, 1);
     expect(r.rows[0].alsoEarn).toBeUndefined();
+  });
+});
+
+describe("cash_alone cards", () => {
+  it("values Freedom points as cash back without a Sapphire, and as Chase points with one", () => {
+    const alone = routeMonth([makeWalletCard("cfu")], { other: 1000 }, {}, 1);
+    expect(alone.currencyTotals.map((c) => c.currencyId)).toEqual(["cash"]);
+    expect(alone.totalDollarValue).toBeCloseTo(15);
+    const withCsp = routeMonth([makeWalletCard("cfu"), makeWalletCard("csp")], { other: 1000 }, {}, 1);
+    expect(withCsp.rows[0].walletCard.card.id).toBe("cfu");
+    expect(withCsp.currencyTotals.map((c) => c.currencyId)).toEqual(["chase_ur"]);
+    expect(withCsp.totalDollarValue).toBeGreaterThan(15);
+  });
+
+  it("two cash_alone cards of the same bank don't unlock each other", () => {
+    const r = routeMonth([makeWalletCard("cfu"), makeWalletCard("cff")], { other: 1000 }, {}, 1);
+    expect(r.currencyTotals.map((c) => c.currencyId)).toEqual(["cash"]);
   });
 });

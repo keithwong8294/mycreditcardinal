@@ -369,14 +369,18 @@ export function rankingValuation(
  */
 /**
  * The currency each wallet card's rewards end up in: a card with `pools_into`
- * earns that currency when the wallet holds a card that earns it natively.
+ * earns that currency when the wallet holds a card that earns it natively,
+ * and a `cash_alone` card's points are only cash back without such a card.
  */
 export function pooledCurrencies(walletCards: WalletCard[]): Map<string, string> {
-  const native = new Set(walletCards.map((wc) => wc.card.currency));
+  // Currencies the wallet can fully use (a card earns them on its own terms).
+  const full = new Set(walletCards.filter((wc) => !wc.card.cash_alone).map((wc) => wc.card.currency));
   return new Map(
     walletCards.map((wc) => {
-      const into = wc.card.pools_into;
-      return [wc.id, into && native.has(into) ? into : wc.card.currency];
+      const { pools_into: into, cash_alone, currency } = wc.card;
+      if (into && full.has(into)) return [wc.id, into];
+      if (cash_alone && !full.has(currency)) return [wc.id, "cash"];
+      return [wc.id, currency];
     })
   );
 }
@@ -644,11 +648,12 @@ export function calculateSubValue(
   tier: Valuation = "composite"
 ): number {
   let total = 0;
+  const pooled = pooledCurrencies(walletCards);
   for (const wc of walletCards) {
     if (!earnedSubIds.has(wc.id)) continue;
     const sub = wc.card.sub_json;
     if (!sub) continue;
-    const cpp = getCpp(wc.card.currency, tier);
+    const cpp = getCpp(pooled.get(wc.id) ?? wc.card.currency, tier);
     total += (sub.points * cpp) / 10000;
   }
   return total;
@@ -974,7 +979,10 @@ export function getRecommendationSummary(
 
     const sub = card.sub_json;
     const subReachable = sub != null && monthlyTotal * sub.timeframe_months >= sub.spend_requirement;
-    const subValue = sub && subReachable ? (sub.points * getCpp(card.currency, rankTier)) / 10000 : 0;
+    const subCurrency =
+      pooledCurrencies([...walletCards, { id: "__candidate__", card, config: candidateConfig(card, planSpend) }]).get("__candidate__") ??
+      card.currency;
+    const subValue = sub && subReachable ? (sub.points * getCpp(subCurrency, rankTier)) / 10000 : 0;
 
     const ongoingValue = earnGain + creditValue - card.fee;
     const firstYearValue = ongoingValue + subValue;

@@ -19,28 +19,28 @@ export interface WalletPreset {
 
 export const WALLET_PRESETS: WalletPreset[] = [
   {
-    id: "no-fee-starter",
-    name: "No-fee starter",
-    blurb: "Three cards, $0 in fees. A rotating 5%, a pick-your-category 5% and a solid catch-all.",
-    cardIds: ["cfu", "cff", "citi_custom_cash"],
-  },
-  {
     id: "one-card",
     name: "One card, 2% everywhere",
     blurb: "The simplest wallet there is. The baseline every other setup has to beat.",
     cardIds: ["wf_active_cash"],
   },
   {
+    id: "no-fee-starter",
+    name: "No-fee starter",
+    blurb: "$0 in fees. Savor's 3% on food turns into miles with VentureOne, plus Freedom Flex's rotating 5%.",
+    cardIds: ["c1_savorone", "c1_ventureone", "cff"],
+  },
+  {
     id: "chase-trifecta",
     name: "Chase trifecta",
-    blurb: "Sapphire Reserve plus both Freedoms, pooling Ultimate Rewards for travel.",
-    cardIds: ["csr", "cfu", "cff"],
+    blurb: "Sapphire Preferred plus both Freedoms. The Sapphire turns the Freedoms' cash back into travel points.",
+    cardIds: ["csp", "cfu", "cff"],
   },
   {
     id: "amex-foodie",
     name: "Amex foodie",
-    blurb: "Gold for restaurants and groceries, Blue Cash Preferred for gas and streaming.",
-    cardIds: ["amex_gold", "amex_bcp"],
+    blurb: "Gold's 4x on restaurants and groceries, Blue Cash Everyday's 3% on gas and online shopping.",
+    cardIds: ["amex_gold", "amex_bce"],
   },
   {
     id: "citi-trifecta",
@@ -50,15 +50,27 @@ export const WALLET_PRESETS: WalletPreset[] = [
   },
   {
     id: "venture-duo",
-    name: "Capital One travel",
-    blurb: "Venture X for travel and 2x everywhere, Savor for dining and groceries.",
+    name: "Capital One duo",
+    blurb: "Venture's 2x miles everywhere, Savor's 3% on dining and groceries moved over as miles.",
+    cardIds: ["c1_venture", "c1_savorone"],
+  },
+  {
+    id: "chase-premium",
+    name: "Chase premium",
+    blurb: "Sapphire Reserve instead of Preferred: more on travel, a $795 fee that its credits have to cover.",
+    cardIds: ["csr", "cfu", "cff"],
+  },
+  {
+    id: "venture-x",
+    name: "Venture X + Savor",
+    blurb: "Capital One's premium card. Worth it if you use the travel credit and lounges.",
     cardIds: ["c1_venturex", "c1_savorone"],
   },
   {
     id: "renter",
     name: "Renter’s wallet",
-    blurb: "Bilt for rent with no fee, Freedom Unlimited for everything else.",
-    cardIds: ["bilt", "cfu"],
+    blurb: "Bilt Obsidian earns points on rent with no fee, plus 3x on dining or groceries.",
+    cardIds: ["bilt_obsidian"],
   },
 ];
 

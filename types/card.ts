@@ -12,6 +12,11 @@ export interface Card {
    * card earning it (Savor cash back → Venture miles). Valued as that currency then.
    */
   pools_into?: string;
+  /**
+   * Points are only worth cash back unless the wallet also has a card that
+   * earns this currency without the flag (Freedom Unlimited → needs a Sapphire).
+   */
+  cash_alone?: boolean;
   fee: number;
 
   /** Per-category earn rates. Key = category ID, value = multiplier (e.g. 3 = 3x) */
