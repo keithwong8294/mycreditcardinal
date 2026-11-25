@@ -97,3 +97,14 @@ describe("share links", () => {
     expect(decodeWallet(null)).toEqual([]);
   });
 });
+
+describe("sign-up bonuses in the score", () => {
+  it("count in year 1 only, and only when the spending reaches them", () => {
+    const w = buildWallet([{ cardId: "csp" }], SPEND);
+    const s = scoreWallet(w, SPEND);
+    expect(s.subs).toBeGreaterThan(0);
+    expect(s.firstYear).toBeCloseTo(s.net + s.subs);
+    const tiny = { ...Object.fromEntries(Object.keys(SPEND).map((k) => [k, 0])), other: 100 };
+    expect(scoreWallet(buildWallet([{ cardId: "csp" }], tiny), tiny).subs).toBe(0);
+  });
+});

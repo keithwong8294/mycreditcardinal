@@ -113,6 +113,7 @@ export default function SandboxPage() {
                 score={sbScore}
                 cards={walletCards}
                 highlight
+                showFirstYear
                 delta={sbScore.net - realScore.net}
               />
             </section>
@@ -221,8 +222,13 @@ export default function SandboxPage() {
               >
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="text-[15px] font-semibold text-ink">{preset.name}</span>
-                  <span className="text-[15px] font-semibold text-green font-mono">{usd(score.net)}</span>
+                  <span className="text-[15px] font-semibold text-green font-mono">{usd(score.net)}/yr</span>
                 </div>
+                {score.subs > 0 && (
+                  <div className="text-[12px] text-tertiary">
+                    Year 1 with sign-up bonuses: <span className="font-mono text-secondary">{usd(score.firstYear)}</span>
+                  </div>
+                )}
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   {preset.cardIds.map((id, i) =>
                     i === 0 && preset.alternatives ? (
@@ -259,12 +265,15 @@ function ScoreCard({
   cards,
   highlight,
   delta,
+  showFirstYear,
 }: {
   label: string;
   score: WalletScore;
   cards: WalletCard[];
   highlight?: boolean;
   delta?: number;
+  /** Show the year-1 value with sign-up bonuses (cards you'd open, not ones you hold). */
+  showFirstYear?: boolean;
 }) {
   return (
     <div
@@ -284,8 +293,13 @@ function ScoreCard({
       </div>
       <div className="mt-1 flex items-baseline gap-2">
         <span className="font-display text-[44px] leading-none">{usd(score.net)}</span>
-        <span className={`text-[13px] ${highlight ? "text-paper/60" : "text-tertiary"}`}>a year</span>
+        <span className={`text-[13px] ${highlight ? "text-paper/60" : "text-tertiary"}`}>each year</span>
       </div>
+      {showFirstYear && score.subs > 0 && (
+        <div className={`mt-1 text-[13px] ${highlight ? "text-paper/70" : "text-secondary"}`}>
+          Year 1 with {usd(score.subs)} in sign-up bonuses: <span className="font-mono">{usd(score.firstYear)}</span>
+        </div>
+      )}
       <div className={`mt-3 grid grid-cols-3 gap-2 text-[12px] ${highlight ? "text-paper/70" : "text-secondary"}`}>
         <div>
           Rewards

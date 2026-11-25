@@ -53,13 +53,14 @@ const examples = MODES.map((mode) => {
   };
 });
 
-// Preset wallets scored at the same sample spending, counting half of each
-// card's statement credits (the sandbox default), best first at cash-out.
+// Preset wallets scored at the same sample spending: year 1 = sign-up
+// bonuses + rewards + statement credits (capped at each card's fee) − fees;
+// later years drop the bonuses. Best first by later years, at cash-out.
 const presetScores = WALLET_PRESETS.slice(0, 6)
   .map((p) => {
     const wallet = buildWallet(p.cardIds.map((cardId) => ({ cardId })), EXAMPLE_SPEND);
     const scores = Object.fromEntries(
-      MODES.map((m) => [m, scoreWallet(wallet, EXAMPLE_SPEND, VALUATIONS[m], "some")])
+      MODES.map((m) => [m, scoreWallet(wallet, EXAMPLE_SPEND, VALUATIONS[m], "all")])
     ) as Record<PointMode, ReturnType<typeof scoreWallet>>;
     return { preset: p, scores };
   })
@@ -307,7 +308,8 @@ export default function Home() {
               <PointValueToggle />
             </div>
             <p className="-mt-1 mb-3 text-[12px] text-[#78716c]">
-              Value per year at the sample spending above (${exampleSpendTotal.toLocaleString()}/mo),{" "}
+              Sign-up bonuses, rewards and statement credits minus annual fees, at the sample spending above
+              (${exampleSpendTotal.toLocaleString()}/mo),{" "}
               <span className="pv-floor">with points at cash-out value (about 1¢).</span>
               <span className="pv-mcc">with points at MCC values, which assume you transfer them for travel.</span>{" "}
               <Link href="/point-values" className="underline underline-offset-2 hover:text-[#1c1917]">
@@ -323,20 +325,27 @@ export default function Home() {
                   >
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="text-[15px] font-semibold">{preset.name}</span>
-                      {MODES.map((m) => (
-                        <span
-                          key={m}
-                          className={`pv-${m} ${mono.className} text-[15px] ${preset.id === bestPresetId[m] ? "text-[#b3261e] font-semibold" : ""}`}
-                        >
-                          {dollars(scores[m].net)}
-                        </span>
-                      ))}
                     </div>
                     {MODES.map((m) => (
-                      <div key={m} className={`pv-${m} mt-1 text-[12px] text-[#78716c] tabular-nums`}>
-                        {dollars(scores[m].rewards)} earned
-                        {scores[m].fees > 0 && <> − {dollars(scores[m].fees)} fees</>}
-                        {scores[m].credits > 0 && <> + {dollars(scores[m].credits)} credits</>}
+                      <div key={m} className={`pv-${m}`}>
+                        <div className={`${mono.className} mt-1.5 grid grid-cols-2 gap-2`}>
+                          <div>
+                            <div className="text-[11px] text-[#78716c] font-sans">Year 1</div>
+                            <div className="text-[17px]">{dollars(scores[m].firstYear)}</div>
+                          </div>
+                          <div>
+                            <div className="text-[11px] text-[#78716c] font-sans">Each year after</div>
+                            <div className={`text-[17px] ${preset.id === bestPresetId[m] ? "text-[#b3261e] font-semibold" : ""}`}>
+                              {dollars(scores[m].net)}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-1 text-[12px] text-[#78716c] tabular-nums">
+                          {dollars(scores[m].rewards)} earned
+                          {scores[m].credits > 0 && <> + {dollars(scores[m].credits)} credits</>}
+                          {scores[m].fees > 0 && <> − {dollars(scores[m].fees)} fees</>}
+                          {scores[m].subs > 0 && <>, plus a {dollars(scores[m].subs)} sign-up bonus in year 1</>}
+                        </div>
                       </div>
                     ))}
                     <div className="mt-2.5 flex flex-wrap items-center gap-1.5">

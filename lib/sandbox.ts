@@ -6,7 +6,8 @@
 import type { Card, CardConfig, WalletCard } from "@/types";
 import { CARDS, CARD_MAP } from "./cards";
 import { CATEGORIES } from "./categories";
-import { candidateConfig, routeAnnual, type CreditUsage, type Valuation } from "./engine";
+import { candidateConfig, pooledCurrencies, routeAnnual, type CreditUsage, type Valuation } from "./engine";
+import { CURRENCY_MAP } from "./currencies";
 
 // ─── Presets ──────────────────────────────────────────────────────────────────
 
@@ -54,20 +55,14 @@ export const WALLET_PRESETS: WalletPreset[] = [
   {
     id: "venture-duo",
     name: "Capital One duo",
-    blurb: "Venture's 2x miles everywhere, Savor's 3% on dining and groceries moved over as miles.",
-    cardIds: ["c1_venture", "c1_savorone"],
+    blurb: "Venture X's 2x miles everywhere, Savor's 3% on dining and groceries moved over as miles. Its travel credit and anniversary miles cover the fee.",
+    cardIds: ["c1_venturex", "c1_savorone"],
   },
   {
     id: "chase-premium",
     name: "Chase premium",
     blurb: "Sapphire Reserve instead of Preferred: more on travel, a $795 fee that its credits have to cover.",
     cardIds: ["csr", "cfu", "cff"],
-  },
-  {
-    id: "venture-x",
-    name: "Venture X + Savor",
-    blurb: "Capital One's premium card. Worth it if you use the travel credit and lounges.",
-    cardIds: ["c1_venturex", "c1_savorone"],
   },
   {
     id: "renter",
@@ -115,8 +110,12 @@ export interface WalletScore {
   fees: number;
   /** Statement credits counted (share you'd use, capped at each card's fee). */
   credits: number;
-  /** rewards + credits − fees: what the wallet is worth to you per year. */
+  /** Sign-up bonuses this spending reaches in time (first year only). */
+  subs: number;
+  /** rewards + credits − fees: what the wallet is worth each year after the first. */
   net: number;
+  /** net + sign-up bonuses: the first year. */
+  firstYear: number;
   /** Yearly spend. */
   spend: number;
   /** Net value per $100 spent, the "effective return" in percent. */
@@ -137,9 +136,49 @@ export function scoreWallet(
     const c = card.perks_json.reduce((s, p) => s + (p.annual_credit ?? 0), 0) * CREDIT_SHARE[creditUsage];
     credits += Math.min(c, card.fee);
   }
-  const yearSpend = Object.values(spend).reduce((s, v) => s + (v > 0 ? v : 0), 0) * 12;
+  const monthly = Object.values(spend).reduce((s, v) => s + (v > 0 ? v : 0), 0);
+  const yearSpend = monthly * 12;
+  const subs = subValue(walletCards, monthly, tier);
   const net = rewards + credits - fees;
-  return { rewards, fees, credits, net, spend: yearSpend, returnPct: yearSpend ? (net / yearSpend) * 100 : 0 };
+  return {
+    rewards,
+    fees,
+    credits,
+    subs,
+    net,
+    firstYear: net + subs,
+    spend: yearSpend,
+    returnPct: yearSpend ? (net / yearSpend) * 100 : 0,
+  };
+}
+
+/**
+ * Sign-up bonuses worth counting in year 1. A card's bonus counts when this
+ * monthly spending, all put on that card, meets its requirement in time, and
+ * the requirements of all counted bonuses fit in a year of spending (cards
+ * opened one after another). Biggest bonuses first; valued like the card's
+ * rewards (pooled currency, same point values).
+ */
+export function subValue(walletCards: WalletCard[], monthlySpend: number, tier: Valuation = "composite"): number {
+  const pooled = pooledCurrencies(walletCards);
+  const offers = walletCards
+    .filter((wc) => wc.card.sub_json)
+    .map((wc) => {
+      const sub = wc.card.sub_json!;
+      const currency = pooled.get(wc.id) ?? wc.card.currency;
+      const cpp = typeof tier === "function" ? tier(currency) : (CURRENCY_MAP[currency]?.[tier] ?? 100);
+      return { sub, value: (sub.points * cpp) / 10000 };
+    })
+    .sort((a, b) => b.value - a.value);
+  let total = 0;
+  let committed = 0;
+  for (const { sub, value } of offers) {
+    if (monthlySpend * sub.timeframe_months < sub.spend_requirement) continue;
+    if (committed + sub.spend_requirement > monthlySpend * 12) continue;
+    committed += sub.spend_requirement;
+    total += value;
+  }
+  return total;
 }
 
 /** Per-category yearly value (primary + overflow), for side-by-side tables. */
