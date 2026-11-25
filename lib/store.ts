@@ -164,6 +164,8 @@ export interface AppActions {
   // Spend — Layer 1 (default average)
   setSpend: (memberId: string, categoryId: string, amount: number) => void;
   resetSpend: (memberId: string) => void;
+  /** Replaces a member's typical spend in one update (e.g. a preset). */
+  replaceSpend: (memberId: string, values: Record<string, number>) => void;
   // Spend — Layer 2 (monthly overrides, "YYYY-MM" key)
   setMonthlySpend: (memberId: string, categoryId: string, yearMonth: string, amount: number) => void;
   clearMonthlySpend: (memberId: string, categoryId: string, yearMonth: string) => void;
@@ -408,6 +410,10 @@ export const useStore = create<Store>()(
 
       resetSpend(memberId) {
         set((s) => ({ spend: { ...s.spend, [memberId]: defaultSpend() } }));
+      },
+
+      replaceSpend(memberId, values) {
+        set((s) => ({ spend: { ...s.spend, [memberId]: { ...defaultSpend(), ...values } } }));
       },
 
       setMonthlySpend(memberId, categoryId, yearMonth, amount) {

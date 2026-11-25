@@ -15,6 +15,7 @@ import {
 import type { CapStatus } from "@/lib/engine";
 import type { RoutingResult, RoutingRow, WalletCard } from "@/types";
 import { PageHeader } from "@/components/PageHeader";
+import { AverageSpendPreset } from "@/components/AverageSpendPreset";
 import {
   Select,
   SelectContent,
@@ -609,6 +610,7 @@ export default function SimulatePage() {
             ↺ Reset {monthLabel}
           </button>
         )}
+        <AverageSpendPreset merged={merged} />
       </div>
 
       {/* ── Year summary ───────────────────────────────────────────────────── */}
