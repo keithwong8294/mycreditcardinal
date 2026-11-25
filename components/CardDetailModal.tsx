@@ -259,7 +259,14 @@ export function CardDetailModal({
                 <div className="space-y-1.5">
                   {card.perks_json.map((perk, i) => (
                     <div key={i} className="flex items-start justify-between gap-3">
-                      <span className="text-[14px] text-primary">{perk.label}</span>
+                      <span className="text-[14px] text-primary">
+                        {perk.label}
+                        {perk.where && (
+                          <span className="block text-[12px] text-tertiary">
+                            {perk.annual_points ? perk.where : `Only for ${perk.where}`}
+                          </span>
+                        )}
+                      </span>
                       <span className="text-[13px] text-secondary text-right shrink-0">
                         {perk.value}
                       </span>

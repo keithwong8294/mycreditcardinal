@@ -104,6 +104,8 @@ export interface SubBonus {
 export interface Perk {
   label: string;
   value: string;
+  /** Where a credit can be used (vendor or booking channel). */
+  where?: string;
   annual_credit?: number;
   /** Points or miles the card deposits every year (in its own currency); valued like its rewards. */
   annual_points?: number;
