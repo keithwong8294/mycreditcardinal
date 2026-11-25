@@ -478,7 +478,12 @@ export default function SimulatePage() {
   const year = today.getFullYear();
   const months = useMemo(() => monthsOf(year), [year]);
   const [monthIdx, setMonthIdx] = useState(() => today.getMonth());
-  const [editMonthOnly, setEditMonthOnly] = useState(false);
+  // This month's spending is the typical month (used for every month not
+  // changed); edits to any other month apply to that month only.
+  // Start with just this month; the user adds months as they go. Months
+  // with one-off amounts always show, so nothing entered is hidden.
+  const [addedMonths, setAddedMonths] = useState<number[]>([]);
+  const editMonthOnly = monthIdx !== today.getMonth();
   const selectedMonth = months[monthIdx];
   const quarter = monthToQuarter(selectedMonth);
 
@@ -563,6 +568,22 @@ export default function SimulatePage() {
   }
 
   const monthLabel = MONTH_LABELS[monthIdx];
+  const editedMonths = new Set<number>();
+  for (const p of profiles)
+    for (const byMonth of Object.values(allMonthlySpend[p.key] ?? {}))
+      for (const ym of Object.keys(byMonth)) {
+        const i = months.indexOf(ym);
+        if (i >= 0) editedMonths.add(i);
+      }
+  const shownMonths = [...new Set([today.getMonth(), monthIdx, ...addedMonths, ...editedMonths])].sort((a, b) => a - b);
+  const last = shownMonths[shownMonths.length - 1];
+  // Next month after the last one shown; once December is in, fill in earlier months.
+  const nextMonth = last < 11 ? last + 1 : [...Array(12).keys()].reverse().find((i) => !shownMonths.includes(i));
+  const addMonth = () => {
+    if (nextMonth === undefined) return;
+    setAddedMonths((a) => [...a, nextMonth]);
+    setMonthIdx(nextMonth);
+  };
   const selectedHasOverrides = profiles.some((p) =>
     Object.values(allMonthlySpend[p.key] ?? {}).some((m) => selectedMonth in m)
   );
@@ -587,25 +608,27 @@ export default function SimulatePage() {
             ]}
           />
         )}
-        <Segmented
-          label={`Month (${year})`}
-          value={String(monthIdx)}
-          onChange={(v) => setMonthIdx(Number(v))}
-          options={MONTH_LABELS.map((m, i) => ({
-            value: String(i),
-            label: i === today.getMonth() ? <span className="underline underline-offset-4 decoration-cardinal">{m}</span> : m,
-            title: i === today.getMonth() ? "This month" : undefined,
-          }))}
-        />
-        <Segmented
-          label="Edits change"
-          value={editMonthOnly ? "month" : "every"}
-          onChange={(v) => setEditMonthOnly(v === "month")}
-          options={[
-            { value: "every", label: "Every month", title: "Your typical spending, used for every month" },
-            { value: "month", label: `Only ${monthLabel}`, title: "A one-off amount for this month" },
-          ]}
-        />
+        <div className="flex items-end gap-2 min-w-0 max-w-full">
+          <Segmented
+            label={`Month (${year})`}
+            value={String(monthIdx)}
+            onChange={(v) => setMonthIdx(Number(v))}
+            options={shownMonths.map((i) => ({
+              value: String(i),
+              label: i === today.getMonth() ? <span className="underline underline-offset-4 decoration-cardinal">{MONTH_LABELS[i]}</span> : MONTH_LABELS[i],
+              title: i === today.getMonth() ? "This month" : undefined,
+            }))}
+          />
+          {nextMonth !== undefined && (
+            <button
+              type="button"
+              onClick={addMonth}
+              className="px-3 py-1.5 text-[13px] font-medium text-secondary border border-dashed border-subtle hover:border-ink/40 hover:text-primary rounded-lg whitespace-nowrap shrink-0 bg-white"
+            >
+              + {MONTH_LABELS[nextMonth]}
+            </button>
+          )}
+        </div>
         <Segmented
           label={
             <>
@@ -664,8 +687,8 @@ export default function SimulatePage() {
         <div>
           Showing <strong className="text-primary">{monthLabel} {year}</strong>, with bonus caps already used earlier in the period counted.{" "}
           {editMonthOnly
-            ? <>Changes apply to {monthLabel} only; ↺ puts a category back to your typical amount.</>
-            : <>Changes set your typical spending for every month.</>}
+            ? <>Changes apply to {monthLabel} only; ↺ puts a category back to {MONTH_LABELS[today.getMonth()]}&apos;s amount.</>
+            : <>{monthLabel} is your typical month: the year totals use it for every month you don&apos;t change.</>}
           {merged && " Spending is pooled, so any card in the household can be used."}
         </div>
         {rotating.length > 0 && (
